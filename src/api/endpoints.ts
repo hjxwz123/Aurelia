@@ -179,4 +179,14 @@ export const adminApi = {
   settings: () => api<Record<string, unknown>>('/admin/settings'),
   updateSettings: (patch: Record<string, unknown>) =>
     api<Record<string, unknown>>('/admin/settings', { method: 'PATCH', body: patch }),
+
+  // Icon upload — returns { url, filename } where `url` is a path the model's
+  // icon column can store directly (e.g. "/api/icons/abc123.png"). Backend
+  // enforces a 256 KiB cap, png/jpg/jpeg only, header sniff + structural
+  // decode to reject polyglots — see admin_uploads.go.
+  uploadIcon: (file: File) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    return api<{ url: string; filename: string }>('/admin/icons', { method: 'POST', body: fd })
+  },
 }

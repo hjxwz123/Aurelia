@@ -1,19 +1,25 @@
 /**
- * AdminModels — list, create, edit chat/image/embedding models attached to a
- * channel.
+ * AdminModels — list, quick-create, and entry to per-model settings.
+ *
+ * The list is shallow on purpose: the New-model dialog asks for only the
+ * fields needed to register a row (channel, kind, label, request_id, icon,
+ * description). Behaviour, system prompt, param_controls and pricing live on
+ * the per-model settings page (/admin/models/:id) — reachable via the gear
+ * icon on each row. This avoids a 15-field overflow modal on small screens
+ * and matches the editorial-feel "one job per surface" rule.
  */
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { Plus, Pencil, Trash2 } from 'lucide-react'
+import { Plus, Settings as SettingsIcon, Trash2 } from 'lucide-react'
 import { adminApi, ApiError } from '@/api'
 import type { ApiChannel, ApiModel } from '@/api/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Field } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
-import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
+import { IconUploader } from '@/components/admin/icon-uploader'
 import {
   Dialog,
   DialogBody,
@@ -26,29 +32,36 @@ import {
 import { toast } from '@/hooks/use-toast'
 
 const KINDS = ['chat', 'image', 'embedding'] as const
-const TOOL_MODES = ['native', 'prompt', 'none'] as const
 
-type Draft = Partial<ApiModel>
+type CreateDraft = {
+  channel_id: string
+  kind: ApiModel['kind']
+  label: string
+  request_id: string
+  icon: string
+  description: string
+}
 
-const defaultDraft: Draft = {
+const emptyCreate: CreateDraft = {
+  channel_id: '',
   kind: 'chat',
-  enabled: true,
-  tool_mode: 'native',
-  vision: true,
-  stream: true,
-  param_controls: '[]',
-  currency: 'USD',
+  label: '',
+  request_id: '',
+  icon: '',
+  description: '',
 }
 
 export default function AdminModels() {
   const { t } = useTranslation(['admin', 'common'])
+  const navigate = useNavigate()
   const [channels, setChannels] = useState<ApiChannel[]>([])
   const [models, setModels] = useState<ApiModel[]>([])
   const [loading, setLoading] = useState(true)
-  const [editor, setEditor] = useState<{ open: boolean; row?: ApiModel; draft: Draft }>({
+  const [creator, setCreator] = useState<{ open: boolean; draft: CreateDraft }>({
     open: false,
-    draft: defaultDraft,
+    draft: emptyCreate,
   })
+  const [submitting, setSubmitting] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState<ApiModel | null>(null)
 
   async function load() {
@@ -69,52 +82,47 @@ export default function AdminModels() {
   }, [])
 
   function openNew() {
-    setEditor({ open: true, draft: { ...defaultDraft, channel_id: channels[0]?.id } })
-  }
-
-  function openEdit(row: ApiModel) {
-    setEditor({
+    setCreator({
       open: true,
-      row,
-      draft: {
-        ...row,
-        param_controls:
-          typeof row.param_controls === 'string'
-            ? row.param_controls
-            : JSON.stringify(row.param_controls ?? [], null, 2),
-      },
+      draft: { ...emptyCreate, channel_id: channels[0]?.id ?? '' },
     })
   }
 
-  async function submit() {
-    const d = editor.draft
-    if (!d.channel_id || !d.label || !d.request_id) {
+  async function submitCreate() {
+    const d = creator.draft
+    if (!d.channel_id || !d.label.trim() || !d.request_id.trim()) {
       toast.error(t('admin:models.errors.missingFields'))
       return
     }
-    let parsedPC: unknown = []
+    setSubmitting(true)
     try {
-      parsedPC = typeof d.param_controls === 'string' ? JSON.parse(d.param_controls || '[]') : d.param_controls ?? []
-    } catch {
-      toast.error(t('admin:models.errors.invalidJSON'))
-      return
-    }
-    const payload: Partial<ApiModel> = {
-      ...d,
-      param_controls: parsedPC,
-    }
-    try {
-      if (editor.row) {
-        await adminApi.updateModel(editor.row.id, payload)
-        toast.success(t('admin:models.updated'))
-      } else {
-        await adminApi.createModel(payload)
-        toast.success(t('admin:models.created'))
-      }
-      setEditor({ ...editor, open: false })
+      // Sensible defaults so the row is immediately usable; user fine-tunes on
+      // the settings page. param_controls stays empty list — the editor
+      // accepts JSON text and parses on save.
+      const created = await adminApi.createModel({
+        channel_id: d.channel_id,
+        kind: d.kind,
+        label: d.label.trim(),
+        request_id: d.request_id.trim(),
+        icon: d.icon.trim(),
+        description: d.description.trim(),
+        enabled: true,
+        tool_mode: 'native',
+        vision: true,
+        stream: true,
+        param_controls: [],
+        currency: 'USD',
+      })
+      toast.success(t('admin:models.created'))
+      setCreator({ open: false, draft: emptyCreate })
       await load()
+      // Take the user straight to the full settings page so the next action
+      // (pricing, system prompt, tool mode) is one click away.
+      navigate(`/admin/models/${encodeURIComponent(created.id)}`)
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : t('admin:common.failed'))
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -168,10 +176,20 @@ export default function AdminModels() {
                       {m.kind === 'embedding' ? ` · dim ${m.dim}` : ''}
                     </div>
                   </div>
-                  <Button variant="ghost" size="sm" leadingIcon={<Pencil size={13} aria-hidden />} onClick={() => openEdit(m)}>
-                    {t('admin:common.edit')}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    leadingIcon={<SettingsIcon size={13} aria-hidden />}
+                    onClick={() => navigate(`/admin/models/${encodeURIComponent(m.id)}`)}
+                  >
+                    {t('admin:models.settings')}
                   </Button>
-                  <Button variant="ghost" size="sm" leadingIcon={<Trash2 size={13} aria-hidden />} onClick={() => setConfirmDelete(m)}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    leadingIcon={<Trash2 size={13} aria-hidden />}
+                    onClick={() => setConfirmDelete(m)}
+                  >
                     {t('admin:common.remove')}
                   </Button>
                 </li>
@@ -181,19 +199,22 @@ export default function AdminModels() {
         )}
       </section>
 
-      <Dialog open={editor.open} onOpenChange={(o) => setEditor({ ...editor, open: o })}>
-        <DialogContent size="lg">
+      {/* Quick-create dialog — only the six fields needed to register a row.
+          Everything else lives on /admin/models/:id. */}
+      <Dialog open={creator.open} onOpenChange={(o) => setCreator({ ...creator, open: o })}>
+        <DialogContent size="md">
           <DialogHeader>
-            <DialogTitle>{editor.row ? t('admin:models.editorTitle') : t('admin:models.newTitle')}</DialogTitle>
+            <DialogTitle>{t('admin:models.newTitle')}</DialogTitle>
+            <DialogDescription>{t('admin:models.newDialogLead')}</DialogDescription>
           </DialogHeader>
           <DialogBody>
             <div className="grid grid-cols-2 gap-4">
-              <Field label={t('admin:models.fields.channel')} htmlFor="m-ch">
+              <Field label={t('admin:models.fields.channel')} htmlFor="m-new-ch">
                 <Select
-                  value={editor.draft.channel_id ?? ''}
-                  onValueChange={(v) => setEditor({ ...editor, draft: { ...editor.draft, channel_id: v } })}
+                  value={creator.draft.channel_id}
+                  onValueChange={(v) => setCreator({ ...creator, draft: { ...creator.draft, channel_id: v } })}
                 >
-                  <SelectTrigger id="m-ch">
+                  <SelectTrigger id="m-new-ch">
                     <SelectValue placeholder={t('admin:settings.fields.pickModel')} />
                   </SelectTrigger>
                   <SelectContent>
@@ -205,12 +226,14 @@ export default function AdminModels() {
                   </SelectContent>
                 </Select>
               </Field>
-              <Field label={t('admin:models.fields.kind')} htmlFor="m-kind">
+              <Field label={t('admin:models.fields.kind')} htmlFor="m-new-kind">
                 <Select
-                  value={editor.draft.kind ?? 'chat'}
-                  onValueChange={(v) => setEditor({ ...editor, draft: { ...editor.draft, kind: v as ApiModel['kind'] } })}
+                  value={creator.draft.kind}
+                  onValueChange={(v) =>
+                    setCreator({ ...creator, draft: { ...creator.draft, kind: v as ApiModel['kind'] } })
+                  }
                 >
-                  <SelectTrigger id="m-kind">
+                  <SelectTrigger id="m-new-kind">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -222,170 +245,50 @@ export default function AdminModels() {
                   </SelectContent>
                 </Select>
               </Field>
-              <Field label={t('admin:models.fields.label')} htmlFor="m-label">
+              <Field label={t('admin:models.fields.label')} htmlFor="m-new-label">
                 <Input
-                  id="m-label"
-                  value={editor.draft.label ?? ''}
-                  onChange={(e) => setEditor({ ...editor, draft: { ...editor.draft, label: e.target.value } })}
+                  id="m-new-label"
+                  value={creator.draft.label}
+                  onChange={(e) => setCreator({ ...creator, draft: { ...creator.draft, label: e.target.value } })}
                   placeholder="Claude Opus 4.8"
                 />
               </Field>
-              <Field label={t('admin:models.fields.requestId')} htmlFor="m-req">
+              <Field label={t('admin:models.fields.requestId')} htmlFor="m-new-req">
                 <Input
-                  id="m-req"
-                  value={editor.draft.request_id ?? ''}
-                  onChange={(e) => setEditor({ ...editor, draft: { ...editor.draft, request_id: e.target.value } })}
+                  id="m-new-req"
+                  value={creator.draft.request_id}
+                  onChange={(e) =>
+                    setCreator({ ...creator, draft: { ...creator.draft, request_id: e.target.value } })
+                  }
                   placeholder="claude-opus-4-8"
                 />
               </Field>
-              <Field label={t('admin:models.fields.description')} htmlFor="m-desc" className="col-span-2">
-                <Input
-                  id="m-desc"
-                  value={editor.draft.description ?? ''}
-                  onChange={(e) => setEditor({ ...editor, draft: { ...editor.draft, description: e.target.value } })}
-                />
-              </Field>
-              {/* §2.3 model icon — emoji or remote URL the model-picker renders */}
-              <Field label={t('admin:models.fields.icon', { defaultValue: 'Icon' })} htmlFor="m-icon" className="col-span-2">
-                <Input
-                  id="m-icon"
-                  value={editor.draft.icon ?? ''}
-                  onChange={(e) => setEditor({ ...editor, draft: { ...editor.draft, icon: e.target.value } })}
+              <Field label={t('admin:models.fields.icon')} htmlFor="m-new-icon" className="col-span-2">
+                <IconUploader
+                  id="m-new-icon"
+                  value={creator.draft.icon}
+                  onChange={(v) => setCreator({ ...creator, draft: { ...creator.draft, icon: v } })}
                   placeholder="🌟 or https://example.com/icon.png"
                 />
               </Field>
-              {editor.draft.kind === 'chat' && (
-                <>
-                  <Field label={t('admin:models.fields.toolMode')} htmlFor="m-tool">
-                    <Select
-                      value={editor.draft.tool_mode ?? 'native'}
-                      onValueChange={(v) =>
-                        setEditor({ ...editor, draft: { ...editor.draft, tool_mode: v as ApiModel['tool_mode'] } })
-                      }
-                    >
-                      <SelectTrigger id="m-tool">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {TOOL_MODES.map((tm) => (
-                          <SelectItem key={tm} value={tm}>
-                            {tm}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                  <div className="grid grid-cols-2 gap-3 items-end">
-                    <label className="flex items-center justify-between rounded-[10px] border border-[var(--color-border)] bg-[var(--color-bg-muted)] px-3 py-2.5">
-                      <span className="text-sm">{t('admin:models.fields.vision')}</span>
-                      <Switch
-                        checked={editor.draft.vision ?? true}
-                        onCheckedChange={(v) => setEditor({ ...editor, draft: { ...editor.draft, vision: v } })}
-                      />
-                    </label>
-                    <label className="flex items-center justify-between rounded-[10px] border border-[var(--color-border)] bg-[var(--color-bg-muted)] px-3 py-2.5">
-                      <span className="text-sm">{t('admin:models.fields.stream')}</span>
-                      <Switch
-                        checked={editor.draft.stream ?? true}
-                        onCheckedChange={(v) => setEditor({ ...editor, draft: { ...editor.draft, stream: v } })}
-                      />
-                    </label>
-                  </div>
-                  <Field label={t('admin:models.fields.systemPrompt')} htmlFor="m-sys" className="col-span-2">
-                    <Textarea
-                      id="m-sys"
-                      rows={4}
-                      value={editor.draft.system_prompt ?? ''}
-                      onChange={(e) => setEditor({ ...editor, draft: { ...editor.draft, system_prompt: e.target.value } })}
-                    />
-                  </Field>
-                  <Field label={t('admin:models.fields.paramControls')} htmlFor="m-pc" className="col-span-2">
-                    <Textarea
-                      id="m-pc"
-                      rows={6}
-                      value={typeof editor.draft.param_controls === 'string' ? editor.draft.param_controls : JSON.stringify(editor.draft.param_controls ?? [], null, 2)}
-                      onChange={(e) => setEditor({ ...editor, draft: { ...editor.draft, param_controls: e.target.value as unknown as ApiModel['param_controls'] } })}
-                    />
-                  </Field>
-                </>
-              )}
-              {editor.draft.kind === 'embedding' && (
-                <Field label={t('admin:models.fields.dim')} htmlFor="m-dim">
-                  <Input
-                    id="m-dim"
-                    type="number"
-                    value={String(editor.draft.dim ?? 0)}
-                    onChange={(e) => setEditor({ ...editor, draft: { ...editor.draft, dim: Number(e.target.value) } })}
-                  />
-                </Field>
-              )}
-              {editor.draft.kind !== 'image' && (
-                <>
-                  <Field label={t('admin:models.fields.priceIn')} htmlFor="m-pi">
-                    <Input
-                      id="m-pi"
-                      type="number"
-                      step="0.0001"
-                      value={String(editor.draft.price_input ?? 0)}
-                      onChange={(e) => setEditor({ ...editor, draft: { ...editor.draft, price_input: Number(e.target.value) } })}
-                    />
-                  </Field>
-                  <Field label={t('admin:models.fields.priceOut')} htmlFor="m-po">
-                    <Input
-                      id="m-po"
-                      type="number"
-                      step="0.0001"
-                      value={String(editor.draft.price_output ?? 0)}
-                      onChange={(e) => setEditor({ ...editor, draft: { ...editor.draft, price_output: Number(e.target.value) } })}
-                    />
-                  </Field>
-                  {/* §4.9 cache pricing — separate per-1M rates so accurate cost
-                     accounting is possible when the provider returns cache
-                     read/write hits in usage. */}
-                  <Field label={t('admin:models.fields.priceCacheRead', { defaultValue: 'Cache read $/1M' })} htmlFor="m-pcr">
-                    <Input
-                      id="m-pcr"
-                      type="number"
-                      step="0.0001"
-                      value={String(editor.draft.price_cache_read ?? 0)}
-                      onChange={(e) => setEditor({ ...editor, draft: { ...editor.draft, price_cache_read: Number(e.target.value) } })}
-                    />
-                  </Field>
-                  <Field label={t('admin:models.fields.priceCacheWrite', { defaultValue: 'Cache write $/1M' })} htmlFor="m-pcw">
-                    <Input
-                      id="m-pcw"
-                      type="number"
-                      step="0.0001"
-                      value={String(editor.draft.price_cache_write ?? 0)}
-                      onChange={(e) => setEditor({ ...editor, draft: { ...editor.draft, price_cache_write: Number(e.target.value) } })}
-                    />
-                  </Field>
-                </>
-              )}
-              {editor.draft.kind === 'image' && (
-                <Field label={t('admin:models.fields.priceImage')}>
-                  <Input
-                    type="number"
-                    step="0.001"
-                    value={String(editor.draft.price_per_image ?? 0)}
-                    onChange={(e) => setEditor({ ...editor, draft: { ...editor.draft, price_per_image: Number(e.target.value) } })}
-                  />
-                </Field>
-              )}
-              <label className="flex items-center justify-between rounded-[10px] border border-[var(--color-border)] bg-[var(--color-bg-muted)] px-3 py-2.5 col-span-2">
-                <span className="text-sm">{t('admin:models.fields.enabled')}</span>
-                <Switch
-                  checked={editor.draft.enabled ?? true}
-                  onCheckedChange={(v) => setEditor({ ...editor, draft: { ...editor.draft, enabled: v } })}
+              <Field label={t('admin:models.fields.description')} htmlFor="m-new-desc" className="col-span-2">
+                <Input
+                  id="m-new-desc"
+                  value={creator.draft.description}
+                  onChange={(e) =>
+                    setCreator({ ...creator, draft: { ...creator.draft, description: e.target.value } })
+                  }
                 />
-              </label>
+              </Field>
             </div>
           </DialogBody>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setEditor({ ...editor, open: false })}>
+            <Button variant="ghost" onClick={() => setCreator({ ...creator, open: false })} disabled={submitting}>
               {t('common:actions.cancel')}
             </Button>
-            <Button onClick={() => void submit()}>{t('common:actions.save')}</Button>
+            <Button onClick={() => void submitCreate()} loading={submitting}>
+              {t('common:actions.save')}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

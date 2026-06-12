@@ -9,6 +9,13 @@
     "saved": "Saved",
     "failed": "Failed"
   },
+  "icon": {
+    "upload": "Upload",
+    "clear": "Clear icon",
+    "uploaded": "Icon uploaded",
+    "errBadType": "Only PNG or JPEG images are allowed.",
+    "errTooLarge": "Image must be smaller than 256 KB."
+  },
   "channels": {
     "title": "Channels",
     "lead": "One channel pairs a base URL with credentials and a wire format. Every model you publish later hangs off one of these channels.",
@@ -49,12 +56,22 @@
     "lead": "The catalogue users see in the model picker. Chat, image and embedding kinds all live here; the channel's type determines which provider format runs upstream.",
     "new": "New model",
     "empty": "No models yet — create a channel first, then add models that hang off it.",
+    "settings": "Settings",
+    "backToList": "Back to models",
+    "notFound": "Model not found.",
+    "newDialogLead": "Just the essentials to register the model — fine-tune behaviour and pricing afterwards from the model's settings page.",
+    "sections": {
+      "basic": "Basic",
+      "behaviour": "Chat behaviour",
+      "pricing": "Pricing"
+    },
     "fields": {
       "channel": "Channel",
       "kind": "Kind",
       "label": "Display label",
       "requestId": "request_id (sent to API)",
       "description": "Description (one line)",
+      "icon": "Icon",
       "toolMode": "Tool mode",
       "vision": "Vision",
       "stream": "Stream",
@@ -63,6 +80,8 @@
       "dim": "Dimension",
       "priceIn": "Price in (per 1M token)",
       "priceOut": "Price out (per 1M token)",
+      "priceCacheRead": "Cache read $/1M",
+      "priceCacheWrite": "Cache write $/1M",
       "priceImage": "Price per image",
       "enabled": "Enabled (visible to users)"
     },
@@ -147,6 +166,18 @@
       "cost": "Cost"
     },
     "empty": "No calls in the selected window."
+  },
+  "documents": {
+    "title": "Documents",
+    "lead": "Everything that turns an upload into searchable context: which embedding model owns the KB vectors, where MinerU parses non-text files, where the bucket lives, and what extensions are allowed in.",
+    "embeddingSection": "Embeddings",
+    "embeddingLead": "The model used to vectorise KB documents. Changing this only affects newly-ingested chunks — existing vectors stay on the previous dimension. Leave blank to fall back to the EMBEDDING_* env defaults.",
+    "embeddingModel": "Embedding model",
+    "embeddingModelHint": "Picks from models with kind=embedding. Add one in /admin/models if the dropdown is empty."
+  },
+  "tools": {
+    "title": "Tools",
+    "lead": "Outbound services the assistant calls during a conversation. Configure once here, live-reloaded for every subsequent tool call — no restart."
   },
   "settings": {
     "title": "Global settings",

@@ -16,7 +16,11 @@
       rel="stylesheet"
     />
     <script>
-      // Pre-paint theme to avoid FOUC
+      // Pre-paint theme + accent to avoid FOUC. Same allowlist as
+      // src/types/settings.ts (AccentPref); fallback "violet" matches the
+      // store default. Swallows any storage error silently — the worst case
+      // is the user briefly sees the default until React boots and the
+      // zustand store re-applies.
       ;(function () {
         try {
           var stored = localStorage.getItem('aurelia.theme')
@@ -25,6 +29,9 @@
           var resolved = theme === 'system' ? (systemDark ? 'dark' : 'light') : theme
           document.documentElement.dataset.theme = resolved
           document.documentElement.classList.toggle('dark', resolved === 'dark')
+          var accent = localStorage.getItem('aurelia.accent')
+          var ok = ['violet', 'lagoon', 'ember', 'moss', 'indigo', 'rose']
+          document.documentElement.dataset.accent = ok.indexOf(accent) >= 0 ? accent : 'violet'
         } catch (_) {}
       })()
     </script>

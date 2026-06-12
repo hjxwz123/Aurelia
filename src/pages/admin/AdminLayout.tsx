@@ -5,7 +5,7 @@
 import { useEffect } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { ArrowLeft, Boxes, Cpu, GaugeCircle, Settings2, Sparkles, Users } from 'lucide-react'
+import { ArrowLeft, Boxes, Cpu, FileText, GaugeCircle, Settings2, Sparkles, Users, Wrench } from 'lucide-react'
 import { useAuth } from '@/store/auth'
 import { cn } from '@/lib/utils'
 
@@ -23,6 +23,8 @@ export default function AdminLayout() {
     { to: '/admin/channels', icon: Boxes, label: t('admin:channels.title') },
     { to: '/admin/models', icon: Cpu, label: t('admin:models.title') },
     { to: '/admin/skills', icon: Sparkles, label: t('admin:skills.title') },
+    { to: '/admin/documents', icon: FileText, label: t('admin:documents.title') },
+    { to: '/admin/tools', icon: Wrench, label: t('admin:tools.title') },
     { to: '/admin/users', icon: Users, label: t('admin:users.title') },
     { to: '/admin/usage', icon: GaugeCircle, label: t('admin:usage.title') },
     { to: '/admin/settings', icon: Settings2, label: t('admin:settings.title') },

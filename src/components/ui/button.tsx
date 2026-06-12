@@ -1,5 +1,5 @@
 import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from 'react'
-import { Slot } from '@radix-ui/react-slot'
+import { Slot, Slottable } from '@radix-ui/react-slot'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 
@@ -62,6 +62,11 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
   const nativeProps = asChild
     ? { 'aria-disabled': disabled || isLoading ? true : undefined }
     : { type: type ?? 'button', disabled: disabled || isLoading }
+  // §3.2 — When `asChild` is true, Comp becomes Radix Slot which requires a
+  // SINGLE React-element child. Wrapping `children` in <Slottable> tells Slot
+  // which element to merge its props/ref onto, leaving the icon/spinner spans
+  // as legitimate siblings. Without this, `asChild + leadingIcon` throws
+  // "Slot failed to slot onto its children" and crashes the parent tree.
   return (
     <Comp
       ref={ref}
@@ -78,7 +83,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       ) : leadingIcon ? (
         <span className="-ml-0.5 inline-flex">{leadingIcon}</span>
       ) : null}
-      {children}
+      <Slottable>{children}</Slottable>
       {!isLoading && trailingIcon ? <span className="-mr-0.5 inline-flex">{trailingIcon}</span> : null}
       {isLoading && <span className="sr-only">{t('aria.loading')}</span>}
     </Comp>

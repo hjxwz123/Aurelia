@@ -263,7 +263,7 @@ func AdminUsageReport(ctx context.Context, db *sql.DB, days int) ([]UsageRow, er
 		        SUM(u.input_tokens), SUM(u.output_tokens), COUNT(*), SUM(u.cost), MAX(u.currency)
 		 FROM usage_logs u LEFT JOIN users usr ON usr.id = u.user_id
 		 WHERE u.created_at >= ?
-		 GROUP BY u.user_id, u.model_id, u.purpose
+		 GROUP BY u.user_id, usr.email, u.model_id, u.purpose
 		 ORDER BY SUM(u.cost) DESC`, since)
 	if err != nil {
 		return nil, err
