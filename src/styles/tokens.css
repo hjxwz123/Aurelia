@@ -255,3 +255,103 @@
   --shadow-inner: inset 0 1px 2px 0 oklch(0% 0 0 / 0.32);
   --shadow-popover: 0 12px 32px -8px oklch(0% 0 0 / 0.46), 0 4px 12px -4px oklch(0% 0 0 / 0.32), 0 0 0 1px var(--color-border);
 }
+
+/* ============================================================================
+ * ACCENT PRESETS — chosen via /settings/appearance.
+ *
+ * Each preset overrides --color-accent, its hover, its soft tint, and the
+ * focus ring. The accent-fg stays the same (near-white on light, near-bg on
+ * dark) because all six presets sit at L ≈ 55-60% (light) / 72% (dark),
+ * keeping the foreground contrast valid.
+ *
+ * The default (no `data-accent` attribute) is "violet", matching the original
+ * :root values. The explicit `[data-accent="violet"]` block duplicates them
+ * so the boot script can always set the attribute without conditional logic.
+ *
+ * Names kept short on purpose (≤6 chars) to fit a swatch label and read well
+ * in the picker. §2.4 — clay accent ≤1 primary use per screen still applies.
+ * ============================================================================ */
+
+/* --- Violet (default) — electric violet ---------------------------------- */
+:root[data-accent="violet"] {
+  --color-accent: oklch(58% 0.225 290);
+  --color-accent-hover: oklch(52% 0.235 290);
+  --color-accent-soft: oklch(94% 0.045 290);
+  --color-ring: oklch(58% 0.225 290 / 0.55);
+}
+.dark[data-accent="violet"] {
+  --color-accent: oklch(72% 0.215 290);
+  --color-accent-hover: oklch(78% 0.215 290);
+  --color-accent-soft: oklch(28% 0.090 290);
+  --color-ring: oklch(72% 0.215 290 / 0.50);
+}
+
+/* --- Lagoon — cool teal --------------------------------------------------- */
+:root[data-accent="lagoon"] {
+  --color-accent: oklch(58% 0.130 200);
+  --color-accent-hover: oklch(52% 0.140 200);
+  --color-accent-soft: oklch(94% 0.035 200);
+  --color-ring: oklch(58% 0.130 200 / 0.55);
+}
+.dark[data-accent="lagoon"] {
+  --color-accent: oklch(74% 0.130 200);
+  --color-accent-hover: oklch(80% 0.130 200);
+  --color-accent-soft: oklch(28% 0.060 200);
+  --color-ring: oklch(74% 0.130 200 / 0.50);
+}
+
+/* --- Ember — warm amber-red ---------------------------------------------- */
+:root[data-accent="ember"] {
+  --color-accent: oklch(62% 0.170 40);
+  --color-accent-hover: oklch(56% 0.180 40);
+  --color-accent-soft: oklch(95% 0.040 40);
+  --color-ring: oklch(62% 0.170 40 / 0.55);
+}
+.dark[data-accent="ember"] {
+  --color-accent: oklch(74% 0.165 40);
+  --color-accent-hover: oklch(80% 0.165 40);
+  --color-accent-soft: oklch(28% 0.080 40);
+  --color-ring: oklch(74% 0.165 40 / 0.50);
+}
+
+/* --- Moss — calm sage green ---------------------------------------------- */
+:root[data-accent="moss"] {
+  --color-accent: oklch(54% 0.125 145);
+  --color-accent-hover: oklch(48% 0.135 145);
+  --color-accent-soft: oklch(94% 0.040 145);
+  --color-ring: oklch(54% 0.125 145 / 0.55);
+}
+.dark[data-accent="moss"] {
+  --color-accent: oklch(72% 0.130 145);
+  --color-accent-hover: oklch(78% 0.130 145);
+  --color-accent-soft: oklch(28% 0.060 145);
+  --color-ring: oklch(72% 0.130 145 / 0.50);
+}
+
+/* --- Indigo — deep editorial blue ---------------------------------------- */
+:root[data-accent="indigo"] {
+  --color-accent: oklch(54% 0.180 260);
+  --color-accent-hover: oklch(48% 0.190 260);
+  --color-accent-soft: oklch(94% 0.045 260);
+  --color-ring: oklch(54% 0.180 260 / 0.55);
+}
+.dark[data-accent="indigo"] {
+  --color-accent: oklch(72% 0.165 260);
+  --color-accent-hover: oklch(78% 0.165 260);
+  --color-accent-soft: oklch(28% 0.080 260);
+  --color-ring: oklch(72% 0.165 260 / 0.50);
+}
+
+/* --- Rose — soft magenta-pink -------------------------------------------- */
+:root[data-accent="rose"] {
+  --color-accent: oklch(60% 0.180 5);
+  --color-accent-hover: oklch(54% 0.190 5);
+  --color-accent-soft: oklch(94% 0.045 5);
+  --color-ring: oklch(60% 0.180 5 / 0.55);
+}
+.dark[data-accent="rose"] {
+  --color-accent: oklch(74% 0.175 5);
+  --color-accent-hover: oklch(80% 0.175 5);
+  --color-accent-soft: oklch(28% 0.085 5);
+  --color-ring: oklch(74% 0.175 5 / 0.50);
+}

@@ -32,12 +32,15 @@ const SettingsBilling = lazy(() => import('@/pages/settings/Billing'))
 const AdminLayout = lazy(() => import('@/pages/admin/AdminLayout'))
 const AdminChannels = lazy(() => import('@/pages/admin/AdminChannels'))
 const AdminModels = lazy(() => import('@/pages/admin/AdminModels'))
+const AdminModelEdit = lazy(() => import('@/pages/admin/AdminModelEdit'))
 const AdminSkills = lazy(() => import('@/pages/admin/AdminSkills'))
 const AdminUsers = lazy(() => import('@/pages/admin/AdminUsers'))
 const AdminUserConversations = lazy(() => import('@/pages/admin/AdminUserConversations'))
 const AdminUserConversation = lazy(() => import('@/pages/admin/AdminUserConversation'))
 const AdminUsage = lazy(() => import('@/pages/admin/AdminUsage'))
 const AdminSettings = lazy(() => import('@/pages/admin/AdminSettings'))
+const AdminDocuments = lazy(() => import('@/pages/admin/AdminDocuments'))
+const AdminTools = lazy(() => import('@/pages/admin/AdminTools'))
 const NotFound = lazy(() => import('@/pages/NotFound'))
 
 function GlobalShortcuts() {
@@ -139,11 +142,14 @@ export default function App() {
               <Route index element={<AdminChannels />} />
               <Route path="channels" element={<AdminChannels />} />
               <Route path="models" element={<AdminModels />} />
+              <Route path="models/:id" element={<AdminModelEdit />} />
               <Route path="skills" element={<AdminSkills />} />
               <Route path="users" element={<AdminUsers />} />
               <Route path="users/:id/conversations" element={<AdminUserConversations />} />
               <Route path="users/:id/conversations/:cid" element={<AdminUserConversation />} />
               <Route path="usage" element={<AdminUsage />} />
+              <Route path="documents" element={<AdminDocuments />} />
+              <Route path="tools" element={<AdminTools />} />
               <Route path="settings" element={<AdminSettings />} />
             </Route>
             <Route path="*" element={<NotFound />} />

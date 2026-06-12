@@ -73,7 +73,8 @@
     "deleteBody": "This will remove the conversation and all its messages. This can't be undone.",
     "deleted": "Conversation deleted",
     "empty": "No conversations yet.",
-    "starred": "Starred"
+    "starred": "Starred",
+    "recents": "Recents"
   },
   "topbar": {
     "shareTooltip": "Share"

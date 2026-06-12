@@ -73,7 +73,8 @@
     "deleteBody": "会同时删除该会话及其全部消息，无法撤销。",
     "deleted": "会话已删除",
     "empty": "还没有会话。",
-    "starred": "已收藏"
+    "starred": "已收藏",
+    "recents": "最近"
   },
   "topbar": {
     "shareTooltip": "分享"

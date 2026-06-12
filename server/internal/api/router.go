@@ -129,6 +129,10 @@ func NewRouter(d Deps) http.Handler {
 	mux.handle("GET", "/api/admin/usage", requireAdmin(d, usageReportAdmin))
 	mux.handle("GET", "/api/admin/settings", requireAdmin(d, adminSettingsGet))
 	mux.handle("PATCH", "/api/admin/settings", requireAdmin(d, adminSettingsSet))
+	// Icon upload — admin-only mint, any authenticated user can read. The
+	// stored URL lands in models.icon so the picker can render the image.
+	mux.handle("POST", "/api/admin/icons", requireAdmin(d, uploadIconAdmin))
+	mux.handle("GET", "/api/icons/:filename", requireAuth(d, serveIcon))
 
 	// CORS wrapper.
 	return corsMiddleware(d.Config.AllowedOrigins, mux)

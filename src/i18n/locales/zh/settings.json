@@ -54,6 +54,16 @@
     "light": "浅色",
     "dark": "深色",
     "system": "跟随系统",
+    "accentColor": "主题色",
+    "accentColorBody": "主操作按钮与聚焦环使用的强调色。",
+    "accent": {
+      "violet": "紫罗兰",
+      "lagoon": "湖蓝",
+      "ember": "余烬",
+      "moss": "青苔",
+      "indigo": "靛青",
+      "rose": "玫粉"
+    },
     "density": "密度",
     "densityBody": "更宽松的呼吸，或更多的信息量。",
     "spacing": "间距",

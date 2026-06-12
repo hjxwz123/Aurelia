@@ -9,6 +9,13 @@
     "saved": "已保存",
     "failed": "失败"
   },
+  "icon": {
+    "upload": "上传",
+    "clear": "清除图标",
+    "uploaded": "图标已上传",
+    "errBadType": "仅支持 PNG 或 JPEG 图片。",
+    "errTooLarge": "图片大小必须小于 256 KB。"
+  },
   "channels": {
     "title": "渠道",
     "lead": "一个渠道 = base URL + 鉴权 + 协议格式。每个模型都挂在一个渠道下。",
@@ -49,12 +56,22 @@
     "lead": "用户在模型选择器里看到的模型清单。chat / image / embedding 三类都在这里维护;由所属渠道的 type 决定上游协议。",
     "new": "新建模型",
     "empty": "暂无模型 — 请先建一个渠道,再在渠道下添加模型。",
+    "settings": "设置",
+    "backToList": "返回模型列表",
+    "notFound": "未找到该模型。",
+    "newDialogLead": "只填创建必需的基本信息,行为、价格等参数在模型的设置页里调。",
+    "sections": {
+      "basic": "基本信息",
+      "behaviour": "对话行为",
+      "pricing": "计费"
+    },
     "fields": {
       "channel": "渠道",
       "kind": "类型",
       "label": "显示名",
       "requestId": "request_id (实际请求 ID)",
       "description": "简介(一行)",
+      "icon": "图标",
       "toolMode": "工具模式",
       "vision": "视觉",
       "stream": "流式",
@@ -63,6 +80,8 @@
       "dim": "向量维度",
       "priceIn": "输入价格 (/1M token)",
       "priceOut": "输出价格 (/1M token)",
+      "priceCacheRead": "缓存读取 $/1M",
+      "priceCacheWrite": "缓存写入 $/1M",
       "priceImage": "单张图片价格",
       "enabled": "启用(对用户可见)"
     },
@@ -147,6 +166,18 @@
       "cost": "费用"
     },
     "empty": "所选窗口内没有调用记录。"
+  },
+  "documents": {
+    "title": "文档",
+    "lead": "把上传转成可检索上下文涉及的全部环节:知识库向量用哪个嵌入模型、非纯文本用 MinerU 解析到何处、源文件落在哪个桶、允许上传哪些扩展名。",
+    "embeddingSection": "嵌入模型",
+    "embeddingLead": "知识库向量化使用的模型。换模型只影响新切片;已存在的向量保持原维度不变。留空走 EMBEDDING_* 环境变量回退。",
+    "embeddingModel": "嵌入模型",
+    "embeddingModelHint": "从 kind=embedding 的模型里选。下拉为空请先去 /admin/models 添加。"
+  },
+  "tools": {
+    "title": "工具",
+    "lead": "对话过程中助手会调用的外部服务。在这里改一次,后续每次工具调用都实时生效,无需重启。"
   },
   "settings": {
     "title": "全局设置",

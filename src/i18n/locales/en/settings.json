@@ -54,6 +54,16 @@
     "light": "Light",
     "dark": "Dark",
     "system": "System",
+    "accentColor": "Accent color",
+    "accentColorBody": "The clay accent used for primary actions and the focus ring.",
+    "accent": {
+      "violet": "Violet",
+      "lagoon": "Lagoon",
+      "ember": "Ember",
+      "moss": "Moss",
+      "indigo": "Indigo",
+      "rose": "Rose"
+    },
     "density": "Density",
     "densityBody": "More breathing room or more on screen.",
     "spacing": "Spacing",

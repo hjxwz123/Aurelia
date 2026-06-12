@@ -1,4 +1,4 @@
-import { ChevronDown, Sparkles } from 'lucide-react'
+import { ChevronDown } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useModels } from '@/store/models'
 import {
@@ -8,6 +8,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { ModelIcon } from '@/components/chat/model-icon'
 import { cn } from '@/lib/utils'
 
 interface ModelPickerProps {
@@ -39,7 +40,7 @@ export function ModelPicker({ value, onChange, className }: ModelPickerProps) {
         )}
         aria-label={t('modelPicker.label', { name: current?.label ?? 'Model' })}
       >
-        <Sparkles size={13} className="text-[var(--color-secondary)] shrink-0" aria-hidden />
+        <ModelIcon icon={current?.icon} size={13} />
         <span className="truncate">{current?.label ?? 'Model'}</span>
         <ChevronDown size={13} aria-hidden />
       </DropdownMenuTrigger>
@@ -51,8 +52,9 @@ export function ModelPicker({ value, onChange, className }: ModelPickerProps) {
             <DropdownMenuItem
               key={m.id}
               onSelect={() => onChange(m.id)}
-              className="items-start py-2.5"
+              className="items-start py-2.5 gap-2"
             >
+              <ModelIcon icon={m.icon} size={16} className="mt-0.5" />
               <div className="flex flex-col gap-1 flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="font-medium text-[var(--color-fg)] truncate">{m.label}</span>

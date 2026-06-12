@@ -3,8 +3,10 @@ import { useTranslation } from 'react-i18next'
 import { SettingsRow, SettingsSection } from './SettingsLayout'
 import { useSettings } from '@/store/settings'
 import { useTheme } from '@/store/theme'
+import { useAccent } from '@/store/accent'
 import { useLanguage } from '@/store/language'
 import { SUPPORTED_LANGUAGES } from '@/i18n'
+import { type AccentPref, ACCENT_PRESETS } from '@/types/settings'
 import {
   Select,
   SelectContent,
@@ -12,13 +14,30 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Sun, Moon, Monitor } from 'lucide-react'
+import { Sun, Moon, Monitor, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
+
+/**
+ * Static preview color per accent preset. Chosen at L≈58 / C≈0.18 so the
+ * swatches read as the same hue family the user will actually see, without
+ * inheriting whatever data-accent the document currently has. Keeps the
+ * picker consistent under any light/dark + accent combination.
+ */
+const ACCENT_PREVIEW: Record<AccentPref, string> = {
+  violet: 'oklch(58% 0.225 290)',
+  lagoon: 'oklch(58% 0.130 200)',
+  ember:  'oklch(62% 0.170 40)',
+  moss:   'oklch(54% 0.125 145)',
+  indigo: 'oklch(54% 0.180 260)',
+  rose:   'oklch(60% 0.180 5)',
+}
 
 export default function Appearance() {
   const pref = useTheme((s) => s.pref)
   const setPref = useTheme((s) => s.setPref)
   const syncSystem = useTheme((s) => s.syncSystem)
+  const accent = useAccent((s) => s.accent)
+  const setAccent = useAccent((s) => s.setAccent)
   const appearance = useSettings((s) => s.appearance)
   const setAppearance = useSettings((s) => s.setAppearance)
   const lang = useLanguage((s) => s.lang)
@@ -40,6 +59,20 @@ export default function Appearance() {
             <ThemeChip current={pref} value="light" onClick={() => setPref('light')} icon={<Sun size={14} aria-hidden />} label={t('appearance.light')} />
             <ThemeChip current={pref} value="dark" onClick={() => setPref('dark')} icon={<Moon size={14} aria-hidden />} label={t('appearance.dark')} />
             <ThemeChip current={pref} value="system" onClick={() => setPref('system')} icon={<Monitor size={14} aria-hidden />} label={t('appearance.system')} />
+          </div>
+        </SettingsRow>
+        <SettingsRow label={t('appearance.accentColor')} description={t('appearance.accentColorBody')}>
+          <div className="flex items-center gap-2 flex-wrap">
+            {ACCENT_PRESETS.map((preset) => (
+              <AccentSwatch
+                key={preset}
+                preset={preset}
+                active={accent === preset}
+                onClick={() => setAccent(preset)}
+                label={t(`appearance.accent.${preset}`)}
+                color={ACCENT_PREVIEW[preset]}
+              />
+            ))}
           </div>
         </SettingsRow>
         <SettingsRow label={t('appearance.language')} description={t('appearance.languageBody')}>
@@ -120,6 +153,41 @@ function ThemeChip({
     >
       {icon}
       {label}
+    </button>
+  )
+}
+
+function AccentSwatch({
+  preset,
+  active,
+  onClick,
+  label,
+  color,
+}: {
+  preset: AccentPref
+  active: boolean
+  onClick: () => void
+  label: string
+  color: string
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      aria-label={label}
+      title={label}
+      data-accent-preset={preset}
+      className={cn(
+        'relative inline-flex items-center justify-center size-9 rounded-full interactive',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-bg)]',
+        active
+          ? 'shadow-[0_0_0_2px_var(--color-fg),0_0_0_4px_var(--color-bg)]'
+          : 'shadow-[inset_0_0_0_1px_oklch(0%_0_0/0.12)] hover:scale-105',
+      )}
+      style={{ backgroundColor: color }}
+    >
+      {active && <Check size={16} className="text-white drop-shadow" aria-hidden />}
     </button>
   )
 }

@@ -1,6 +1,12 @@
 /**
- * AdminSettings — global settings: default + task model, compression options,
- * signup gate, daily quotas.
+ * AdminSettings — truly global knobs that don't belong on a specialised page:
+ * default + task model, long-context compression, memories, signup gate,
+ * daily quotas.
+ *
+ * Document-related settings (embedding model, MinerU, storage, upload
+ * extensions) live on /admin/documents. Tool-call settings (search, sandbox)
+ * live on /admin/tools. We PATCH only the keys this page owns to stay
+ * race-free with concurrent edits on those pages.
  */
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -14,6 +20,18 @@ import { Switch } from '@/components/ui/switch'
 import { toast } from '@/hooks/use-toast'
 
 type Settings = Record<string, unknown>
+
+const OWNED_KEYS = [
+  'default_model_id',
+  'task_model_id',
+  'keep_recent_rounds',
+  'summary_max_tokens',
+  'compaction_enabled',
+  'memory_enabled',
+  'signup_open',
+  'daily_message_limit',
+  'daily_image_limit',
+] as const
 
 export default function AdminSettings() {
   const { t } = useTranslation(['admin', 'common'])
@@ -42,7 +60,11 @@ export default function AdminSettings() {
   async function save() {
     setSaving(true)
     try {
-      await adminApi.updateSettings(draft)
+      const patch: Settings = {}
+      for (const k of OWNED_KEYS) {
+        if (k in draft) patch[k] = draft[k]
+      }
+      await adminApi.updateSettings(patch)
       toast.success(t('admin:settings.saved'))
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : t('admin:common.failed'))
@@ -53,18 +75,15 @@ export default function AdminSettings() {
 
   function readString(key: string, fallback = ''): string {
     const v = draft[key]
-    if (typeof v === 'string') return v
-    return fallback
+    return typeof v === 'string' ? v : fallback
   }
   function readNumber(key: string, fallback = 0): number {
     const v = draft[key]
-    if (typeof v === 'number') return v
-    return fallback
+    return typeof v === 'number' ? v : fallback
   }
   function readBool(key: string, fallback = false): boolean {
     const v = draft[key]
-    if (typeof v === 'boolean') return v
-    return fallback
+    return typeof v === 'boolean' ? v : fallback
   }
 
   return (
@@ -170,315 +189,6 @@ export default function AdminSettings() {
                 onChange={(e) => setDraft({ ...draft, daily_image_limit: Number(e.target.value) })}
               />
             </Field>
-          </div>
-
-          <div className="mt-2 border-t border-[var(--color-border)] pt-5">
-            <h2 className="text-sm font-medium text-[var(--color-fg)]">
-              {t('admin:settings.fields.sandboxSection')}
-            </h2>
-            <div className="mt-4 flex flex-col gap-5">
-              <Field
-                label={t('admin:settings.fields.sandboxUrl')}
-                htmlFor="sandbox-url"
-                hint={t('admin:settings.fields.sandboxUrlHint')}
-              >
-                <Input
-                  id="sandbox-url"
-                  type="url"
-                  placeholder="http://your-server:48217"
-                  value={readString('sandbox_base_url')}
-                  onChange={(e) => setDraft({ ...draft, sandbox_base_url: e.target.value })}
-                />
-              </Field>
-              <Field
-                label={t('admin:settings.fields.sandboxKey')}
-                htmlFor="sandbox-key"
-                hint={t('admin:settings.fields.sandboxKeyHint')}
-              >
-                <Input
-                  id="sandbox-key"
-                  type="password"
-                  autoComplete="off"
-                  value={readString('sandbox_api_key')}
-                  onChange={(e) => setDraft({ ...draft, sandbox_api_key: e.target.value })}
-                />
-              </Field>
-            </div>
-          </div>
-
-          <div className="mt-2 border-t border-[var(--color-border)] pt-5">
-            <h2 className="text-sm font-medium text-[var(--color-fg)]">
-              {t('admin:settings.fields.storageSection')}
-            </h2>
-            <p className="mt-1 text-xs text-[var(--color-fg-subtle)]">
-              {t('admin:settings.fields.storageLead')}
-            </p>
-            <div className="mt-4 flex flex-col gap-5">
-              <Field
-                label={t('admin:settings.fields.storageProvider')}
-                htmlFor="storage-provider"
-                hint={t('admin:settings.fields.storageProviderHint')}
-              >
-                <Select
-                  value={readString('storage_provider') || 'none'}
-                  onValueChange={(v) =>
-                    setDraft({ ...draft, storage_provider: v === 'none' ? '' : v })
-                  }
-                >
-                  <SelectTrigger id="storage-provider">
-                    <SelectValue placeholder={t('admin:settings.fields.storageProviderPlaceholder')} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">{t('admin:settings.fields.storageNone')}</SelectItem>
-                    <SelectItem value="s3">{t('admin:settings.fields.storageS3')}</SelectItem>
-                    <SelectItem value="aliyun_oss">{t('admin:settings.fields.storageAliyun')}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </Field>
-
-              <Field
-                label={t('admin:settings.fields.storagePrefix')}
-                htmlFor="storage-prefix"
-                hint={t('admin:settings.fields.storagePrefixHint')}
-              >
-                <Input
-                  id="storage-prefix"
-                  placeholder="workspaces/"
-                  value={readString('storage_prefix', 'workspaces/')}
-                  onChange={(e) => setDraft({ ...draft, storage_prefix: e.target.value })}
-                />
-              </Field>
-
-              {readString('storage_provider') === 's3' && (
-                <div className="flex flex-col gap-5 rounded-[10px] border border-[var(--color-border)] bg-[var(--color-bg-muted)] p-4">
-                  <Field label={t('admin:settings.fields.s3Bucket')} htmlFor="s3-bucket">
-                    <Input
-                      id="s3-bucket"
-                      value={readString('storage_s3_bucket')}
-                      onChange={(e) => setDraft({ ...draft, storage_s3_bucket: e.target.value })}
-                    />
-                  </Field>
-                  <div className="grid grid-cols-2 gap-4">
-                    <Field label={t('admin:settings.fields.s3Region')} htmlFor="s3-region">
-                      <Input
-                        id="s3-region"
-                        placeholder="us-east-1"
-                        value={readString('storage_s3_region')}
-                        onChange={(e) => setDraft({ ...draft, storage_s3_region: e.target.value })}
-                      />
-                    </Field>
-                    <Field
-                      label={t('admin:settings.fields.s3Endpoint')}
-                      htmlFor="s3-endpoint"
-                      hint={t('admin:settings.fields.s3EndpointHint')}
-                    >
-                      <Input
-                        id="s3-endpoint"
-                        placeholder="https://s3.amazonaws.com"
-                        value={readString('storage_s3_endpoint')}
-                        onChange={(e) => setDraft({ ...draft, storage_s3_endpoint: e.target.value })}
-                      />
-                    </Field>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <Field label={t('admin:settings.fields.s3AccessKey')} htmlFor="s3-ak">
-                      <Input
-                        id="s3-ak"
-                        type="password"
-                        autoComplete="off"
-                        value={readString('storage_s3_access_key')}
-                        onChange={(e) => setDraft({ ...draft, storage_s3_access_key: e.target.value })}
-                      />
-                    </Field>
-                    <Field label={t('admin:settings.fields.s3SecretKey')} htmlFor="s3-sk">
-                      <Input
-                        id="s3-sk"
-                        type="password"
-                        autoComplete="off"
-                        value={readString('storage_s3_secret_key')}
-                        onChange={(e) => setDraft({ ...draft, storage_s3_secret_key: e.target.value })}
-                      />
-                    </Field>
-                  </div>
-                </div>
-              )}
-
-              {readString('storage_provider') === 'aliyun_oss' && (
-                <div className="flex flex-col gap-5 rounded-[10px] border border-[var(--color-border)] bg-[var(--color-bg-muted)] p-4">
-                  <Field label={t('admin:settings.fields.ossBucket')} htmlFor="oss-bucket">
-                    <Input
-                      id="oss-bucket"
-                      value={readString('storage_aliyun_bucket')}
-                      onChange={(e) => setDraft({ ...draft, storage_aliyun_bucket: e.target.value })}
-                    />
-                  </Field>
-                  <Field
-                    label={t('admin:settings.fields.ossEndpoint')}
-                    htmlFor="oss-endpoint"
-                    hint={t('admin:settings.fields.ossEndpointHint')}
-                  >
-                    <Input
-                      id="oss-endpoint"
-                      placeholder="https://oss-cn-hangzhou.aliyuncs.com"
-                      value={readString('storage_aliyun_endpoint')}
-                      onChange={(e) => setDraft({ ...draft, storage_aliyun_endpoint: e.target.value })}
-                    />
-                  </Field>
-                  <div className="grid grid-cols-2 gap-4">
-                    <Field label={t('admin:settings.fields.ossAccessKeyId')} htmlFor="oss-akid">
-                      <Input
-                        id="oss-akid"
-                        type="password"
-                        autoComplete="off"
-                        value={readString('storage_aliyun_access_key_id')}
-                        onChange={(e) => setDraft({ ...draft, storage_aliyun_access_key_id: e.target.value })}
-                      />
-                    </Field>
-                    <Field label={t('admin:settings.fields.ossAccessKeySecret')} htmlFor="oss-aks">
-                      <Input
-                        id="oss-aks"
-                        type="password"
-                        autoComplete="off"
-                        value={readString('storage_aliyun_access_key_secret')}
-                        onChange={(e) => setDraft({ ...draft, storage_aliyun_access_key_secret: e.target.value })}
-                      />
-                    </Field>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="mt-2 border-t border-[var(--color-border)] pt-5">
-            <h2 className="text-sm font-medium text-[var(--color-fg)]">
-              {t('admin:settings.fields.mineruSection')}
-            </h2>
-            <p className="mt-1 text-xs text-[var(--color-fg-subtle)]">
-              {t('admin:settings.fields.mineruLead')}
-            </p>
-            <div className="mt-4 flex flex-col gap-5">
-              <Field
-                label={t('admin:settings.fields.mineruBaseUrl')}
-                htmlFor="mineru-url"
-                hint={t('admin:settings.fields.mineruBaseUrlHint')}
-              >
-                <Input
-                  id="mineru-url"
-                  type="url"
-                  placeholder="https://mineru.net"
-                  value={readString('mineru_api_url')}
-                  onChange={(e) => setDraft({ ...draft, mineru_api_url: e.target.value })}
-                />
-              </Field>
-              <Field
-                label={t('admin:settings.fields.mineruToken')}
-                htmlFor="mineru-token"
-                hint={t('admin:settings.fields.mineruTokenHint')}
-              >
-                <Input
-                  id="mineru-token"
-                  type="password"
-                  autoComplete="off"
-                  value={readString('mineru_api_token')}
-                  onChange={(e) => setDraft({ ...draft, mineru_api_token: e.target.value })}
-                />
-              </Field>
-            </div>
-          </div>
-
-          <div className="mt-2 border-t border-[var(--color-border)] pt-5">
-            <h2 className="text-sm font-medium text-[var(--color-fg)]">
-              {t('admin:settings.fields.searchSection')}
-            </h2>
-            <p className="mt-1 text-xs text-[var(--color-fg-subtle)]">
-              {t('admin:settings.fields.searchLead')}
-            </p>
-            <div className="mt-4 flex flex-col gap-5">
-              <Field
-                label={t('admin:settings.fields.searchProvider')}
-                htmlFor="search-provider"
-                hint={t('admin:settings.fields.searchProviderHint')}
-              >
-                <Select
-                  value={readString('search_provider') || 'none'}
-                  onValueChange={(v) =>
-                    setDraft({ ...draft, search_provider: v === 'none' ? '' : v })
-                  }
-                >
-                  <SelectTrigger id="search-provider">
-                    <SelectValue placeholder={t('admin:settings.fields.searchProviderPlaceholder')} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">{t('admin:settings.fields.searchNone')}</SelectItem>
-                    <SelectItem value="searxng">{t('admin:settings.fields.searchSearxng')}</SelectItem>
-                    <SelectItem value="serper">{t('admin:settings.fields.searchSerper')}</SelectItem>
-                    <SelectItem value="brave">{t('admin:settings.fields.searchBrave')}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </Field>
-
-              {readString('search_provider') === 'searxng' && (
-                <div className="flex flex-col gap-5 rounded-[10px] border border-[var(--color-border)] bg-[var(--color-bg-muted)] p-4">
-                  <Field
-                    label={t('admin:settings.fields.searchBaseUrl')}
-                    htmlFor="search-url"
-                    hint={t('admin:settings.fields.searchBaseUrlHint')}
-                  >
-                    <Input
-                      id="search-url"
-                      type="url"
-                      placeholder="https://searxng.your-domain.tld"
-                      value={readString('search_base_url')}
-                      onChange={(e) => setDraft({ ...draft, search_base_url: e.target.value })}
-                    />
-                  </Field>
-                </div>
-              )}
-
-              {(readString('search_provider') === 'serper' ||
-                readString('search_provider') === 'brave') && (
-                <div className="flex flex-col gap-5 rounded-[10px] border border-[var(--color-border)] bg-[var(--color-bg-muted)] p-4">
-                  <Field
-                    label={t('admin:settings.fields.searchApiKey')}
-                    htmlFor="search-key"
-                    hint={t('admin:settings.fields.searchApiKeyHint')}
-                  >
-                    <Input
-                      id="search-key"
-                      type="password"
-                      autoComplete="off"
-                      value={readString('search_api_key')}
-                      onChange={(e) => setDraft({ ...draft, search_api_key: e.target.value })}
-                    />
-                  </Field>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="mt-2 border-t border-[var(--color-border)] pt-5">
-            <h2 className="text-sm font-medium text-[var(--color-fg)]">
-              {t('admin:settings.fields.uploadsSection')}
-            </h2>
-            <p className="mt-1 text-xs text-[var(--color-fg-subtle)]">
-              {t('admin:settings.fields.uploadsLead')}
-            </p>
-            <div className="mt-4 flex flex-col gap-5">
-              <Field
-                label={t('admin:settings.fields.uploadAllowedExt')}
-                htmlFor="upload-ext"
-                hint={t('admin:settings.fields.uploadAllowedExtHint')}
-              >
-                <Input
-                  id="upload-ext"
-                  placeholder="pdf, docx, txt, png, jpg"
-                  value={readString('upload_allowed_extensions')}
-                  onChange={(e) =>
-                    setDraft({ ...draft, upload_allowed_extensions: e.target.value })
-                  }
-                />
-              </Field>
-            </div>
           </div>
 
           <div className="flex justify-end">
