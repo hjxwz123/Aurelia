@@ -259,6 +259,21 @@ func DeleteConversation(ctx context.Context, db *sql.DB, id, userID string) erro
 	return nil
 }
 
+// DeleteConversationByID removes a conversation regardless of owner — admin
+// authority only (the route is gated by requireAdmin). Messages/chunks cascade
+// via FK ON DELETE CASCADE.
+func DeleteConversationByID(ctx context.Context, db *sql.DB, id string) error {
+	res, err := db.ExecContext(ctx, "DELETE FROM conversations WHERE id=?", id)
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 // ListMessages walks the active path (parent_id chain) from the active leaf
 // back to the root. If leafID is empty, the newest leaf is used. Returned in
 // chronological order (root → leaf).

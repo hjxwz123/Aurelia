@@ -17,7 +17,36 @@ type User struct {
 	Status    string          `json:"status"`
 	TokenVer  int             `json:"-"`
 	Settings  json.RawMessage `json:"settings"`
-	CreatedAt int64           `json:"created_at"`
+	GroupID   string          `json:"group_id"`
+	// TotpSecret is never serialized to clients. TotpEnabled is exposed so the
+	// account page can show the 2FA state (§ 2FA login).
+	TotpSecret  string `json:"-"`
+	TotpEnabled bool   `json:"totp_enabled"`
+	CreatedAt   int64  `json:"created_at"`
+}
+
+// UserGroup is a membership tier (§ user groups). Features is a JSON array of
+// strings; prices are display-only.
+type UserGroup struct {
+	ID          string          `json:"id"`
+	Name        string          `json:"name"`
+	Description string          `json:"description"`
+	Features    json.RawMessage `json:"features"`
+	PriceUSD    float64         `json:"price_usd"`
+	PriceCNY    float64         `json:"price_cny"`
+	IsDefault   bool            `json:"is_default"`
+	SortOrder   int             `json:"sort_order"`
+	CreatedAt   int64           `json:"created_at"`
+	UpdatedAt   int64           `json:"updated_at"`
+}
+
+// ModelGroupQuota caps a group's usage of one model within a fixed window.
+type ModelGroupQuota struct {
+	ModelID       string  `json:"model_id"`
+	GroupID       string  `json:"group_id"`
+	PeriodSeconds int     `json:"period_seconds"`
+	LimitType     string  `json:"limit_type"` // cost | count
+	LimitValue    float64 `json:"limit_value"`
 }
 
 // Channel matches design.md §2.3-B.

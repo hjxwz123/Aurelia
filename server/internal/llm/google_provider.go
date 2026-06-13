@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -28,7 +29,7 @@ func (p *GoogleProvider) ID() string { return "google" }
 // API. Tool calls are surfaced through the unified events.)
 func (p *GoogleProvider) Stream(ctx context.Context, req UnifiedChatRequest, tools ToolRunner, onEvent func(SseEvent)) (*UnifiedResult, error) {
 	if req.Model.APIKey == "" {
-		return (&MockProvider{logger: p.logger}).Stream(ctx, req, tools, onEvent)
+		return nil, errors.New("this channel has no API key configured")
 	}
 	base := strings.TrimRight(req.Model.BaseURL, "/")
 	if base == "" {

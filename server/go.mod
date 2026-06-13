@@ -1,11 +1,12 @@
 module aurelia/server
 
-go 1.22
+go 1.24.1
 
 require (
 	github.com/golang-jwt/jwt/v5 v5.2.1
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.5.5
+	github.com/ledongthuc/pdf v0.0.0-20250511090121-5959a4027728
 	github.com/mattn/go-sqlite3 v1.14.22
 	github.com/redis/go-redis/v9 v9.5.1
 	golang.org/x/crypto v0.21.0

@@ -65,14 +65,29 @@ func modelsResponse(d Deps, r *http.Request, models []store.Model) map[string]an
 		ChannelID     string          `json:"channel_id"`
 		SortOrder     int             `json:"sort_order"`
 		Currency      string          `json:"currency"`
+		// Locked is true when this model is restricted and the caller's group has
+		// no grant for it — the picker shows a lock + upgrade prompt (§user-groups).
+		Locked bool `json:"locked"`
 	}
+
+	// Resolve "locked" cheaply: which models are restricted, and which the
+	// caller's group is granted (both single queries, no usage aggregates).
+	restricted, _ := store.RestrictedModelIDs(r.Context(), d.DB)
+	groupID := store.DefaultGroupID
+	if u := authUser(r); u != nil && u.GroupID != "" {
+		groupID = u.GroupID
+	}
+	grants, _ := store.QuotasForGroup(r.Context(), d.DB, groupID)
+
 	items := []item{}
 	for _, m := range models {
+		_, granted := grants[m.ID]
+		locked := restricted[m.ID] && !granted
 		items = append(items, item{
 			ID: m.ID, Label: m.Label, Description: m.Description, Icon: m.Icon,
 			Kind: m.Kind, Vision: m.Vision, Stream: m.Stream, ToolMode: m.ToolMode,
 			ParamControls: m.ParamControls, ChannelID: m.ChannelID, SortOrder: m.SortOrder,
-			Currency: m.Currency,
+			Currency: m.Currency, Locked: locked,
 		})
 	}
 	defaultID := ""

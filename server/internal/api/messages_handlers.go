@@ -18,6 +18,7 @@ type postMessageReq struct {
 	ModelID        string           `json:"model_id"`
 	ParentID       string           `json:"parent_id"`
 	Branch         bool             `json:"branch"`
+	Mode           string           `json:"mode"`
 	Attachments    []llm.Attachment `json:"attachments"`
 	ParamOverrides map[string]any   `json:"params"`
 }
@@ -108,6 +109,7 @@ func postMessageHandler(d Deps, w http.ResponseWriter, r *http.Request) {
 		Attachments:    req.Attachments,
 		ParentID:       req.ParentID,
 		Branch:         req.Branch,
+		Mode:           req.Mode,
 		ParamOverrides: req.ParamOverrides,
 	}, func(ev llm.SseEvent) {
 		_ = writer.Send(ev, ev.Type)
@@ -134,6 +136,7 @@ func regenerateHandler(d Deps, w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		AssistantID    string         `json:"assistant_id"`
 		ModelID        string         `json:"model_id"`
+		Mode           string         `json:"mode"`
 		ParamOverrides map[string]any `json:"params"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
@@ -231,6 +234,7 @@ func regenerateHandler(d Deps, w http.ResponseWriter, r *http.Request) {
 		UserText:       text,
 		ParentID:       user.ID, // assistant sibling under SAME user — §4.15
 		ReuseExistingUserMessage: true,
+		Mode:           body.Mode,
 		ParamOverrides: body.ParamOverrides,
 	}, func(ev llm.SseEvent) {
 		_ = writer.Send(ev, ev.Type)

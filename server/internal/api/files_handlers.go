@@ -206,9 +206,11 @@ func uploadFileHandler(d Deps, w http.ResponseWriter, r *http.Request) {
 }
 
 // isDocKind reports whether a file kind should be RAG-ingested as a document.
+// Spreadsheets ("sheet") are deliberately excluded: CSV/XLS(X) are data files
+// analysed in the code sandbox (python_execute), never parsed or embedded.
 func isDocKind(kind string) bool {
 	switch kind {
-	case "pdf", "text", "doc", "sheet":
+	case "pdf", "text", "doc":
 		return true
 	}
 	return false
@@ -224,14 +226,14 @@ func kindOf(mime, name string) string {
 	case len(mime) >= 4 && mime[:4] == "text":
 		return "text"
 	}
-	switch ext := filepath.Ext(name); ext {
+	switch ext := strings.ToLower(filepath.Ext(name)); ext {
 	case ".pdf":
 		return "pdf"
 	case ".png", ".jpg", ".jpeg", ".gif", ".webp":
 		return "image"
-	case ".csv", ".xlsx":
+	case ".csv", ".tsv", ".xlsx", ".xls", ".xlsm":
 		return "sheet"
-	case ".docx":
+	case ".docx", ".doc", ".pptx", ".ppt":
 		return "doc"
 	case ".go", ".ts", ".tsx", ".js", ".jsx", ".py", ".rs":
 		return "code"

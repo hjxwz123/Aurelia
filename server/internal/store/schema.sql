@@ -21,8 +21,41 @@ CREATE TABLE IF NOT EXISTS users (
   status        TEXT NOT NULL DEFAULT 'active',
   token_ver     INTEGER NOT NULL DEFAULT 0,
   settings      TEXT NOT NULL DEFAULT '{}',
+  group_id      TEXT NOT NULL DEFAULT 'ug_free',  -- membership tier (user_groups.id)
+  totp_secret   TEXT NOT NULL DEFAULT '',         -- base32 TOTP secret (empty = no 2FA configured)
+  totp_enabled  INTEGER NOT NULL DEFAULT 0,       -- 1 = login requires a 2FA code
   created_at    INTEGER NOT NULL DEFAULT (strftime('%s','now'))
 );
+
+-- Membership tiers. Exactly one row is the default (is_default=1, seeded as
+-- ug_free). features is a JSON array of feature strings shown on the
+-- subscription page; prices are display-only (no payment integration).
+CREATE TABLE IF NOT EXISTS user_groups (
+  id          TEXT PRIMARY KEY,
+  name        TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  features    TEXT NOT NULL DEFAULT '[]',
+  price_usd   REAL NOT NULL DEFAULT 0,
+  price_cny   REAL NOT NULL DEFAULT 0,
+  is_default  INTEGER NOT NULL DEFAULT 0,
+  sort_order  INTEGER NOT NULL DEFAULT 0,
+  created_at  INTEGER NOT NULL DEFAULT (strftime('%s','now')),
+  updated_at  INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+);
+
+-- Per-model, per-group access + usage cap. A model with NO rows here is open to
+-- everyone (unlimited). Once a model has any row, only listed groups may use it;
+-- each row caps usage within a fixed window: limit_type 'cost' (in the model's
+-- currency) or 'count' (calls), limit_value 0 = granted but unlimited.
+CREATE TABLE IF NOT EXISTS model_group_quotas (
+  model_id       TEXT NOT NULL REFERENCES models(id) ON DELETE CASCADE,
+  group_id       TEXT NOT NULL REFERENCES user_groups(id) ON DELETE CASCADE,
+  period_seconds INTEGER NOT NULL DEFAULT 604800,
+  limit_type     TEXT NOT NULL DEFAULT 'count',  -- cost | count
+  limit_value    REAL NOT NULL DEFAULT 0,
+  PRIMARY KEY (model_id, group_id)
+);
+CREATE INDEX IF NOT EXISTS idx_mgq_group ON model_group_quotas(group_id);
 
 CREATE TABLE IF NOT EXISTS channels (
   id          TEXT PRIMARY KEY,
@@ -158,6 +191,21 @@ CREATE TABLE IF NOT EXISTS messages (
 CREATE INDEX IF NOT EXISTS idx_messages_conv ON messages(conversation_id);
 CREATE INDEX IF NOT EXISTS idx_messages_parent ON messages(parent_id);
 
+-- Public read-only conversation shares. id is the public token used in the
+-- /share/:id link. snapshot is a frozen, cost-stripped JSON copy of the active
+-- message path at share time, so revoking (deleting the row) fully cuts access
+-- and later private messages never leak. At most one live share per conversation.
+CREATE TABLE IF NOT EXISTS conversation_shares (
+  id              TEXT PRIMARY KEY,
+  conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+  user_id         TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  title           TEXT NOT NULL DEFAULT '',
+  snapshot        TEXT NOT NULL DEFAULT '[]',
+  created_at      INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_conv_shares_conv ON conversation_shares(conversation_id);
+CREATE INDEX IF NOT EXISTS idx_conv_shares_user ON conversation_shares(user_id);
+
 CREATE TABLE IF NOT EXISTS files (
   id              TEXT PRIMARY KEY,
   user_id         TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -246,6 +294,9 @@ CREATE TABLE IF NOT EXISTS usage_logs (
 );
 CREATE INDEX IF NOT EXISTS idx_usage_user_time ON usage_logs(user_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_usage_model_time ON usage_logs(model_id, created_at);
+-- Per-model-per-user windowed quota aggregate (authoritative fallback when the
+-- cache counter is cold).
+CREATE INDEX IF NOT EXISTS idx_usage_user_model_time ON usage_logs(user_id, model_id, created_at);
 
 CREATE TABLE IF NOT EXISTS artifacts (
   id           TEXT PRIMARY KEY,

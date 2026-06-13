@@ -33,6 +33,7 @@ import { useModels } from '@/store/models'
 import { useAutosizeTextarea } from '@/hooks/use-autosize-textarea'
 import { Markdown } from './markdown'
 import { ReasoningTrace } from './reasoning-trace'
+import { ResearchPanel } from './research-panel'
 import { CitationList } from './citation'
 import { toast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
@@ -128,14 +129,8 @@ export function MessageRow({ message, userName, onRegenerate, onEdit, onSaveEdit
             <span className="font-serif text-[15px] tracking-tight text-[var(--color-fg)]">
               {model?.label ?? t('assistant')}
             </span>
-            {!message.streaming && typeof message.cost === 'number' && message.cost > 0 ? (
-              <span
-                className="text-[11px] text-[var(--color-fg-subtle)] tabular-nums"
-                title={t('actions.costTooltip', { defaultValue: 'Approximate cost of this reply' })}
-              >
-                · {formatCost(message.cost, message.currency)}
-              </span>
-            ) : null}
+            {/* Per-reply cost is intentionally NOT shown to users — only admins
+                see spend, in /admin/usage. */}
             {message.streaming ? (
               <span className="ml-1 inline-flex items-center gap-1 text-[11px] text-[var(--color-fg-subtle)]">
                 <span className="inline-block size-1.5 rounded-full bg-[var(--color-secondary)] animate-[streaming-pulse_1600ms_ease-in-out_infinite]" />
@@ -204,6 +199,16 @@ export function MessageRow({ message, userName, onRegenerate, onEdit, onSaveEdit
           </div>
         ) : (
           <div className="w-full text-[var(--color-fg)]">
+            {/* Deep Research panel — plan checklist + sources, live while the
+                report streams below (§ deep-research mode). */}
+            {message.research ? (
+              <ResearchPanel
+                research={message.research}
+                streaming={message.streaming}
+                settled={Boolean(message.content)}
+              />
+            ) : null}
+
             {/* Unified reasoning trace — extended thinking + tool rounds in one
                 live, collapsible panel (§7.1-4). Streams open with per-tool
                 pulse + elapsed counters so long searches / sandbox runs never
@@ -493,12 +498,3 @@ function BranchSwitcher({
   )
 }
 
-/** formatCost renders a per-message cost line like "$0.0042" or "¥0.0042". */
-function formatCost(cost: number, currency?: string): string {
-  const symbol = currency === 'CNY' ? '¥' : '$'
-  // Show 4 significant digits — almost every assistant reply is between $0.0001
-  // and $1, so 4 dp is the smallest precision that doesn't display "$0.00".
-  if (cost < 0.01) return `${symbol}${cost.toFixed(4)}`
-  if (cost < 1) return `${symbol}${cost.toFixed(3)}`
-  return `${symbol}${cost.toFixed(2)}`
-}

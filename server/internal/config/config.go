@@ -29,7 +29,6 @@ type Config struct {
 	DailyImages      int
 	SeedAdminEmail   string
 	SeedAdminPass    string
-	EnableMockKeys   bool
 	SearchProvider   string
 	SearchAPIKey     string
 	SearchBaseURL    string
@@ -64,7 +63,6 @@ func Load() Config {
 		DailyImages:      getenvInt("IMAGE_DAILY_LIMIT", 30),
 		SeedAdminEmail:   getenv("SEED_ADMIN_EMAIL", "admin@aurelia.local"),
 		SeedAdminPass:    getenv("SEED_ADMIN_PASSWORD", "aurelia-admin"),
-		EnableMockKeys:   getenvBool("ENABLE_MOCK_PROVIDER", true),
 		SearchProvider:   getenv("SEARCH_PROVIDER", ""),
 		SearchAPIKey:     getenv("SEARCH_API_KEY", ""),
 		SearchBaseURL:    getenv("SEARCH_BASE_URL", ""),
@@ -107,18 +105,6 @@ func getenv(k, def string) string {
 		return v
 	}
 	return def
-}
-func getenvBool(k string, def bool) bool {
-	v := os.Getenv(k)
-	if v == "" {
-		return def
-	}
-	switch v {
-	case "1", "true", "TRUE", "yes":
-		return true
-	default:
-		return false
-	}
 }
 func getenvInt(k string, def int) int {
 	if v := os.Getenv(k); v != "" {

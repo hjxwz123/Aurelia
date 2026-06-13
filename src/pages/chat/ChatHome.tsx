@@ -47,9 +47,13 @@ export default function ChatHome() {
     () => `${t(`greeting.${greetingKey()}`)}, ${firstName}.`,
     [t, firstName],
   )
-  const cards = useMemo(() => fisherYatesPick(SUGGESTIONS, 4), [])
+  const cards = useMemo(() => fisherYatesPick(SUGGESTIONS, 6), [])
 
-  async function startNew(text: string, attachments: Attachment[], opts: { params?: Record<string, unknown> } = {}) {
+  async function startNew(
+    text: string,
+    attachments: Attachment[],
+    opts: { mode?: 'default' | 'deep-research' | 'canvas'; params?: Record<string, unknown> } = {},
+  ) {
     const conv = await createConversation(modelId)
     if (!conv) return
     navigate(`/chat/${conv.id}`)
@@ -59,6 +63,7 @@ export default function ChatHome() {
       text,
       modelId: conv.modelId || modelId,
       attachments,
+      mode: opts.mode,
       params: opts.params,
     })
   }
@@ -87,18 +92,22 @@ export default function ChatHome() {
         </div>
 
         <div className="mt-10 mx-auto w-full max-w-[44rem]">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {/* Single row, fixed-width cards, horizontally scrollable (snap). The
+              scrollbar is hidden; cards overflow the 44rem rail and swipe. */}
+          <div className="flex gap-3 overflow-x-auto px-1 -mx-1 pb-2 snap-x snap-mandatory [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {cards.map((s) => {
               const title = t(s.titleKey)
               const prompt = t(s.promptKey)
               return (
-                <SuggestionCard
-                  key={s.id}
-                  icon={s.icon}
-                  title={title}
-                  prompt={prompt}
-                  onClick={() => void startNew(prompt, [])}
-                />
+                <div key={s.id} className="w-[15.5rem] shrink-0 snap-start">
+                  <SuggestionCard
+                    icon={s.icon}
+                    title={title}
+                    prompt={prompt}
+                    onClick={() => void startNew(prompt, [])}
+                    className="h-full"
+                  />
+                </div>
               )
             })}
           </div>

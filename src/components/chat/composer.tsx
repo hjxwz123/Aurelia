@@ -30,13 +30,13 @@ import type { Attachment } from '@/types/chat'
 import { Textarea } from '@/components/ui/textarea'
 import { Tooltip } from '@/components/ui/tooltip'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { kbsApi } from '@/api/endpoints'
+import { kbsApi, audioApi } from '@/api/endpoints'
 import { ModelPicker } from './model-picker'
 import { ParamControls } from './param-controls'
 import { filterVisibleParams } from './param-controls.utils'
 import { useAutosizeTextarea } from '@/hooks/use-autosize-textarea'
 import { useModels } from '@/store/models'
-import { api } from '@/api/client'
+import { api, ApiError } from '@/api/client'
 import type { ApiAttachment } from '@/api/types'
 import { toast } from '@/hooks/use-toast'
 import { cn, uid, modKey } from '@/lib/utils'
@@ -102,6 +102,56 @@ export function Composer({
   }
   const ref = useRef<HTMLTextAreaElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+  // Voice input (§ whisper). Record via MediaRecorder, then transcribe through
+  // the admin-configured /audio/transcriptions endpoint and insert the text.
+  const [recording, setRecording] = useState(false)
+  const [transcribing, setTranscribing] = useState(false)
+  const recorderRef = useRef<MediaRecorder | null>(null)
+  const chunksRef = useRef<Blob[]>([])
+
+  async function toggleVoice() {
+    if (transcribing) return
+    if (recording) {
+      recorderRef.current?.stop()
+      return
+    }
+    if (typeof MediaRecorder === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+      toast.error(t('composer.voiceUnsupported'))
+      return
+    }
+    let stream: MediaStream
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+    } catch {
+      toast.error(t('composer.voicePermission'))
+      return
+    }
+    const rec = new MediaRecorder(stream)
+    chunksRef.current = []
+    rec.ondataavailable = (e) => {
+      if (e.data.size > 0) chunksRef.current.push(e.data)
+    }
+    rec.onstop = () => {
+      stream.getTracks().forEach((tr) => tr.stop())
+      setRecording(false)
+      const blob = new Blob(chunksRef.current, { type: rec.mimeType || 'audio/webm' })
+      if (blob.size === 0) return
+      setTranscribing(true)
+      void audioApi
+        .transcribe(blob, 'audio.webm')
+        .then(({ text }) => {
+          if (text) {
+            setValue((v) => (v.trim() ? v.trimEnd() + ' ' : '') + text)
+            requestAnimationFrame(() => ref.current?.focus())
+          }
+        })
+        .catch((e) => toast.error(e instanceof ApiError ? e.message : t('composer.voiceFailed')))
+        .finally(() => setTranscribing(false))
+    }
+    recorderRef.current = rec
+    rec.start()
+    setRecording(true)
+  }
   const effectivePlaceholder = placeholder ?? t('composer.placeholder')
 
   const currentModel = useModels((s) => s.models.find((m) => m.id === modelId))
@@ -371,14 +421,26 @@ export function Composer({
           </button>
         </Tooltip>
 
-        <Tooltip content={t('composer.voice')}>
+        <Tooltip content={recording ? t('composer.voiceStop') : t('composer.voice')}>
           <button
             type="button"
-            onClick={() => toast.info(t('composer.voiceMocked'), t('composer.voiceMockedBody'))}
+            onClick={() => void toggleVoice()}
+            disabled={transcribing}
             aria-label={t('composer.voice')}
-            className="inline-flex items-center justify-center size-8 rounded-[8px] text-[var(--color-fg-muted)] hover:bg-[var(--color-bg-muted)] hover:text-[var(--color-fg)] interactive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
+            aria-pressed={recording}
+            className={cn(
+              'inline-flex items-center justify-center size-8 rounded-[8px] interactive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]',
+              recording
+                ? 'bg-[var(--color-danger-soft)] text-[var(--color-danger)]'
+                : 'text-[var(--color-fg-muted)] hover:bg-[var(--color-bg-muted)] hover:text-[var(--color-fg)]',
+              transcribing && 'opacity-60 cursor-not-allowed',
+            )}
           >
-            <Mic size={15} aria-hidden />
+            <Mic
+              size={15}
+              aria-hidden
+              className={cn(recording && 'animate-[streaming-pulse_1600ms_ease-in-out_infinite]')}
+            />
           </button>
         </Tooltip>
 

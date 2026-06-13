@@ -16,9 +16,8 @@ import (
 // Force-use context to avoid "imported and not used" if ever the only ref is removed.
 var _ = context.Canceled
 
-// AnthropicProvider calls the Messages API (`POST /v1/messages`, SSE). When
-// no api_key is configured on the channel it falls back to the mock provider
-// so the system stays functional during local development.
+// AnthropicProvider calls the Messages API (`POST /v1/messages`, SSE). The
+// channel must carry a real api_key; an empty key is a configuration error.
 //
 // The implementation is the minimal subset of the Anthropic protocol needed to
 // stream a chat reply, parse tool_use blocks, execute them locally and
@@ -33,9 +32,7 @@ func (p *AnthropicProvider) ID() string { return "anthropic" }
 // Stream runs the Anthropic chat turn (with up to 12 tool iterations).
 func (p *AnthropicProvider) Stream(ctx context.Context, req UnifiedChatRequest, tools ToolRunner, onEvent func(SseEvent)) (*UnifiedResult, error) {
 	if req.Model.APIKey == "" {
-		// Fall back to mock — keeps the system usable while admin wires keys.
-		m := &MockProvider{logger: p.logger}
-		return m.Stream(ctx, req, tools, onEvent)
+		return nil, errors.New("this channel has no API key configured")
 	}
 	base := strings.TrimRight(req.Model.BaseURL, "/")
 	if base == "" {
@@ -598,5 +595,3 @@ func jsonEscape(s string) string {
 	}
 	return b.String()
 }
-
-// Plumbing used by mock provider's sleep timer.

@@ -28,7 +28,7 @@ import {
 import { toast } from '@/hooks/use-toast'
 import { Badge } from '@/components/ui/badge'
 import { IconUploader } from '@/components/admin/icon-uploader'
-import { ModelIcon } from '@/components/chat/model-icon'
+import { OAuthBrandGlyph } from '@/components/auth/oauth-glyph'
 
 type Editable = Partial<ApiOAuthProvider> & { client_secret?: string }
 
@@ -150,8 +150,8 @@ export default function AdminOAuth() {
           <ul className="flex flex-col divide-y divide-[var(--color-divider)] rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)]">
             {rows.map((p) => (
               <li key={p.id} className="grid grid-cols-[auto_1fr_auto_auto] items-center gap-3 px-5 py-4">
-                <div className="shrink-0 size-9 inline-flex items-center justify-center rounded-[8px] border border-[var(--color-border)] bg-[var(--color-bg-muted)]">
-                  <ModelIcon icon={p.icon} size={18} />
+                <div className="shrink-0 size-9 inline-flex items-center justify-center rounded-[8px] border border-[var(--color-border)] bg-[var(--color-bg-muted)] text-[var(--color-fg)]">
+                  <OAuthBrandGlyph kind={p.kind} icon={p.icon} size={18} />
                 </div>
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -208,13 +208,22 @@ export default function AdminOAuth() {
                 </Field>
               </div>
 
-              <Field label={t('admin:oauth.fields.icon')}>
-                <IconUploader
-                  value={editor.draft.icon ?? ''}
-                  onChange={(v) => setDraft({ icon: v })}
-                  placeholder={t('admin:oauth.fields.iconPlaceholder')}
-                />
-              </Field>
+              {isOidc ? (
+                <Field label={t('admin:oauth.fields.icon')}>
+                  <IconUploader
+                    value={editor.draft.icon ?? ''}
+                    onChange={(v) => setDraft({ icon: v })}
+                    placeholder={t('admin:oauth.fields.iconPlaceholder')}
+                  />
+                </Field>
+              ) : (
+                <Field label={t('admin:oauth.fields.icon')} hint={t('admin:oauth.fields.iconBuiltin')}>
+                  <div className="inline-flex items-center gap-2 rounded-[8px] border border-[var(--color-border)] bg-[var(--color-bg-muted)] px-3 py-2 text-[var(--color-fg)]">
+                    <OAuthBrandGlyph kind={kind} size={18} />
+                    <span className="text-sm">{t(`admin:oauth.kinds.${kind}`)}</span>
+                  </div>
+                </Field>
+              )}
 
               <Field label={t('admin:oauth.fields.clientId')} htmlFor="oa-cid">
                 <Input

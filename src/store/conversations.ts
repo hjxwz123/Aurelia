@@ -20,7 +20,17 @@ import type {
   ApiMessage,
   ApiSseEvent,
 } from '@/api/types'
-import type { Attachment, Citation, Conversation, Message, ReasoningItem, ToolCall } from '@/types/chat'
+import type {
+  Attachment,
+  Citation,
+  Conversation,
+  Message,
+  ReasoningItem,
+  ResearchSource,
+  ResearchState,
+  ResearchTask,
+  ToolCall,
+} from '@/types/chat'
 import { uid } from '@/lib/utils'
 
 interface ConversationStore {
@@ -64,6 +74,8 @@ interface ConversationStore {
      *  The optimistic update then truncates the visible path to `parentId`
      *  before appending, instead of stacking onto the active leaf. */
     branch?: boolean
+    /** Alternate turn pipeline: 'deep-research' runs the research engine. */
+    mode?: 'default' | 'deep-research' | 'canvas'
   }) => Promise<void>
   regenerate: (conversationId: string, assistantId: string, modelId?: string) => Promise<void>
   /** Edit a user message's text IN PLACE — overwrite, no new branch, no
@@ -321,6 +333,7 @@ export const useConversations = create<ConversationStore>((set, get) => ({
       createdAt: Date.now() + 1,
       streaming: true,
       modelId: input.modelId || get().conversations.find((c) => c.id === input.conversationId)?.modelId,
+      mode: input.mode,
     }
     streamControllers.set(assistantId, abort)
     // Optimistically update the local cache. For a normal turn we append to the
@@ -359,6 +372,8 @@ export const useConversations = create<ConversationStore>((set, get) => ({
           // (editing the root question) stays a root sibling instead of being
           // appended to the active leaf.
           branch: input.branch,
+          // 'deep-research' switches the backend to the research engine.
+          mode: input.mode,
           attachments: input.attachments?.map(attachmentToApi),
           params: input.params,
         },
@@ -424,6 +439,14 @@ export const useConversations = create<ConversationStore>((set, get) => ({
             }))
             break
           }
+          case 'research_plan':
+          case 'research_task':
+          case 'research_source':
+            updateAssistant(set, input.conversationId, serverAssistantId, (m) => ({
+              ...m,
+              research: applyResearchEvent(m.research, ev),
+            }))
+            break
           case 'tool_start': {
             // §6.2 dedupe: a round can emit tool_start twice. Track by id and
             // append into the ordered trace at the spot it occurred (§7.1-4).
@@ -438,10 +461,16 @@ export const useConversations = create<ConversationStore>((set, get) => ({
               input: (ev.input as Record<string, unknown>) ?? undefined,
             }
             toolCallsById.set(tid, tc)
-            updateAssistant(set, input.conversationId, serverAssistantId, (m) => ({
-              ...m,
-              reasoning: appendToolStart(m.reasoning ?? [], tc),
-            }))
+            // Pre-tool narration the model already streamed becomes a reasoning
+            // step, so the final answer is only the post-tool text (§4.3).
+            updateAssistant(set, input.conversationId, serverAssistantId, (m) => {
+              const flushed = flushNarration(m)
+              return {
+                ...m,
+                content: flushed.content,
+                reasoning: appendToolStart(flushed.reasoning, tc),
+              }
+            })
             break
           }
           case 'tool_input': {
@@ -541,6 +570,9 @@ export const useConversations = create<ConversationStore>((set, get) => ({
       // sibling behind the `< n/m >` picker.
       const oldAssistant = conv?.messages.find((m) => m.id === assistantId)
       const userParentId = oldAssistant?.parentId
+      // Carry the original turn's mode so regenerating a deep-research reply
+      // re-runs the research engine (and shows the panel) instead of downgrading.
+      const mode = oldAssistant?.mode
       const placeholderId = uid('m')
       const placeholder: Message = {
         id: placeholderId,
@@ -549,6 +581,7 @@ export const useConversations = create<ConversationStore>((set, get) => ({
         createdAt: Date.now(),
         streaming: true,
         modelId: modelId ?? conv?.modelId,
+        mode,
       }
       set((s) => ({
         conversations: s.conversations.map((c) => {
@@ -565,7 +598,7 @@ export const useConversations = create<ConversationStore>((set, get) => ({
       let lastCitations: Citation[] = []
       for await (const frame of streamSSE(
         `/conversations/${encodeURIComponent(conversationId)}/regenerate`,
-        { assistant_id: assistantId, model_id: modelId, params: conv?.lastParams },
+        { assistant_id: assistantId, model_id: modelId, mode, params: conv?.lastParams },
         abort.signal,
       )) {
         const ev = frame.data as ApiSseEvent
@@ -582,10 +615,14 @@ export const useConversations = create<ConversationStore>((set, get) => ({
               input: (ev.input as Record<string, unknown>) ?? undefined,
             }
             toolCallsById.set(tid, tc)
-            updateAssistant(set, conversationId, serverAssistantId, (m) => ({
-              ...m,
-              reasoning: appendToolStart(m.reasoning ?? [], tc),
-            }))
+            updateAssistant(set, conversationId, serverAssistantId, (m) => {
+              const flushed = flushNarration(m)
+              return {
+                ...m,
+                content: flushed.content,
+                reasoning: appendToolStart(flushed.reasoning, tc),
+              }
+            })
             break
           }
           case 'tool_input': {
@@ -649,6 +686,14 @@ export const useConversations = create<ConversationStore>((set, get) => ({
             updateAssistant(set, conversationId, serverAssistantId, (m) => ({
               ...m,
               reasoning: appendThinkingDelta(m.reasoning ?? [], ev.text ?? ''),
+            }))
+            break
+          case 'research_plan':
+          case 'research_task':
+          case 'research_source':
+            updateAssistant(set, conversationId, serverAssistantId, (m) => ({
+              ...m,
+              research: applyResearchEvent(m.research, ev),
             }))
             break
           case 'artifact':
@@ -777,6 +822,80 @@ function appendToolStart(reasoning: ReasoningItem[], tool: ToolCall): ReasoningI
   return [...reasoning, { kind: 'tool', id: tool.id, tool }]
 }
 
+// --- Deep Research panel state (§ deep-research mode) ----------------------
+// Folds research_plan/research_task/research_source SSE events into one
+// ResearchState. Shared by the sendMessage + regenerate stream loops.
+function parseRound(name?: string): number | undefined {
+  if (!name) return undefined
+  const m = name.match(/(\d+)/)
+  return m ? Number(m[1]) : undefined
+}
+
+function applyResearchEvent(prev: ResearchState | undefined, ev: ApiSseEvent): ResearchState {
+  const r: ResearchState = prev ?? { title: '', tasks: [], sources: [] }
+  if (ev.type === 'research_plan') {
+    return { ...r, title: ev.text ?? r.title }
+  }
+  if (ev.type === 'research_task') {
+    const tasks = r.tasks.slice()
+    const i = tasks.findIndex((t) => t.id === ev.id)
+    const status = (ev.status as ResearchTask['status']) ?? (i >= 0 ? tasks[i].status : 'pending')
+    const round = parseRound(ev.name) ?? (i >= 0 ? tasks[i].round : undefined)
+    if (i >= 0) {
+      tasks[i] = { ...tasks[i], status, round, question: ev.text ?? tasks[i].question }
+    } else {
+      tasks.push({ id: ev.id, question: ev.text ?? '', status, round })
+    }
+    return { ...r, tasks }
+  }
+  if (ev.type === 'research_source') {
+    const sources = r.sources.slice()
+    const i = sources.findIndex((s) => s.id === ev.id)
+    if (i >= 0) {
+      sources[i] = {
+        ...sources[i],
+        status: (ev.status as ResearchSource['status']) ?? sources[i].status,
+        verdict: ev.summary || sources[i].verdict,
+        url: ev.url ?? sources[i].url,
+        title: ev.title ?? sources[i].title,
+      }
+    } else {
+      sources.push({
+        id: ev.id,
+        url: ev.url ?? '',
+        title: ev.title ?? ev.url ?? '',
+        domain: safeDomain(ev.url ?? ''),
+        status: (ev.status as ResearchSource['status']) ?? 'found',
+        verdict: ev.summary,
+      })
+    }
+    return { ...r, sources }
+  }
+  return r
+}
+
+// appendNarration moves the model's pre-tool "let me look this up…" text into
+// the reasoning trace (§4.3) so it doesn't pollute the final answer. Merges
+// into a trailing narration run if one is already open.
+function appendNarration(reasoning: ReasoningItem[], text: string): ReasoningItem[] {
+  if (!text.trim()) return reasoning
+  const last = reasoning[reasoning.length - 1]
+  if (last && last.kind === 'narration') {
+    return [...reasoning.slice(0, -1), { ...last, text: last.text + text }]
+  }
+  return [...reasoning, { kind: 'narration', id: uid('rn'), text }]
+}
+
+// flushNarration moves the in-progress answer text into the trace as a
+// narration step and clears the answer buffer — called when a tool round starts
+// mid-answer, so the answer ends up being only the final (post-tool) text.
+function flushNarration(m: Message): { content: string; reasoning: ReasoningItem[] } {
+  if (m.content.trim()) {
+    return { content: '', reasoning: appendNarration(m.reasoning ?? [], m.content) }
+  }
+  return { content: m.content, reasoning: m.reasoning ?? [] }
+}
+
 function patchReasoningTool(
   reasoning: ReasoningItem[],
   id: string,
@@ -793,12 +912,24 @@ export function toLocalMessage(m: ApiMessage): Message {
   // the final answer; artifacts are collected separately.
   const reasoning: ReasoningItem[] = []
   const artifacts: Message['artifacts'] = []
-  let content = ''
+  let research: ResearchState | undefined
+  // Text accumulates into `pendingText`; when a tool_call follows, that text was
+  // pre-tool narration → flush it into the trace. Only the trailing text (after
+  // the last tool_call) is the final answer (§4.3 — mirrors the live flush).
+  let pendingText = ''
   let idx = 0
   for (const b of m.blocks ?? []) {
     idx++
     if (b.kind === 'text') {
-      content += b.text ?? ''
+      pendingText += b.text ?? ''
+    } else if (b.kind === 'research') {
+      // Deep Research panel state — rehydrate it; presence implies the turn was
+      // a deep-research turn.
+      try {
+        research = JSON.parse(b.text ?? '{}') as ResearchState
+      } catch {
+        /* ignore malformed state */
+      }
     } else if (b.kind === 'thinking') {
       const text = b.text ?? ''
       if (!text) continue
@@ -822,6 +953,11 @@ export function toLocalMessage(m: ApiMessage): Message {
         mimeType: b.summary ?? '',
       })
     } else if (b.kind === 'tool_call') {
+      // Flush any narration that preceded this tool into the trace.
+      if (pendingText.trim()) {
+        reasoning.push({ kind: 'narration', id: `${m.id}-n${idx}`, text: pendingText })
+        pendingText = ''
+      }
       const id = b.tool_id ?? `${m.id}-r${idx}`
       reasoning.push({
         kind: 'tool',
@@ -844,12 +980,17 @@ export function toLocalMessage(m: ApiMessage): Message {
       })
     }
   }
+  // Trailing text after the last tool_call (or all text when there were no
+  // tools) is the final answer.
+  const content = pendingText
   return {
     id: m.id,
     parentId: m.parent_id || undefined,
     role: m.role,
     content,
     reasoning: reasoning.length > 0 ? reasoning : undefined,
+    research,
+    mode: research ? 'deep-research' : undefined,
     artifacts: artifacts.length > 0 ? artifacts : undefined,
     modelId: m.model_id || undefined,
     createdAt: m.created_at * 1000,

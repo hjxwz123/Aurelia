@@ -159,6 +159,18 @@ func oauthCallbackHandler(d Deps, w http.ResponseWriter, r *http.Request) {
 		fail("account_disabled")
 		return
 	}
+	// 2FA gate (§ 2FA login): honour the user's TOTP setting on social logins too
+	// — hand off to the login page's code step via a short-lived ticket instead
+	// of minting a session here.
+	if user.TotpEnabled {
+		ticket := issueTwofaTicket(d, user.ID)
+		if ticket == "" {
+			fail("session_error")
+			return
+		}
+		http.Redirect(w, r, base+"/login?twofa_ticket="+url.QueryEscape(ticket), http.StatusFound)
+		return
+	}
 	if _, _, err := issueSessionCookies(d, w, user); err != nil {
 		fail("session_error")
 		return

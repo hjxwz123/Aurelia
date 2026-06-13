@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { motion } from 'framer-motion'
-import { Mail, Lock, ArrowRight, Eye, EyeOff } from 'lucide-react'
+import { Mail, Lock, ArrowRight, Eye, EyeOff, ShieldCheck, ArrowLeft } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Field } from '@/components/ui/label'
@@ -24,6 +24,10 @@ export default function Login() {
   const location = useLocation()
   const { t } = useTranslation('auth')
   const login = useAuth((s) => s.login)
+  const loginTwoFactor = useAuth((s) => s.loginTwoFactor)
+  const pendingTwoFactor = useAuth((s) => s.pendingTwoFactor)
+  const clearPendingTwoFactor = useAuth((s) => s.clearPendingTwoFactor)
+  const startTwoFactor = useAuth((s) => s.startTwoFactor)
   const { providers } = useOAuthProviders()
   const [searchParams, setSearchParams] = useSearchParams()
   const [email, setEmail] = useState('')
@@ -31,6 +35,8 @@ export default function Login() {
   const [showPw, setShowPw] = useState(false)
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState<{ email?: string; pw?: string; general?: string }>({})
+  const [code, setCode] = useState('')
+  const show2fa = Boolean(pendingTwoFactor)
 
   // Surface a failed OAuth round-trip (the callback redirects here with
   // ?oauth_error=…), then strip the param so a refresh doesn't re-toast.
@@ -41,6 +47,16 @@ export default function Login() {
     searchParams.delete('oauth_error')
     setSearchParams(searchParams, { replace: true })
   }, [searchParams, setSearchParams, t])
+
+  // An OAuth login for a 2FA-enabled account redirects back here with a ticket —
+  // resume the code step (§ 2FA login).
+  useEffect(() => {
+    const ticket = searchParams.get('twofa_ticket')
+    if (!ticket) return
+    startTwoFactor(ticket)
+    searchParams.delete('twofa_ticket')
+    setSearchParams(searchParams, { replace: true })
+  }, [searchParams, setSearchParams, startTwoFactor])
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -53,6 +69,12 @@ export default function Login() {
     setLoading(true)
     const ok = await login(email, pw)
     setLoading(false)
+    if (ok === '2fa') {
+      // Password accepted; the 2FA code form now takes over.
+      setErrors({})
+      setCode('')
+      return
+    }
     if (!ok) {
       const err = useAuth.getState().error
       // If account is pending verification, redirect to register page
@@ -67,6 +89,92 @@ export default function Login() {
     toast.success(t('login.welcome'), t('login.signingIn'))
     const from = (location.state as { from?: string } | null)?.from ?? '/'
     navigate(from, { replace: true })
+  }
+
+  async function submitCode(e: React.FormEvent) {
+    e.preventDefault()
+    if (code.trim().length < 6) {
+      setErrors({ general: t('twofa.codeRequired') })
+      return
+    }
+    setLoading(true)
+    const ok = await loginTwoFactor(code.trim())
+    setLoading(false)
+    if (!ok) {
+      setErrors({ general: useAuth.getState().error ?? t('twofa.invalid') })
+      return
+    }
+    toast.success(t('login.welcome'), t('login.signingIn'))
+    const from = (location.state as { from?: string } | null)?.from ?? '/'
+    navigate(from, { replace: true })
+  }
+
+  function cancelTwoFactor() {
+    clearPendingTwoFactor()
+    setCode('')
+    setErrors({})
+  }
+
+  if (show2fa) {
+    return (
+      <motion.div initial="hidden" animate="visible" variants={stagger}>
+        <motion.div
+          variants={fadeUp}
+          className="inline-flex size-11 items-center justify-center rounded-[12px] bg-[var(--color-secondary-soft)] text-[var(--color-secondary)]"
+        >
+          <ShieldCheck size={20} aria-hidden />
+        </motion.div>
+        <motion.h1
+          variants={fadeUp}
+          className="mt-5 font-serif tracking-tight text-3xl text-[var(--color-fg)] text-balance"
+        >
+          {t('twofa.title')}
+        </motion.h1>
+        <motion.p variants={fadeUp} className="mt-2.5 text-sm text-[var(--color-fg-muted)]">
+          {t('twofa.subtitle')}
+        </motion.p>
+
+        <motion.form variants={stagger} className="mt-7 flex flex-col gap-4" onSubmit={(e) => void submitCode(e)}>
+          {errors.general ? (
+            <motion.div
+              variants={fadeUp}
+              className="rounded-[10px] border border-[var(--color-danger-soft)] bg-[var(--color-danger-soft)] text-[var(--color-danger)] px-3 py-2 text-sm"
+            >
+              {errors.general}
+            </motion.div>
+          ) : null}
+          <motion.div variants={fadeUp}>
+            <Field label={t('twofa.codeLabel')} htmlFor="code">
+              <Input
+                id="code"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                autoFocus
+                value={code}
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                leadingIcon={<ShieldCheck size={14} aria-hidden />}
+                placeholder="000000"
+                className="tracking-[0.4em] font-mono text-center text-lg"
+              />
+            </Field>
+          </motion.div>
+          <motion.div variants={fadeUp}>
+            <Button type="submit" size="lg" loading={loading} trailingIcon={<ArrowRight size={15} aria-hidden />} className="w-full">
+              {t('twofa.verify')}
+            </Button>
+          </motion.div>
+          <motion.button
+            type="button"
+            variants={fadeUp}
+            onClick={cancelTwoFactor}
+            className="inline-flex items-center justify-center gap-1.5 text-xs text-[var(--color-fg-subtle)] hover:text-[var(--color-fg)]"
+          >
+            <ArrowLeft size={12} aria-hidden />
+            {t('twofa.back')}
+          </motion.button>
+        </motion.form>
+      </motion.div>
+    )
   }
 
   return (

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"aurelia/server/internal/store"
 )
@@ -101,7 +102,7 @@ func updateChannelAdmin(d Deps, w http.ResponseWriter, r *http.Request) {
 // OpenAI channels (chat | responses); other channel types must leave it empty.
 func validateChannelType(typ, apiFormat string) error {
 	switch typ {
-	case "openai", "claude", "anthropic", "google", "gemini", "mock":
+	case "openai", "claude", "anthropic", "google", "gemini":
 	default:
 		return errors.New("invalid channel type")
 	}
@@ -283,6 +284,113 @@ func unbanUserAdmin(d Deps, w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]bool{"ok": true})
 }
 
+type createUserReq struct {
+	Email    string `json:"email"`
+	Name     string `json:"name"`
+	Password string `json:"password"`
+	Role     string `json:"role"`
+}
+
+// createUserAdmin provisions an account directly (no signup flow, no email
+// verification) with the chosen role. Mirrors the registration hashing path.
+func createUserAdmin(d Deps, w http.ResponseWriter, r *http.Request) {
+	var req createUserReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, 400, errInvalidInput)
+		return
+	}
+	req.Email = strings.ToLower(strings.TrimSpace(req.Email))
+	if req.Email == "" || !strings.Contains(req.Email, "@") {
+		writeError(w, 400, errors.New("valid email required"))
+		return
+	}
+	if len(req.Password) < 8 {
+		writeError(w, 400, errors.New("password must be at least 8 characters"))
+		return
+	}
+	if req.Role != "admin" {
+		req.Role = "user"
+	}
+	if u, _ := store.FindUserByEmail(r.Context(), d.DB, req.Email); u != nil {
+		writeError(w, 409, errors.New("email already registered"))
+		return
+	}
+	hash, err := store.HashPassword(req.Password)
+	if err != nil {
+		writeError(w, 500, err)
+		return
+	}
+	user, err := store.CreateUserWithRole(r.Context(), d.DB, req.Email, req.Name, hash, req.Role)
+	if err != nil {
+		writeError(w, 500, err)
+		return
+	}
+	writeJSON(w, 201, user)
+}
+
+// setUserPasswordAdmin resets another user's password without the
+// current-password check (admin authority). Bumps token version + drops live
+// sessions so the user must re-authenticate with the new credential.
+func setUserPasswordAdmin(d Deps, w http.ResponseWriter, r *http.Request) {
+	id := pathParam(r, "id")
+	var req struct {
+		NewPassword string `json:"new_password"`
+	}
+	if err := decodeJSON(r, &req); err != nil || req.NewPassword == "" {
+		writeError(w, 400, errInvalidInput)
+		return
+	}
+	if len(req.NewPassword) < 8 {
+		writeError(w, 400, errors.New("password must be at least 8 characters"))
+		return
+	}
+	if _, err := store.FindUserByID(r.Context(), d.DB, id); err != nil {
+		writeError(w, 404, errNotFound)
+		return
+	}
+	hash, err := store.HashPassword(req.NewPassword)
+	if err != nil {
+		writeError(w, 500, err)
+		return
+	}
+	if err := store.UpdateUserPassword(r.Context(), d.DB, id, hash); err != nil {
+		writeError(w, 500, err)
+		return
+	}
+	d.Cache.Publish("user:"+id+":kill", "1")
+	writeJSON(w, 200, map[string]bool{"ok": true})
+}
+
+// setUserRoleAdmin changes a user's role. An admin can't change their OWN role
+// here (guards against self-lockout — use another admin account).
+func setUserRoleAdmin(d Deps, w http.ResponseWriter, r *http.Request) {
+	id := pathParam(r, "id")
+	if u := authUser(r); u != nil && u.ID == id {
+		writeError(w, 400, errors.New("cannot change your own role"))
+		return
+	}
+	var req struct {
+		Role string `json:"role"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, 400, errInvalidInput)
+		return
+	}
+	if req.Role != "admin" && req.Role != "user" {
+		writeError(w, 400, errors.New("role must be 'user' or 'admin'"))
+		return
+	}
+	if _, err := store.FindUserByID(r.Context(), d.DB, id); err != nil {
+		writeError(w, 404, errNotFound)
+		return
+	}
+	if err := store.SetUserRole(r.Context(), d.DB, id, req.Role); err != nil {
+		writeError(w, 500, err)
+		return
+	}
+	writeJSON(w, 200, map[string]bool{"ok": true})
+}
+
 // listUserConversationsAdmin returns one user's conversations for support /
 // abuse triage (§8.1). Ownership check is intentionally skipped because the
 // admin scope already gates this surface in router.go.
@@ -307,6 +415,21 @@ func getConversationAdmin(d Deps, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, conv)
+}
+
+// deleteConversationAdmin removes any user's conversation (support / cleanup).
+// No ownership filter — the requireAdmin gate is the authority.
+func deleteConversationAdmin(d Deps, w http.ResponseWriter, r *http.Request) {
+	id := pathParam(r, "id")
+	if err := store.DeleteConversationByID(r.Context(), d.DB, id); err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			writeError(w, 404, errNotFound)
+			return
+		}
+		writeError(w, 500, err)
+		return
+	}
+	writeJSON(w, 200, map[string]bool{"ok": true})
 }
 
 // listConversationMessagesAdmin returns either the active path (default) or
@@ -379,6 +502,12 @@ var settingsKeys = []string{
 	// fallback env vars (MINERU_API_URL/MINERU_API_KEY) are honoured, and if
 	// both are unset binary uploads land as placeholder text.
 	"mineru_api_url", "mineru_api_token",
+	// §user-groups: the prompt shown when a model is locked for a user's group or
+	// their windowed quota is exhausted.
+	"quota_exceeded_message",
+	// Voice transcription (whisper) — admin-configurable, live-reloaded per call.
+	// base_url defaults to https://api.openai.com; model defaults to whisper-1.
+	"audio_transcribe_base_url", "audio_transcribe_api_key", "audio_transcribe_model",
 	// §4.4 web search backend — admin-configurable, live-reloaded each call.
 	// Provider ∈ {"", "serper", "brave", "searxng", "auto"}. SearXNG is the
 	// self-hosted option and only needs base_url (no api_key). Empty provider

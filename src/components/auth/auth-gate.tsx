@@ -12,7 +12,7 @@ import { useConversations } from '@/store/conversations'
 import { useProjects } from '@/store/projects'
 import { useModels } from '@/store/models'
 
-const PUBLIC_PATHS = ['/welcome', '/login', '/register', '/forgot-password']
+const PUBLIC_PATHS = ['/welcome', '/login', '/register', '/forgot-password', '/share']
 
 function isPublic(path: string): boolean {
   return PUBLIC_PATHS.some((p) => path === p || path.startsWith(p + '/'))

@@ -10,11 +10,19 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { ArrowLeft, ChevronRight, MessageSquare } from 'lucide-react'
+import { ArrowLeft, ChevronRight, MessageSquare, Trash2 } from 'lucide-react'
 import { adminApi, ApiError } from '@/api'
 import type { ApiConversation, ApiUser } from '@/api/types'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { toast } from '@/hooks/use-toast'
 
 function formatStamp(unixSec: number): string {
@@ -27,12 +35,28 @@ function formatStamp(unixSec: number): string {
 }
 
 export default function AdminUserConversations() {
-  const { t } = useTranslation('admin')
+  const { t } = useTranslation(['admin', 'common'])
   const navigate = useNavigate()
   const { id = '' } = useParams<{ id: string }>()
   const [user, setUser] = useState<ApiUser | null>(null)
   const [rows, setRows] = useState<ApiConversation[]>([])
   const [loading, setLoading] = useState(true)
+  const [confirmDelete, setConfirmDelete] = useState<ApiConversation | null>(null)
+  const [deleting, setDeleting] = useState(false)
+
+  async function remove(c: ApiConversation) {
+    setDeleting(true)
+    try {
+      await adminApi.deleteConversation(c.id)
+      setRows((rs) => rs.filter((x) => x.id !== c.id))
+      setConfirmDelete(null)
+      toast.success(t('admin:users.conversationDeleted'))
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : t('admin:common.failed'))
+    } finally {
+      setDeleting(false)
+    }
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -95,10 +119,10 @@ export default function AdminUserConversations() {
         ) : (
           <ul className="flex flex-col divide-y divide-[var(--color-divider)] rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)]">
             {rows.map((c) => (
-              <li key={c.id}>
+              <li key={c.id} className="flex items-center">
                 <Link
                   to={`/admin/users/${encodeURIComponent(id)}/conversations/${encodeURIComponent(c.id)}`}
-                  className="group grid grid-cols-[auto_1fr_auto] items-center gap-3 px-5 py-4 interactive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
+                  className="group flex-1 min-w-0 grid grid-cols-[auto_1fr_auto] items-center gap-3 px-5 py-4 interactive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
                 >
                   <MessageSquare size={14} aria-hidden className="text-[var(--color-fg-subtle)]" />
                   <div className="min-w-0">
@@ -121,18 +145,49 @@ export default function AdminUserConversations() {
                     className="text-[var(--color-fg-subtle)] group-hover:text-[var(--color-fg)]"
                   />
                 </Link>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  className="mr-3 shrink-0 text-[var(--color-fg-subtle)] hover:text-[var(--color-danger)]"
+                  aria-label={t('admin:users.deleteConversation')}
+                  onClick={() => setConfirmDelete(c)}
+                >
+                  <Trash2 size={14} aria-hidden />
+                </Button>
               </li>
             ))}
           </ul>
         )}
       </section>
 
-      {/* Footnote so the surface doesn't read as an editor. */}
       <p className="mt-6 text-[12px] text-[var(--color-fg-subtle)] flex items-center gap-1.5">
         <Button asChild variant="ghost" size="sm">
           <Link to="/admin/users">{t('users.backToUsers')}</Link>
         </Button>
       </p>
+
+      <Dialog open={Boolean(confirmDelete)} onOpenChange={(o) => !o && setConfirmDelete(null)}>
+        <DialogContent size="sm">
+          <DialogHeader>
+            <DialogTitle>{t('admin:users.deleteTitle')}</DialogTitle>
+            <DialogDescription>
+              {confirmDelete
+                ? t('admin:users.deleteBody', {
+                    title: confirmDelete.title || t('admin:users.untitledConversation'),
+                  })
+                : ''}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setConfirmDelete(null)}>
+              {t('common:actions.cancel')}
+            </Button>
+            <Button variant="destructive" loading={deleting} onClick={() => confirmDelete && void remove(confirmDelete)}>
+              {t('common:actions.delete')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -84,7 +84,7 @@ func getConversationHandler(d Deps, w http.ResponseWriter, r *http.Request) {
 	// `< n/m >` branch picker on a fresh load or post-stream reconcile (§4.15).
 	writeJSON(w, 200, map[string]any{
 		"conversation": conv,
-		"messages":     enrichWithSiblings(d, r, msgs),
+		"messages":     redactCost(enrichWithSiblings(d, r, msgs)),
 	})
 }
 
@@ -138,7 +138,7 @@ func listMessagesHandler(d Deps, w http.ResponseWriter, r *http.Request) {
 		}
 		// Enrich each message with sibling indexes so the frontend can render
 		// branch pickers without a second roundtrip.
-		writeJSON(w, 200, enrichWithSiblings(d, r, msgs))
+		writeJSON(w, 200, redactCost(enrichWithSiblings(d, r, msgs)))
 		return
 	}
 	conv, _ := store.GetConversation(r.Context(), d.DB, id, u.ID)
@@ -177,7 +177,7 @@ func listMessagesHandler(d Deps, w http.ResponseWriter, r *http.Request) {
 	if hasMore && len(msgs) > 0 {
 		w.Header().Set("X-Next-Before", msgs[0].ID)
 	}
-	writeJSON(w, 200, enrichWithSiblings(d, r, msgs))
+	writeJSON(w, 200, redactCost(enrichWithSiblings(d, r, msgs)))
 }
 
 type enrichedMessage struct {
@@ -206,6 +206,17 @@ func enrichWithSiblings(d Deps, r *http.Request, msgs []store.Message) []enriche
 		})
 	}
 	return out
+}
+
+// redactCost zeroes the per-message cost/currency before a USER-facing response.
+// Spend is admin-only (visible in /admin/usage); regular users never see it, and
+// the API never returns it to them. Admin message-drilldown endpoints skip this.
+func redactCost(ems []enrichedMessage) []enrichedMessage {
+	for i := range ems {
+		ems[i].Cost = 0
+		ems[i].Currency = ""
+	}
+	return ems
 }
 
 type setActiveLeafReq struct {
@@ -240,7 +251,7 @@ func setActiveLeafHandler(d Deps, w http.ResponseWriter, r *http.Request) {
 	msgs, _ := store.ListMessages(r.Context(), d.DB, id, conv.ActiveLeafID)
 	writeJSON(w, 200, map[string]any{
 		"conversation": conv,
-		"messages":     enrichWithSiblings(d, r, msgs),
+		"messages":     redactCost(enrichWithSiblings(d, r, msgs)),
 	})
 }
 

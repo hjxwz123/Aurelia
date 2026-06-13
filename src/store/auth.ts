@@ -17,15 +17,21 @@ interface AuthState {
   signupOpen: boolean
   /** Set when registration returns verification_required — drives the code UI. */
   pendingVerification: string | null
+  /** Set when password login returns totp_required — drives the 2FA code UI. */
+  pendingTwoFactor: { ticket: string } | null
 
   hydrate: () => Promise<void>
-  login: (email: string, password: string) => Promise<boolean>
+  login: (email: string, password: string) => Promise<boolean | '2fa'>
+  loginTwoFactor: (code: string) => Promise<boolean>
   register: (email: string, password: string, name: string) => Promise<boolean | 'verify'>
   logout: () => Promise<void>
   updateProfile: (patch: { name?: string; email?: string }) => Promise<void>
   setUser: (user: ApiUser | null) => void
   setSignupOpen: (open: boolean) => void
   clearPendingVerification: () => void
+  clearPendingTwoFactor: () => void
+  /** Resume a 2FA challenge from a ticket (e.g. an OAuth redirect). */
+  startTwoFactor: (ticket: string) => void
 }
 
 export const useAuth = create<AuthState>((set, get) => ({
@@ -34,6 +40,7 @@ export const useAuth = create<AuthState>((set, get) => ({
   error: null,
   signupOpen: true,
   pendingVerification: null,
+  pendingTwoFactor: null,
 
   setUser(user) {
     set({ user, status: user ? 'authenticated' : 'unauthenticated' })
@@ -43,6 +50,12 @@ export const useAuth = create<AuthState>((set, get) => ({
   },
   clearPendingVerification() {
     set({ pendingVerification: null })
+  },
+  clearPendingTwoFactor() {
+    set({ pendingTwoFactor: null })
+  },
+  startTwoFactor(ticket) {
+    set({ pendingTwoFactor: { ticket }, status: 'unauthenticated' })
   },
 
   async hydrate() {
@@ -76,14 +89,41 @@ export const useAuth = create<AuthState>((set, get) => ({
     set({ status: 'authenticating', error: null })
     try {
       const resp = await authApi.login(email, password)
+      // 2FA-enabled accounts get a ticket instead of a session — hold it and
+      // let the UI collect the code (§ 2FA login).
+      if ('totp_required' in resp) {
+        set({ status: 'unauthenticated', pendingTwoFactor: { ticket: resp.ticket } })
+        return '2fa'
+      }
       setAccessToken(resp.access_token)
-      set({ user: resp.user, status: 'authenticated' })
+      set({ user: resp.user, status: 'authenticated', pendingTwoFactor: null })
       return true
     } catch (e) {
       const msg = e instanceof ApiError ? e.message : 'Login failed'
       // If the backend says "email not verified", flip to verification flow
       if (e instanceof ApiError && msg.toLowerCase().includes('not verified')) {
         set({ error: msg, status: 'unauthenticated', pendingVerification: email })
+        return false
+      }
+      set({ error: msg, status: 'unauthenticated' })
+      return false
+    }
+  },
+
+  async loginTwoFactor(code) {
+    const pending = get().pendingTwoFactor
+    if (!pending) return false
+    set({ status: 'authenticating', error: null })
+    try {
+      const resp = await authApi.loginTwoFactor(pending.ticket, code)
+      setAccessToken(resp.access_token)
+      set({ user: resp.user, status: 'authenticated', pendingTwoFactor: null })
+      return true
+    } catch (e) {
+      const msg = e instanceof ApiError ? e.message : 'Verification failed'
+      // An expired ticket means the password step must be redone.
+      if (e instanceof ApiError && e.status === 401 && msg.toLowerCase().includes('expired')) {
+        set({ error: msg, status: 'unauthenticated', pendingTwoFactor: null })
         return false
       }
       set({ error: msg, status: 'unauthenticated' })
@@ -117,7 +157,7 @@ export const useAuth = create<AuthState>((set, get) => ({
       /* ignore */
     }
     setAccessToken(null)
-    set({ user: null, status: 'unauthenticated' })
+    set({ user: null, status: 'unauthenticated', pendingTwoFactor: null })
   },
 
   async updateProfile(patch) {

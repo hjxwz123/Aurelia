@@ -30,18 +30,17 @@
     "newConversation": "New conversation",
     "search": "Search",
     "settings": "Settings",
-    "managePlan": "Manage plan",
     "export": "Export",
     "clear": "Clear",
     "viewSessions": "View sessions",
-    "viewInvoices": "View invoices",
     "changePassword": "Change password",
     "setUp": "Set up",
     "updateCard": "Update card",
     "resetLink": "Send reset link",
     "saveAndRegenerate": "Save & regenerate",
     "dismiss": "Dismiss",
-    "reset": "Reset"
+    "reset": "Reset",
+    "gotIt": "Got it"
   },
   "common": {
     "you": "You",

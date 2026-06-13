@@ -45,6 +45,12 @@ const (
 	TaskMemoryAdjudicate TaskKind = "task.memory_adjudicate"
 	// TaskDowngrade builds a cross-vendor history downgrade summary.
 	TaskDowngrade TaskKind = "task.downgrade"
+	// TaskResearchPlan decomposes a Deep Research question into sub-questions +
+	// initial search queries.
+	TaskResearchPlan TaskKind = "task.research_plan"
+	// TaskResearchVerify assesses research coverage and proposes follow-up
+	// queries for the next round.
+	TaskResearchVerify TaskKind = "task.research_verify"
 )
 
 // TaskLLM dispatches small internal model calls to the configured task model.
@@ -244,6 +250,18 @@ func defaultSystem(kind TaskKind, jsonOutput bool) string {
 	case TaskDowngrade:
 		return base + " Compress a multi-turn assistant response into a single short " +
 			"paragraph that preserves key facts, tool outputs, and decisions. No tool block syntax."
+	case TaskResearchPlan:
+		return base + " You are planning a thorough research investigation. Break the user's" +
+			" topic into 3-6 focused, non-overlapping sub-questions that together fully cover it," +
+			" and for each give 1-3 specific web search queries. Write the title and questions in" +
+			" the user's language. Reply with strict JSON only: " +
+			`{"title":"...","sub_questions":[{"id":"q1","question":"...","search_queries":["...","..."]}]}.`
+	case TaskResearchVerify:
+		return base + " You are auditing research coverage. A sub-question is covered only when at" +
+			" least two independent sources agree. Given the question and gathered findings, decide" +
+			" whether coverage is sufficient; if not, list uncovered sub-question ids, weak/unverified" +
+			" claims, and up to 4 new search queries to close the gaps. Reply with strict JSON only: " +
+			`{"sufficient":false,"uncovered":["q2"],"weak_claims":["..."],"new_queries":["..."]}.`
 	}
 	if jsonOutput {
 		return base + " Reply with strict JSON only."

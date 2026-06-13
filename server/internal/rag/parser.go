@@ -19,6 +19,8 @@ import (
 	"aurelia/server/internal/sandbox"
 	"aurelia/server/internal/storage"
 	"aurelia/server/internal/store"
+
+	"github.com/ledongthuc/pdf"
 )
 
 // MinerUResult is the structured output we get back from MinerU. Markdown is
@@ -76,33 +78,204 @@ func parseDocument(
 		}
 		return string(b), nil
 	}
-	// Binary — try MinerU when it's wired AND there's a bucket to host the file.
-	if mineruURL != "" && mineruToken != "" && sb.Enabled() {
-		if res, err := minerUExtractViaCloud(ctx, docPath, filename, mime, mineruURL, mineruToken, sb); err == nil && strings.TrimSpace(res.Markdown) != "" {
-			b := strings.Builder{}
-			b.WriteString(res.Markdown)
-			// Append per-image markers AFTER the body in case the zip layout
-			// didn't already embed them — duplicates are harmless because the
-			// chunker dedupes by content.
-			for _, im := range res.Images {
-				if strings.Contains(b.String(), "mineru://"+im.Filename) {
-					continue
-				}
-				caption := strings.TrimSpace(im.Caption)
-				if caption == "" {
-					caption = im.Filename
-				}
-				fmt.Fprintf(&b, "\n\n<!-- mineru-image page=%d -->\n![%s](mineru://%s)\n", im.PageNo, caption, im.Filename)
-			}
-			return b.String(), nil
+
+	// Binary formats. Project rule: PDF / DOC(X) / PPT(X) are parsed LOCALLY
+	// when they're text-native; only image-bearing or scanned documents are sent
+	// to MinerU (paid OCR). Everything else (images, legacy .doc/.ppt, html)
+	// goes to MinerU when configured, otherwise a one-line placeholder so ingest
+	// still completes. CSV/XLS(X) never reach here — runPipeline short-circuits
+	// spreadsheets to the code sandbox instead of parsing/embedding.
+	ext := docExt(filename, docPath)
+	mineruReady := mineruURL != "" && mineruToken != "" && sb.Enabled()
+	tryMineru := func() (string, bool) {
+		if !mineruReady {
+			return "", false
+		}
+		md, err := runMinerUMarkdown(ctx, docPath, filename, mime, mineruURL, mineruToken, sb)
+		if err != nil || strings.TrimSpace(md) == "" {
+			return "", false
+		}
+		return md, true
+	}
+
+	switch ext {
+	case "docx", "pptx":
+		text, hasImages, ok := extractOfficeXML(docPath, ext)
+		if ok && !hasImages {
+			return text, nil // pure-text office doc → local
+		}
+		if md, done := tryMineru(); done {
+			return md, nil // image-bearing → MinerU OCR/figure captions
+		}
+		if ok && strings.TrimSpace(text) != "" {
+			return text, nil // degraded: MinerU unavailable, keep local text
+		}
+	case "pdf":
+		text, hasImages, ok := extractPDFText(docPath)
+		scanned := !ok || strings.TrimSpace(text) == ""
+		if ok && !scanned && !hasImages {
+			return text, nil // text-native, no figures → local
+		}
+		if md, done := tryMineru(); done {
+			return md, nil // scanned or image-bearing → MinerU
+		}
+		if ok && !scanned {
+			return text, nil // degraded: MinerU unavailable, keep local text
+		}
+	default:
+		// Images, legacy .doc/.ppt, .html, etc. — OCR/conversion territory.
+		if md, done := tryMineru(); done {
+			return md, nil
 		}
 	}
+
 	info, _ := os.Stat(docPath)
 	size := int64(0)
 	if info != nil {
 		size = info.Size()
 	}
-	return filepath.Base(docPath) + " — binary document, " + formatBytes(size) + " (configure MinerU + object storage in admin settings to extract content).", nil
+	return filepath.Base(docPath) + " — binary document, " + formatBytes(size) + " (configure MinerU + object storage in admin settings to extract content, or analyse spreadsheets in the code sandbox).", nil
+}
+
+// runMinerUMarkdown runs the cloud OCR pipeline and assembles the markdown body
+// plus any per-image markers the zip layout didn't already embed.
+func runMinerUMarkdown(ctx context.Context, docPath, filename, mime, baseURL, token string, sb *storage.Client) (string, error) {
+	res, err := minerUExtractViaCloud(ctx, docPath, filename, mime, baseURL, token, sb)
+	if err != nil {
+		return "", err
+	}
+	b := strings.Builder{}
+	b.WriteString(res.Markdown)
+	for _, im := range res.Images {
+		if strings.Contains(b.String(), "mineru://"+im.Filename) {
+			continue
+		}
+		caption := strings.TrimSpace(im.Caption)
+		if caption == "" {
+			caption = im.Filename
+		}
+		fmt.Fprintf(&b, "\n\n<!-- mineru-image page=%d -->\n![%s](mineru://%s)\n", im.PageNo, caption, im.Filename)
+	}
+	return b.String(), nil
+}
+
+// docExt returns the lower-case extension (no dot) from the original filename,
+// falling back to the on-disk path.
+func docExt(filename, docPath string) string {
+	ext := strings.ToLower(strings.TrimPrefix(filepath.Ext(filename), "."))
+	if ext == "" {
+		ext = strings.ToLower(strings.TrimPrefix(filepath.Ext(docPath), "."))
+	}
+	return ext
+}
+
+// extractOfficeXML pulls plain text out of a DOCX/PPTX (both are ZIP+XML) using
+// the standard library only, and reports whether the archive embeds any images
+// (a media/ entry) — image-bearing docs are routed to MinerU for figure OCR.
+func extractOfficeXML(docPath, ext string) (text string, hasImages bool, ok bool) {
+	zr, err := zip.OpenReader(docPath)
+	if err != nil {
+		return "", false, false
+	}
+	defer zr.Close()
+
+	var bodyParts []string
+	for _, f := range zr.File {
+		name := f.Name
+		lower := strings.ToLower(name)
+		if strings.HasPrefix(lower, "word/media/") || strings.HasPrefix(lower, "ppt/media/") {
+			// Skip vector-only chrome (theme images are rare); any real media
+			// entry flags the doc as image-bearing.
+			hasImages = true
+			continue
+		}
+		want := false
+		switch ext {
+		case "docx":
+			want = lower == "word/document.xml" ||
+				strings.HasPrefix(lower, "word/header") ||
+				strings.HasPrefix(lower, "word/footer")
+		case "pptx":
+			want = strings.HasPrefix(lower, "ppt/slides/slide") && strings.HasSuffix(lower, ".xml")
+		}
+		if !want {
+			continue
+		}
+		raw, rerr := readZipEntry(f, 16*1024*1024)
+		if rerr != nil {
+			continue
+		}
+		if s := stripOfficeXML(string(raw)); strings.TrimSpace(s) != "" {
+			bodyParts = append(bodyParts, s)
+		}
+	}
+	return strings.TrimSpace(strings.Join(bodyParts, "\n\n")), hasImages, true
+}
+
+func readZipEntry(f *zip.File, max int64) ([]byte, error) {
+	rc, err := f.Open()
+	if err != nil {
+		return nil, err
+	}
+	defer rc.Close()
+	return io.ReadAll(io.LimitReader(rc, max))
+}
+
+// officeBreakRe matches the block/cell boundaries we turn into whitespace so
+// words don't run together when the tags are stripped.
+var (
+	officeParaBreakRe = regexp.MustCompile(`(?i)</w:p>|</a:p>|<w:br\s*/?>|<a:br\s*/?>|</w:tr>|</a:tr>`)
+	officeCellBreakRe = regexp.MustCompile(`(?i)</w:tc>|</a:tc>`)
+	xmlTagRe          = regexp.MustCompile(`<[^>]+>`)
+	blankLinesRe      = regexp.MustCompile(`\n{3,}`)
+)
+
+// stripOfficeXML converts a WordprocessingML / DrawingML fragment to plain text:
+// paragraph and row closes become newlines, cell closes become tabs, remaining
+// tags are dropped, and XML entities are unescaped.
+func stripOfficeXML(raw string) string {
+	s := officeParaBreakRe.ReplaceAllString(raw, "\n")
+	s = officeCellBreakRe.ReplaceAllString(s, "\t")
+	s = xmlTagRe.ReplaceAllString(s, "")
+	s = strings.NewReplacer(
+		"&amp;", "&", "&lt;", "<", "&gt;", ">", "&quot;", "\"", "&apos;", "'", "&#39;", "'",
+	).Replace(s)
+	s = blankLinesRe.ReplaceAllString(s, "\n\n")
+	return strings.TrimSpace(s)
+}
+
+// extractPDFText extracts the text layer with a pure-Go reader and reports
+// whether the PDF embeds image XObjects. ok=false (or empty text) means the PDF
+// has no extractable text — i.e. a scan — and should go to MinerU. The reader
+// panics on some malformed PDFs, so the whole call is recover-guarded.
+func extractPDFText(docPath string) (text string, hasImages bool, ok bool) {
+	defer func() {
+		if r := recover(); r != nil {
+			text, hasImages, ok = "", false, false
+		}
+	}()
+	f, reader, err := pdf.Open(docPath)
+	if err != nil {
+		return "", false, false
+	}
+	defer f.Close()
+	var buf bytes.Buffer
+	if tr, terr := reader.GetPlainText(); terr == nil {
+		_, _ = io.Copy(&buf, tr)
+	}
+	return strings.TrimSpace(buf.String()), pdfHasImages(docPath), true
+}
+
+// pdfHasImages is a cheap heuristic: image XObjects declare `/Subtype /Image`
+// in their (usually uncompressed) object dictionary, so a raw-bytes scan finds
+// them without a full structural parse. Misses are safe — a scanned PDF has no
+// text layer and is caught by the empty-text check instead.
+func pdfHasImages(docPath string) bool {
+	b, err := os.ReadFile(docPath)
+	if err != nil {
+		return false
+	}
+	return bytes.Contains(b, []byte("/Subtype/Image")) || bytes.Contains(b, []byte("/Subtype /Image"))
 }
 
 // minerUExtractViaCloud runs the four-step pipeline against the MinerU cloud
@@ -475,6 +648,18 @@ func truncateAtN(s string, n int) string {
 		return s
 	}
 	return s[:n] + "…"
+}
+
+// isSpreadsheetData reports whether a document is a spreadsheet / tabular data
+// file that should be handed to the code sandbox (python_execute reads it from
+// /workspace/uploads with pandas/openpyxl) rather than parsed and embedded.
+func isSpreadsheetData(filename, mime string) bool {
+	switch docExt(filename, filename) {
+	case "csv", "tsv", "xlsx", "xls", "xlsm":
+		return true
+	}
+	m := strings.ToLower(mime)
+	return strings.Contains(m, "spreadsheet") || strings.Contains(m, "ms-excel")
 }
 
 // isProbablyText narrows on mime types AND known text-friendly extensions.

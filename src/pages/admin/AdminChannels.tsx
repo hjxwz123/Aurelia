@@ -28,7 +28,7 @@ import { Badge } from '@/components/ui/badge'
 
 type Editable = Partial<ApiChannel> & { api_key?: string }
 
-const TYPES = ['openai', 'claude', 'gemini', 'mock'] as const
+const TYPES = ['openai', 'claude', 'gemini'] as const
 
 export default function AdminChannels() {
   const { t } = useTranslation(['admin', 'common'])

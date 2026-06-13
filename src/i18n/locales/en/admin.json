@@ -13,7 +13,7 @@
     "upload": "Upload",
     "clear": "Clear icon",
     "uploaded": "Icon uploaded",
-    "errBadType": "Only PNG or JPEG images are allowed.",
+    "errBadType": "Only PNG, JPEG, or SVG images are allowed.",
     "errTooLarge": "Image must be smaller than 256 KB."
   },
   "channels": {
@@ -63,7 +63,8 @@
     "sections": {
       "basic": "Basic",
       "behaviour": "Chat behaviour",
-      "pricing": "Pricing"
+      "pricing": "Pricing",
+      "permissions": "Permissions"
     },
     "fields": {
       "channel": "Channel",
@@ -98,7 +99,8 @@
     "errors": {
       "missingFields": "Channel, label and request_id are required",
       "invalidJSON": "param_controls is not valid JSON"
-    }
+    },
+    "permissionsLead": "Choose which user groups may use this model, and how much each gets per period. Leave every group off to keep the model open to everyone."
   },
   "skills": {
     "title": "Skills",
@@ -144,6 +146,7 @@
       "kind": "Provider",
       "name": "Button label",
       "icon": "Icon",
+      "iconBuiltin": "Uses the built-in brand icon.",
       "iconPlaceholder": "🔑 / https://… / —",
       "clientId": "Client ID",
       "clientSecret": "Client secret",
@@ -181,8 +184,35 @@
   },
   "users": {
     "title": "Users",
-    "lead": "Suspend abusive accounts (revokes outstanding sessions immediately).",
+    "lead": "Create accounts, reset passwords, change roles, and suspend abusive accounts (revokes outstanding sessions immediately).",
     "you": "you",
+    "new": "New user",
+    "newTitle": "New user",
+    "newLead": "Create an account directly — no email verification. They can sign in immediately.",
+    "create": "Create user",
+    "created": "User created",
+    "editTitle": "Edit {{name}}",
+    "roleUser": "User",
+    "roleAdmin": "Admin",
+    "roleChanged": "Role updated",
+    "passwordSet": "Password updated",
+    "selfRoleHint": "You can't change your own role — use another admin account.",
+    "fields": {
+      "email": "Email",
+      "name": "Name",
+      "password": "Password",
+      "passwordHint": "At least 8 characters.",
+      "newPassword": "Reset password",
+      "passwordEditHint": "Leave blank to keep the current password.",
+      "role": "Role",
+      "group": "User group",
+      "groupHint": "Determines which models this member can use and their quotas.",
+      "twofa": "Two-factor"
+    },
+    "errors": {
+      "emailRequired": "A valid email is required.",
+      "passwordShort": "Password must be at least 8 characters."
+    },
     "ban": "Ban",
     "unban": "Reinstate",
     "banned": "User banned",
@@ -191,7 +221,11 @@
     "backToUsers": "Back to users",
     "backToConversations": "Back to conversations",
     "conversationsTitle": "{{name}}'s conversations",
-    "conversationsLead": "Read-only view of every conversation owned by this user — for support and abuse triage. No edits, regenerate, or fork from here.",
+    "conversationsLead": "Triage view of every conversation owned by this user — for support and abuse. You can delete a conversation for cleanup; no edit, regenerate, or fork from here.",
+    "deleteConversation": "Delete conversation",
+    "deleteTitle": "Delete conversation?",
+    "deleteBody": "Permanently deletes \"{{title}}\" and all its messages. This cannot be undone.",
+    "conversationDeleted": "Conversation deleted",
     "noConversations": "No conversations.",
     "noMessages": "No messages.",
     "untitledConversation": "Untitled",
@@ -199,7 +233,10 @@
     "starred": "starred",
     "refused": "refused",
     "showThinking": "Show thinking",
-    "hideThinking": "Hide thinking"
+    "hideThinking": "Hide thinking",
+    "groupChanged": "User group updated",
+    "twofaHint": "Reset if the member lost their authenticator device.",
+    "twofaReset": "Reset 2FA"
   },
   "usage": {
     "title": "Usage",
@@ -248,6 +285,19 @@
   "tools": {
     "title": "Tools",
     "lead": "Outbound services the assistant calls during a conversation. Configure once here, live-reloaded for every subsequent tool call — no restart."
+  },
+  "audio": {
+    "title": "Voice",
+    "lead": "Speech-to-text for the composer's microphone. Audio is sent to an OpenAI-compatible /v1/audio/transcriptions endpoint with the model below. Live-reloaded — no restart.",
+    "saved": "Voice settings saved",
+    "fields": {
+      "model": "Transcription model",
+      "modelHint": "e.g. whisper-1. Sent as the `model` field to the transcription API.",
+      "baseUrl": "Base URL",
+      "baseUrlHint": "Defaults to https://api.openai.com. Point at any OpenAI-compatible audio endpoint.",
+      "apiKey": "API key",
+      "apiKeyHint": "Bearer token for the transcription endpoint. Stored plaintext. Leave blank to disable voice input."
+    }
   },
   "settings": {
     "title": "Global settings",
@@ -332,5 +382,49 @@
       "uploadAllowedExt": "Allowed extensions",
       "uploadAllowedExtHint": "Comma-separated, case-insensitive, with or without dots — e.g. \"pdf, docx, txt, png\"."
     }
+  },
+  "groups": {
+    "title": "User Groups",
+    "lead": "Membership tiers. Each group sets a price and feature list; per-model usage caps are configured on the model editor.",
+    "new": "New group",
+    "default": "Default",
+    "quotaMsgLabel": "Over-quota message",
+    "quotaMsgHint": "Shown when a member reaches a model’s usage limit for their group.",
+    "quotaMsgPlaceholder": "You’ve reached your plan’s limit for this model. Upgrade your plan to continue.",
+    "msgSaved": "Message saved",
+    "editorTitle": "Edit group",
+    "newTitle": "New group",
+    "editorLead": "Name, price and features are shown to members on the subscription page.",
+    "updated": "Group updated",
+    "created": "Group created",
+    "removed": "Group removed",
+    "removeTitle": "Remove group?",
+    "removeBody": "Members of “{{name}}” will be moved to the free group. This cannot be undone.",
+    "fields": {
+      "name": "Name",
+      "description": "Short description",
+      "descriptionPlaceholder": "For power users who need more headroom",
+      "priceUsd": "Price (USD)",
+      "priceCny": "Price (CNY)",
+      "features": "Features",
+      "featuresHint": "One per line. Shown as a checklist on the subscription page.",
+      "featuresPlaceholder": "Priority access\nHigher usage limits\nEarly features"
+    },
+    "errors": {
+      "nameRequired": "Name is required"
+    }
+  },
+  "quota": {
+    "saved": "Permissions saved",
+    "restrictedHint": "Only the groups enabled below can use this model. Everyone else sees it locked.",
+    "openHint": "No groups enabled — this model is open to everyone, unlimited.",
+    "every": "Every",
+    "days": "days",
+    "hours": "hours",
+    "count": "Uses",
+    "cost": "Spend",
+    "unlimitedHint": "Set to 0 for unlimited within the window.",
+    "capHint": "Cap per window for this group.",
+    "save": "Save permissions"
   }
 }

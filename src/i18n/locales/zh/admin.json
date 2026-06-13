@@ -13,7 +13,7 @@
     "upload": "上传",
     "clear": "清除图标",
     "uploaded": "图标已上传",
-    "errBadType": "仅支持 PNG 或 JPEG 图片。",
+    "errBadType": "仅支持 PNG、JPEG 或 SVG 图片。",
     "errTooLarge": "图片大小必须小于 256 KB。"
   },
   "channels": {
@@ -63,7 +63,8 @@
     "sections": {
       "basic": "基本信息",
       "behaviour": "对话行为",
-      "pricing": "计费"
+      "pricing": "计费",
+      "permissions": "权限"
     },
     "fields": {
       "channel": "渠道",
@@ -98,7 +99,8 @@
     "errors": {
       "missingFields": "请填写渠道、显示名和 request_id",
       "invalidJSON": "param_controls 不是合法 JSON"
-    }
+    },
+    "permissionsLead": "选择哪些用户组可以使用此模型，以及每个周期的额度。全部关闭则此模型对所有人开放。"
   },
   "skills": {
     "title": "技能",
@@ -144,6 +146,7 @@
       "kind": "登录方式",
       "name": "按钮文字",
       "icon": "图标",
+      "iconBuiltin": "使用内置品牌图标。",
       "iconPlaceholder": "🔑 / https://… / —",
       "clientId": "Client ID",
       "clientSecret": "Client Secret",
@@ -181,8 +184,35 @@
   },
   "users": {
     "title": "用户",
-    "lead": "封禁滥用账户(立即吊销所有 access token)。",
+    "lead": "新建账户、重置密码、修改角色,并封禁滥用账户(立即吊销所有 access token)。",
     "you": "你",
+    "new": "新建用户",
+    "newTitle": "新建用户",
+    "newLead": "直接创建账户,无需邮箱验证,创建后即可登录。",
+    "create": "创建用户",
+    "created": "用户已创建",
+    "editTitle": "编辑 {{name}}",
+    "roleUser": "普通用户",
+    "roleAdmin": "管理员",
+    "roleChanged": "角色已更新",
+    "passwordSet": "密码已更新",
+    "selfRoleHint": "无法修改自己的角色,请用其他管理员账户操作。",
+    "fields": {
+      "email": "邮箱",
+      "name": "名称",
+      "password": "密码",
+      "passwordHint": "至少 8 个字符。",
+      "newPassword": "重置密码",
+      "passwordEditHint": "留空则保持原密码。",
+      "role": "角色",
+      "group": "用户组",
+      "groupHint": "决定该用户可使用的模型及额度。",
+      "twofa": "两步验证"
+    },
+    "errors": {
+      "emailRequired": "请输入有效的邮箱。",
+      "passwordShort": "密码至少 8 个字符。"
+    },
     "ban": "封禁",
     "unban": "解封",
     "banned": "已封禁用户",
@@ -191,7 +221,11 @@
     "backToUsers": "返回用户列表",
     "backToConversations": "返回对话列表",
     "conversationsTitle": "{{name}} 的对话",
-    "conversationsLead": "查看该用户的全部对话,仅用于客服与滥用排查。此处只读,不能编辑、重生成或派生分支。",
+    "conversationsLead": "查看该用户的全部对话,用于客服与滥用排查。可删除对话以清理,但不能编辑、重生成或派生分支。",
+    "deleteConversation": "删除对话",
+    "deleteTitle": "删除对话?",
+    "deleteBody": "将永久删除「{{title}}」及其全部消息,此操作不可撤销。",
+    "conversationDeleted": "对话已删除",
     "noConversations": "没有对话记录。",
     "noMessages": "没有消息。",
     "untitledConversation": "未命名对话",
@@ -199,7 +233,10 @@
     "starred": "已收藏",
     "refused": "被拒答",
     "showThinking": "展开推理",
-    "hideThinking": "收起推理"
+    "hideThinking": "收起推理",
+    "groupChanged": "用户组已更新",
+    "twofaHint": "如果该用户丢失了身份验证器设备，可重置。",
+    "twofaReset": "重置两步验证"
   },
   "usage": {
     "title": "用量",
@@ -248,6 +285,19 @@
   "tools": {
     "title": "工具",
     "lead": "对话过程中助手会调用的外部服务。在这里改一次,后续每次工具调用都实时生效,无需重启。"
+  },
+  "audio": {
+    "title": "语音",
+    "lead": "输入框麦克风的语音转文字。音频会发送到 OpenAI 兼容的 /v1/audio/transcriptions 接口,使用下方配置的模型。实时生效,无需重启。",
+    "saved": "语音设置已保存",
+    "fields": {
+      "model": "转写模型",
+      "modelHint": "如 whisper-1,作为 model 字段发送给转写接口。",
+      "baseUrl": "Base URL",
+      "baseUrlHint": "默认 https://api.openai.com,可指向任意 OpenAI 兼容的音频端点。",
+      "apiKey": "API Key",
+      "apiKeyHint": "转写接口的 Bearer 密钥,明文存储。留空则禁用语音输入。"
+    }
   },
   "settings": {
     "title": "全局设置",
@@ -332,5 +382,49 @@
       "uploadAllowedExt": "允许的扩展名",
       "uploadAllowedExtHint": "用逗号、分号或空格分隔,不区分大小写,可写 .pdf 或 pdf,例:\"pdf, docx, txt, png\"。"
     }
+  },
+  "groups": {
+    "title": "用户组",
+    "lead": "会员等级。每个组设置价格与功能说明；按模型的用量限制在模型编辑页配置。",
+    "new": "新建用户组",
+    "default": "默认",
+    "quotaMsgLabel": "超额提示",
+    "quotaMsgHint": "当用户达到其用户组对某模型的用量上限时显示。",
+    "quotaMsgPlaceholder": "您已达到当前套餐对此模型的使用上限，升级套餐即可继续使用。",
+    "msgSaved": "提示已保存",
+    "editorTitle": "编辑用户组",
+    "newTitle": "新建用户组",
+    "editorLead": "名称、价格和功能将展示在用户的订阅页面。",
+    "updated": "用户组已更新",
+    "created": "用户组已创建",
+    "removed": "用户组已删除",
+    "removeTitle": "删除用户组？",
+    "removeBody": "“{{name}}”中的成员将被移动到免费组。此操作无法撤销。",
+    "fields": {
+      "name": "名称",
+      "description": "简短介绍",
+      "descriptionPlaceholder": "面向需要更多额度的高级用户",
+      "priceUsd": "价格（美元）",
+      "priceCny": "价格（人民币）",
+      "features": "功能介绍",
+      "featuresHint": "每行一条，将在订阅页面以清单形式展示。",
+      "featuresPlaceholder": "优先访问\n更高用量上限\n抢先体验新功能"
+    },
+    "errors": {
+      "nameRequired": "请填写名称"
+    }
+  },
+  "quota": {
+    "saved": "权限已保存",
+    "restrictedHint": "只有下面启用的用户组可以使用此模型，其他用户会看到锁定状态。",
+    "openHint": "未启用任何用户组——此模型对所有人无限开放。",
+    "every": "每",
+    "days": "天",
+    "hours": "小时",
+    "count": "次数",
+    "cost": "额度",
+    "unlimitedHint": "填 0 表示该周期内无限制。",
+    "capHint": "该用户组每个周期的上限。",
+    "save": "保存权限"
   }
 }

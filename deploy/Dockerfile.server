@@ -10,7 +10,7 @@
 # against Postgres. The runtime image is debian-slim because the resulting
 # binary dynamically links glibc.
 
-FROM golang:1.22-bookworm AS build
+FROM golang:1.24-bookworm AS build
 WORKDIR /src
 ENV CGO_ENABLED=1
 # Cache modules first.

@@ -1,0 +1,16 @@
+{
+  "back": "Back to chat",
+  "title": "Subscription",
+  "subtitle": "Your membership group determines which models you can use and how much.",
+  "currentPlan": "Current group",
+  "free": "Free",
+  "allPlans": "All groups",
+  "current": "Current",
+  "youreOnThis": "You’re on this group",
+  "switchCta": "Switch",
+  "upgradeCta": "Upgrade",
+  "upgradeTitle": "Switch to {{name}}",
+  "upgradeBody": "Group changes are handled by an administrator. Contact your workspace admin to move to this group.",
+  "priceFree": "Free",
+  "loadFailed": "Couldn’t load groups"
+}

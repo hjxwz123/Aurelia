@@ -76,12 +76,9 @@ func (w *MemoryWorker) Process(ctx context.Context, convID string) error {
 	if err := row.Scan(&userID); err != nil {
 		return err
 	}
-	// Are memories globally enabled?
-	enabled := true
-	if raw, err := store.GetSetting(w.db, "memory_enabled"); err == nil {
-		_ = json.Unmarshal(raw, &enabled)
-	}
-	if !enabled {
+	// Memory must be enabled both globally AND for this user (Personalization
+	// toggle) — otherwise extract nothing.
+	if !store.MemoryEnabledForUser(ctx, w.db, userID) {
 		return nil
 	}
 
