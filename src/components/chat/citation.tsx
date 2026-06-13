@@ -1,4 +1,6 @@
-import { ExternalLink } from 'lucide-react'
+import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { ChevronDown, ExternalLink } from 'lucide-react'
 import type { Citation } from '@/types/chat'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
@@ -67,28 +69,56 @@ interface CitationListProps {
 }
 
 export function CitationList({ citations }: CitationListProps) {
+  const { t } = useTranslation('chat')
+  const [open, setOpen] = useState(false)
   if (citations.length === 0) return null
   return (
     <div className="mt-5 border-t border-[var(--color-divider)] pt-3.5">
-      <p className="text-[11px] uppercase tracking-wider text-[var(--color-fg-subtle)] mb-2.5">
-        Sources
-      </p>
-      <ol className="space-y-1.5">
-        {citations.map((c) => (
-          <li key={c.id} className="flex items-start gap-2.5 text-xs">
-            <CitationChip citation={c} />
-            <a
-              href={c.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-[var(--color-fg-muted)] hover:text-[var(--color-accent)] leading-relaxed"
-            >
-              <span className="font-medium text-[var(--color-fg)]">{c.title}</span>
-              <span className="ml-1.5">{c.domain}</span>
-            </a>
-          </li>
-        ))}
-      </ol>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className={cn(
+          'group flex items-center gap-1.5 text-[11px] uppercase tracking-wider',
+          'text-[var(--color-fg-subtle)] hover:text-[var(--color-fg-muted)]',
+          'interactive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)] rounded-[5px]',
+        )}
+      >
+        <ChevronDown
+          size={13}
+          aria-hidden
+          className={cn('transition-transform duration-200', open ? 'rotate-0' : '-rotate-90')}
+        />
+        {t('sources.label')}
+        <span className="text-[var(--color-fg-subtle)]/70 normal-case">· {citations.length}</span>
+      </button>
+      {/* grid 0fr→1fr animates height without measuring; the global
+          prefers-reduced-motion rule neutralises the transition automatically. */}
+      <div
+        className={cn(
+          'grid transition-[grid-template-rows] duration-300 ease-[var(--ease-out)]',
+          open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]',
+        )}
+      >
+        <div className="overflow-hidden">
+          <ol className="space-y-1.5 pt-2.5">
+            {citations.map((c) => (
+              <li key={c.id} className="flex items-start gap-2.5 text-xs">
+                <CitationChip citation={c} />
+                <a
+                  href={c.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[var(--color-fg-muted)] hover:text-[var(--color-accent)] leading-relaxed"
+                >
+                  <span className="font-medium text-[var(--color-fg)]">{c.title}</span>
+                  <span className="ml-1.5">{c.domain}</span>
+                </a>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </div>
     </div>
   )
 }

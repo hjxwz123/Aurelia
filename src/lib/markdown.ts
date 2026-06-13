@@ -213,6 +213,23 @@ export function inlineMarkdownToHtml(md: string): string {
 }
 
 /**
+ * Block-level variant of inlineMarkdownToHtml. Uses marked's full block parser
+ * (not parseInline) so GFM tables become real `<table>` markup. Used for the
+ * `table` block — paragraphs/headings stay on the inline path. Same two-layer
+ * defence (strip raw HTML → sanitize) and math protection.
+ */
+export function blockMarkdownToHtml(md: string): string {
+  const cleaned = stripRawHtml(md)
+  const { text, map } = protectMath(cleaned)
+  let out = marked.parse(text, { async: false })
+  if (typeof out !== 'string') {
+    return escapeHtml(md)
+  }
+  out = out.replace(/@@MATH(\d+)@@/g, (_, i) => map[Number(i)] ?? '')
+  return sanitizeHtml(out)
+}
+
+/**
  * Tokenize markdown into a flat block list our React renderer can map over.
  */
 export function tokenizeMarkdown(md: string): MarkdownBlock[] {

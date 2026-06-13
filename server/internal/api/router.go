@@ -56,6 +56,13 @@ func NewRouter(d Deps) http.Handler {
 		writeJSON(w, 200, map[string]any{"ok": true})
 	})
 	mux.handle("GET", "/api/public/signup-open", wrap(d, signupOpenHandler))
+	mux.handle("GET", "/api/public/oauth-providers", wrap(d, oauthProvidersPublicHandler))
+
+	// OAuth / social login. /start is a top-level browser navigation; /callback
+	// is hit by the provider redirect (GET) or Apple's form_post (POST).
+	mux.handle("GET", "/api/auth/oauth/:id/start", rateLimitedIP(d, "auth", 20, 60*time.Second, wrap(d, oauthStartHandler)))
+	mux.handle("GET", "/api/auth/oauth/:id/callback", wrap(d, oauthCallbackHandler))
+	mux.handle("POST", "/api/auth/oauth/:id/callback", wrap(d, oauthCallbackHandler))
 
 	// Authenticated endpoints.
 	mux.handle("GET", "/api/me", requireAuth(d, meHandler))
@@ -133,6 +140,10 @@ func NewRouter(d Deps) http.Handler {
 	mux.handle("GET", "/api/admin/conversations/:id", requireAdmin(d, getConversationAdmin))
 	mux.handle("GET", "/api/admin/conversations/:id/messages", requireAdmin(d, listConversationMessagesAdmin))
 	mux.handle("GET", "/api/admin/usage", requireAdmin(d, usageReportAdmin))
+	mux.handle("GET", "/api/admin/oauth-providers", requireAdmin(d, listOAuthProvidersAdmin))
+	mux.handle("POST", "/api/admin/oauth-providers", requireAdmin(d, createOAuthProviderAdmin))
+	mux.handle("PATCH", "/api/admin/oauth-providers/:id", requireAdmin(d, updateOAuthProviderAdmin))
+	mux.handle("DELETE", "/api/admin/oauth-providers/:id", requireAdmin(d, deleteOAuthProviderAdmin))
 	mux.handle("GET", "/api/admin/settings", requireAdmin(d, adminSettingsGet))
 	mux.handle("PATCH", "/api/admin/settings", requireAdmin(d, adminSettingsSet))
 	// Icon upload — admin-only mint, any authenticated user can read. The

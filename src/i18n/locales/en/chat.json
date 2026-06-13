@@ -64,6 +64,9 @@
     "code_interpreter": "Code interpreter",
     "deep_research": "Deep research"
   },
+  "sources": {
+    "label": "Sources"
+  },
   "code": {
     "run": "Run",
     "rerun": "Run again",

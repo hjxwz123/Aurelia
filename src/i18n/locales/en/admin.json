@@ -128,6 +128,57 @@
       "missingFields": "Name, description and instructions are required."
     }
   },
+  "oauth": {
+    "title": "Login methods",
+    "lead": "Social / OAuth sign-in. Add Google, GitHub or Apple, or any OAuth2/OIDC provider with a custom name and icon. Configured methods appear on the login screen automatically; with none set up, the login screen shows email + password only.",
+    "new": "Add method",
+    "empty": "No login methods yet — users sign in with email + password.",
+    "noClientId": "no client id",
+    "kinds": {
+      "google": "Google",
+      "github": "GitHub",
+      "apple": "Apple",
+      "oidc": "Custom (OAuth2 / OIDC)"
+    },
+    "fields": {
+      "kind": "Provider",
+      "name": "Button label",
+      "icon": "Icon",
+      "iconPlaceholder": "🔑 / https://… / —",
+      "clientId": "Client ID",
+      "clientSecret": "Client secret",
+      "clientSecretApple": "Private key (.p8)",
+      "clientSecretHintEdit": "Leave blank to keep the saved secret.",
+      "authUrl": "Authorize URL",
+      "tokenUrl": "Token URL",
+      "userinfoUrl": "Userinfo URL",
+      "scopes": "Scopes",
+      "scopesHint": "Space-separated. Leave blank for the default (openid email profile).",
+      "teamId": "Team ID",
+      "keyId": "Key ID",
+      "enabled": "Enabled (shown on the login screen)",
+      "redirectUri": "Redirect URI",
+      "redirectUriHint": "Register this exact URL in the provider's console as the allowed callback / redirect URI.",
+      "redirectUriNew": "Save the method first — the redirect URI to register with the provider appears once it has an ID."
+    },
+    "hints": {
+      "google": "Create an OAuth client in Google Cloud → APIs & Services → Credentials, then paste the Client ID and Client secret.",
+      "github": "Create a GitHub OAuth App (Settings → Developer settings → OAuth Apps), then paste the Client ID and Client secret.",
+      "apple": "Create a Services ID and an AuthKey (.p8) in the Apple Developer portal. The Client ID is the Services ID; paste the .p8 contents as the private key and fill the Team ID and Key ID.",
+      "oidc": "Any OAuth2 / OpenID Connect provider. Supply the client credentials and the authorize / token / userinfo endpoints."
+    },
+    "editorTitle": "Edit login method",
+    "newTitle": "Add login method",
+    "removeTitle": "Remove login method?",
+    "removeBody": "Removes \"{{name}}\". Accounts created through it keep working and can sign in with email + password after a reset.",
+    "created": "Login method added",
+    "updated": "Login method updated",
+    "removed": "Login method removed",
+    "copy": "Copy redirect URI",
+    "errors": {
+      "nameRequired": "Button label required"
+    }
+  },
   "users": {
     "title": "Users",
     "lead": "Suspend abusive accounts (revokes outstanding sessions immediately).",

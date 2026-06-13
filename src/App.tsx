@@ -41,6 +41,7 @@ const AdminUsage = lazy(() => import('@/pages/admin/AdminUsage'))
 const AdminSettings = lazy(() => import('@/pages/admin/AdminSettings'))
 const AdminDocuments = lazy(() => import('@/pages/admin/AdminDocuments'))
 const AdminTools = lazy(() => import('@/pages/admin/AdminTools'))
+const AdminOAuth = lazy(() => import('@/pages/admin/AdminOAuth'))
 const NotFound = lazy(() => import('@/pages/NotFound'))
 
 function GlobalShortcuts() {
@@ -150,6 +151,7 @@ export default function App() {
               <Route path="usage" element={<AdminUsage />} />
               <Route path="documents" element={<AdminDocuments />} />
               <Route path="tools" element={<AdminTools />} />
+              <Route path="oauth" element={<AdminOAuth />} />
               <Route path="settings" element={<AdminSettings />} />
             </Route>
             <Route path="*" element={<NotFound />} />

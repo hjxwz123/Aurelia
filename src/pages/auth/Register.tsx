@@ -7,9 +7,12 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Field } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
+import { Separator } from '@/components/ui/separator'
 import { toast } from '@/hooks/use-toast'
 import { useAuth } from '@/store/auth'
 import { authApi, setAccessToken, ApiError } from '@/api'
+import { useOAuthProviders } from '@/hooks/use-oauth-providers'
+import { OAuthButtons } from '@/components/auth/oauth-buttons'
 
 const ease: [number, number, number, number] = [0.2, 0.8, 0.2, 1]
 const stagger = { hidden: {}, visible: { transition: { staggerChildren: 0.06, delayChildren: 0.04 } } }
@@ -24,6 +27,7 @@ export default function Register() {
   const register = useAuth((s) => s.register)
   const signupOpen = useAuth((s) => s.signupOpen)
   const pendingVerification = useAuth((s) => s.pendingVerification)
+  const { providers } = useOAuthProviders()
 
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -190,7 +194,23 @@ export default function Register() {
         {t('register.subtitle')}
       </motion.p>
 
-      <motion.form variants={stagger} className="mt-7 flex flex-col gap-4" onSubmit={(e) => void submit(e)}>
+      {providers.length > 0 ? (
+        <>
+          <motion.div variants={fadeUp} className="mt-7 flex flex-col gap-2">
+            <OAuthButtons providers={providers} />
+          </motion.div>
+          <motion.div
+            variants={fadeUp}
+            className="my-6 flex items-center gap-3 text-[11px] uppercase tracking-wider text-[var(--color-fg-subtle)]"
+          >
+            <Separator className="flex-1" />
+            <span>{t('login.or')}</span>
+            <Separator className="flex-1" />
+          </motion.div>
+        </>
+      ) : null}
+
+      <motion.form variants={stagger} className={`${providers.length > 0 ? '' : 'mt-7 '}flex flex-col gap-4`} onSubmit={(e) => void submit(e)}>
         {!signupOpen ? (
           <motion.div
             variants={fadeUp}

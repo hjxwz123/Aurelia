@@ -265,3 +265,39 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
   revoked    INTEGER NOT NULL DEFAULT 0,
   created_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
 );
+
+-- OAuth / social login providers, configured by the admin. Built-in kinds
+-- (google | github | apple) fill their endpoints from code defaults; kind=oidc
+-- is a generic OAuth2/OIDC provider whose endpoints come from the row. The
+-- client_secret is plaintext like channel api_key; for Apple it holds the
+-- AuthKey .p8 private key used to mint the client-secret JWT.
+CREATE TABLE IF NOT EXISTS oauth_providers (
+  id            TEXT PRIMARY KEY,                -- "oa_<hex>"
+  kind          TEXT NOT NULL,                   -- google | github | apple | oidc
+  name          TEXT NOT NULL,                   -- label shown on the login button
+  icon          TEXT NOT NULL DEFAULT '',        -- emoji / uploaded URL (custom providers)
+  client_id     TEXT NOT NULL DEFAULT '',
+  client_secret TEXT NOT NULL DEFAULT '',        -- apple: the .p8 private key
+  auth_url      TEXT NOT NULL DEFAULT '',        -- oidc only (built-ins use defaults)
+  token_url     TEXT NOT NULL DEFAULT '',
+  userinfo_url  TEXT NOT NULL DEFAULT '',
+  scopes        TEXT NOT NULL DEFAULT '',        -- space-separated override
+  team_id       TEXT NOT NULL DEFAULT '',        -- apple
+  key_id        TEXT NOT NULL DEFAULT '',        -- apple
+  enabled       INTEGER NOT NULL DEFAULT 1,
+  sort_order    INTEGER NOT NULL DEFAULT 0,
+  updated_at    INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+);
+
+-- Links a provider identity (provider row + stable subject) to a local user.
+-- Keyed on (provider_id, subject) so the link survives email changes — re-login
+-- matches on the provider's immutable subject, never on the email.
+CREATE TABLE IF NOT EXISTS oauth_identities (
+  provider_id TEXT NOT NULL,
+  subject     TEXT NOT NULL,
+  user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  email       TEXT NOT NULL DEFAULT '',
+  created_at  INTEGER NOT NULL DEFAULT (strftime('%s','now')),
+  PRIMARY KEY (provider_id, subject)
+);
+CREATE INDEX IF NOT EXISTS idx_oauth_identities_user ON oauth_identities(user_id);
