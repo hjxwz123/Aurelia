@@ -11,7 +11,7 @@ import (
 // the unified request into its vendor format, executes the streaming loop and
 // emits canonical SseEvents through the onEvent callback.
 type Provider interface {
-	// ID is one of "anthropic" | "openai" | "google" | "mock".
+	// ID is one of "anthropic" | "openai" | "google".
 	ID() string
 
 	// Stream runs one model turn. The provider drives the multi-turn tool
@@ -27,23 +27,21 @@ type ToolRunner interface {
 	Run(ctx context.Context, name string, input []byte) (output string, citations []Citation, err error)
 }
 
-// Registry holds the live set of providers indexed by ID. Always includes the
-// "mock" provider so a fresh database is functional.
+// Registry holds the live set of providers indexed by ID.
 type Registry struct {
 	mu        sync.RWMutex
 	providers map[string]Provider
 	logger    *log.Logger
 }
 
-// NewRegistry builds the default registry containing the mock + real
-// provider stubs. The orchestrator picks one based on the model's channel
-// type.
+// NewRegistry builds the default registry of real providers. The orchestrator
+// picks one based on the model's channel type; a channel must carry real
+// credentials to function.
 func NewRegistry(logger *log.Logger) *Registry {
 	r := &Registry{
 		providers: map[string]Provider{},
 		logger:    logger,
 	}
-	r.Register(&MockProvider{logger: logger})
 	r.Register(&AnthropicProvider{logger: logger})
 	r.Register(&OpenAIProvider{logger: logger})
 	r.Register(&GoogleProvider{logger: logger})
@@ -64,7 +62,6 @@ var ErrUnknownProvider = errors.New("unknown provider")
 //   - "anthropic" / "claude" → anthropic
 //   - "openai" → openai
 //   - "google" / "gemini" → google
-//   - "mock" → mock
 func (r *Registry) Get(channelType string) (Provider, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -75,8 +72,6 @@ func (r *Registry) Get(channelType string) (Provider, error) {
 		return r.providers["openai"], nil
 	case "google", "gemini":
 		return r.providers["google"], nil
-	case "mock", "":
-		return r.providers["mock"], nil
 	}
 	return nil, ErrUnknownProvider
 }

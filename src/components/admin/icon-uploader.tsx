@@ -29,7 +29,7 @@ import { Button } from '@/components/ui/button'
 import { toast } from '@/hooks/use-toast'
 import { ModelIcon } from '@/components/chat/model-icon'
 
-const ACCEPT = 'image/png,image/jpeg'
+const ACCEPT = 'image/png,image/jpeg,image/svg+xml,.svg'
 const MAX_BYTES = 256 * 1024 // mirrors backend admin_uploads.go maxIconBytes
 
 interface IconUploaderProps {
@@ -48,7 +48,9 @@ export function IconUploader({ id, value, onChange, placeholder }: IconUploaderP
     const f = e.target.files?.[0]
     e.target.value = '' // allow re-picking the same file
     if (!f) return
-    if (!['image/png', 'image/jpeg'].includes(f.type)) {
+    const okType =
+      ['image/png', 'image/jpeg', 'image/svg+xml'].includes(f.type) || /\.svg$/i.test(f.name)
+    if (!okType) {
       toast.error(t('admin:icon.errBadType'))
       return
     }

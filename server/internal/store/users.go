@@ -17,16 +17,18 @@ var ErrNotFound = errors.New("not found")
 func FindUserByEmail(ctx context.Context, db *sql.DB, email string) (*User, error) {
 	var u User
 	var settings string
+	var totpEnabled int
 	err := db.QueryRowContext(ctx,
-		`SELECT id, email, name, role, status, token_ver, settings, created_at FROM users WHERE email=?`,
+		`SELECT id, email, name, role, status, token_ver, settings, group_id, totp_secret, totp_enabled, created_at FROM users WHERE email=?`,
 		strings.ToLower(strings.TrimSpace(email)),
-	).Scan(&u.ID, &u.Email, &u.Name, &u.Role, &u.Status, &u.TokenVer, &settings, &u.CreatedAt)
+	).Scan(&u.ID, &u.Email, &u.Name, &u.Role, &u.Status, &u.TokenVer, &settings, &u.GroupID, &u.TotpSecret, &totpEnabled, &u.CreatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
 	if err != nil {
 		return nil, err
 	}
+	u.TotpEnabled = totpEnabled != 0
 	u.Settings = json.RawMessage(settings)
 	return &u, nil
 }
@@ -35,15 +37,17 @@ func FindUserByEmail(ctx context.Context, db *sql.DB, email string) (*User, erro
 func FindUserByID(ctx context.Context, db *sql.DB, id string) (*User, error) {
 	var u User
 	var settings string
+	var totpEnabled int
 	err := db.QueryRowContext(ctx,
-		`SELECT id, email, name, role, status, token_ver, settings, created_at FROM users WHERE id=?`, id,
-	).Scan(&u.ID, &u.Email, &u.Name, &u.Role, &u.Status, &u.TokenVer, &settings, &u.CreatedAt)
+		`SELECT id, email, name, role, status, token_ver, settings, group_id, totp_secret, totp_enabled, created_at FROM users WHERE id=?`, id,
+	).Scan(&u.ID, &u.Email, &u.Name, &u.Role, &u.Status, &u.TokenVer, &settings, &u.GroupID, &u.TotpSecret, &totpEnabled, &u.CreatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
 	if err != nil {
 		return nil, err
 	}
+	u.TotpEnabled = totpEnabled != 0
 	u.Settings = json.RawMessage(settings)
 	return &u, nil
 }
@@ -57,10 +61,20 @@ func PasswordFor(ctx context.Context, db *sql.DB, userID string) (string, error)
 
 // CreateUser inserts a new user (default role=user, status=active).
 func CreateUser(ctx context.Context, db *sql.DB, email, name, pwHash string) (*User, error) {
+	return CreateUserWithRole(ctx, db, email, name, pwHash, "user")
+}
+
+// CreateUserWithRole inserts a new user with an explicit role ('user' |
+// 'admin'). Used by the admin "create user" flow; CreateUser delegates here
+// with role='user' for the normal registration path.
+func CreateUserWithRole(ctx context.Context, db *sql.DB, email, name, pwHash, role string) (*User, error) {
 	id := genID("u")
 	email = strings.ToLower(strings.TrimSpace(email))
 	if email == "" {
 		return nil, errors.New("email required")
+	}
+	if role != "admin" {
+		role = "user"
 	}
 	if name == "" {
 		// Pick name from the part before "@" as a sensible default.
@@ -70,12 +84,25 @@ func CreateUser(ctx context.Context, db *sql.DB, email, name, pwHash string) (*U
 		}
 	}
 	_, err := db.ExecContext(ctx,
-		`INSERT INTO users(id, email, password_hash, name, settings) VALUES(?, ?, ?, ?, '{}')`,
-		id, email, pwHash, name)
+		`INSERT INTO users(id, email, password_hash, name, role, settings) VALUES(?, ?, ?, ?, ?, '{}')`,
+		id, email, pwHash, name, role)
 	if err != nil {
 		return nil, err
 	}
 	return FindUserByID(ctx, db, id)
+}
+
+// SetUserRole changes a user's role between 'user' and 'admin'. Bumps the token
+// version so the change takes effect on the next request (the role lives in the
+// access-token claims, so outstanding tokens must be invalidated).
+func SetUserRole(ctx context.Context, db *sql.DB, userID, role string) error {
+	if role != "admin" && role != "user" {
+		return errors.New("role must be 'user' or 'admin'")
+	}
+	if _, err := db.ExecContext(ctx, `UPDATE users SET role=? WHERE id=?`, role, userID); err != nil {
+		return err
+	}
+	return BumpTokenVersion(ctx, db, userID)
 }
 
 // BumpTokenVersion invalidates all outstanding access tokens for the user.
@@ -99,6 +126,28 @@ func SetUserStatus(ctx context.Context, db *sql.DB, userID, status string) error
 		return err
 	}
 	return nil
+}
+
+// MemoryEnabledForUser reports whether long-term memory is active for this user.
+// Memory is on unless EITHER the global admin setting OR the user's per-user
+// override is explicitly false (both default to enabled). Used to gate both
+// memory injection (orchestrator) and extraction (memory worker) so a user who
+// turns memory off in Personalization gets no memory in any conversation.
+func MemoryEnabledForUser(ctx context.Context, db *sql.DB, userID string) bool {
+	global := true
+	if raw, err := GetSetting(db, "memory_enabled"); err == nil {
+		_ = json.Unmarshal(raw, &global)
+	}
+	if !global {
+		return false
+	}
+	if raw, err := GetUserSettingKey(ctx, db, userID, "memory_enabled"); err == nil && len(raw) > 0 {
+		user := true
+		if json.Unmarshal(raw, &user) == nil && !user {
+			return false
+		}
+	}
+	return true
 }
 
 // GetUserSettingKey returns one key from users.settings as raw JSON (nil if
@@ -160,10 +209,29 @@ func UpdateUserPassword(ctx context.Context, db *sql.DB, userID, newHash string)
 	return BumpTokenVersion(ctx, db, userID)
 }
 
+// SetUserTotp stores the TOTP secret and enabled flag for a user (§ 2FA login).
+// Setup writes the secret with enabled=false; enable flips it to true once the
+// user proves possession with a valid code.
+func SetUserTotp(ctx context.Context, db *sql.DB, userID, secret string, enabled bool) error {
+	en := 0
+	if enabled {
+		en = 1
+	}
+	_, err := db.ExecContext(ctx, `UPDATE users SET totp_secret=?, totp_enabled=? WHERE id=?`, secret, en, userID)
+	return err
+}
+
+// DisableUserTotp clears 2FA for a user (self-service with a valid code, or an
+// admin reset to recover a locked-out account).
+func DisableUserTotp(ctx context.Context, db *sql.DB, userID string) error {
+	_, err := db.ExecContext(ctx, `UPDATE users SET totp_secret='', totp_enabled=0 WHERE id=?`, userID)
+	return err
+}
+
 // ListUsers returns every user (admin only). Paged in memory.
 func ListUsers(ctx context.Context, db *sql.DB) ([]User, error) {
 	rows, err := db.QueryContext(ctx,
-		`SELECT id, email, name, role, status, token_ver, settings, created_at FROM users ORDER BY created_at DESC`)
+		`SELECT id, email, name, role, status, token_ver, settings, group_id, totp_secret, totp_enabled, created_at FROM users ORDER BY created_at DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -172,9 +240,11 @@ func ListUsers(ctx context.Context, db *sql.DB) ([]User, error) {
 	for rows.Next() {
 		var u User
 		var settings string
-		if err := rows.Scan(&u.ID, &u.Email, &u.Name, &u.Role, &u.Status, &u.TokenVer, &settings, &u.CreatedAt); err != nil {
+		var totpEnabled int
+		if err := rows.Scan(&u.ID, &u.Email, &u.Name, &u.Role, &u.Status, &u.TokenVer, &settings, &u.GroupID, &u.TotpSecret, &totpEnabled, &u.CreatedAt); err != nil {
 			return nil, err
 		}
+		u.TotpEnabled = totpEnabled != 0
 		u.Settings = json.RawMessage(settings)
 		out = append(out, u)
 	}

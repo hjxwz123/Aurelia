@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
 
@@ -57,12 +58,47 @@ var allowedIconExt = map[string]string{
 	"png":  "image/png",
 	"jpg":  "image/jpeg",
 	"jpeg": "image/jpeg",
+	"svg":  "image/svg+xml",
 }
 
-var errIconBadExt = errors.New("icon: extension must be one of png/jpg/jpeg")
+// svgBadPatterns are the active-content vectors an SVG icon must NOT contain.
+// SVG is XML and renders as a document on direct navigation, so a <script>,
+// an on*= handler, a <foreignObject>, or an external/JS URL is an XSS/XXE risk.
+// We REJECT (not strip) so a flagged file never lands on disk; the admin
+// re-exports a clean SVG. Defence-in-depth: icons render via <img src> (scripts
+// inert) and serveIcon adds a script-blocking CSP for the SVG case.
+var svgEventAttrRe = regexp.MustCompile(`(?i)<[^>]*\son[a-z]+\s*=`)
+var svgBadSubstrings = []string{
+	"<script", "</script", "javascript:", "<foreignobject",
+	"<!entity", "<!doctype", "<iframe", "<embed", "<object", "<animatetransform onbegin",
+}
+
+// validateSVG enforces the no-active-content rule above. Returns nil when the
+// bytes are a plausible, script-free SVG.
+func validateSVG(data []byte) error {
+	if len(data) == 0 {
+		return errIconBadBytes
+	}
+	lower := strings.ToLower(string(data))
+	if !strings.Contains(lower, "<svg") {
+		return errIconBadBytes
+	}
+	for _, bad := range svgBadSubstrings {
+		if strings.Contains(lower, bad) {
+			return errIconUnsafeSVG
+		}
+	}
+	if svgEventAttrRe.MatchString(lower) {
+		return errIconUnsafeSVG
+	}
+	return nil
+}
+
+var errIconBadExt = errors.New("icon: extension must be one of png/jpg/jpeg/svg")
 var errIconTooLarge = errors.New("icon: too large (max 256 KiB)")
 var errIconBadBytes = errors.New("icon: file bytes do not match a supported image format")
 var errIconExtMismatch = errors.New("icon: extension does not match file bytes")
+var errIconUnsafeSVG = errors.New("icon: SVG contains scripts or active content — re-export a static SVG")
 
 // uploadIconAdmin — POST /api/admin/icons, multipart form, field name "file".
 // Returns {"url": "/api/icons/<hex>.<ext>", "filename": "<hex>.<ext>"} so the
@@ -108,28 +144,38 @@ func uploadIconAdmin(d Deps, w http.ResponseWriter, r *http.Request) {
 	}
 	data := buf.Bytes()
 
-	// 4. Sniff Content-Type from the actual bytes — never trust the multipart
-	//    header (Content-Type there is client-supplied). Must agree with the
-	//    extension we accepted.
-	sniff := http.DetectContentType(data)
-	// DetectContentType may append "; charset=..." for some types; icons are
-	// always media types but split to be safe.
-	if i := strings.IndexByte(sniff, ';'); i > 0 {
-		sniff = strings.TrimSpace(sniff[:i])
-	}
-	if sniff != expectedMime {
-		writeError(w, 400, errIconExtMismatch)
-		return
-	}
+	if ext == "svg" {
+		// 4a. SVG is XML, not a raster image — validate it carries no active
+		//     content (script / event handlers / foreignObject / XXE) instead of
+		//     the sniff + raster-decode checks below.
+		if err := validateSVG(data); err != nil {
+			writeError(w, 400, err)
+			return
+		}
+	} else {
+		// 4. Sniff Content-Type from the actual bytes — never trust the multipart
+		//    header (Content-Type there is client-supplied). Must agree with the
+		//    extension we accepted.
+		sniff := http.DetectContentType(data)
+		// DetectContentType may append "; charset=..." for some types; icons are
+		// always media types but split to be safe.
+		if i := strings.IndexByte(sniff, ';'); i > 0 {
+			sniff = strings.TrimSpace(sniff[:i])
+		}
+		if sniff != expectedMime {
+			writeError(w, 400, errIconExtMismatch)
+			return
+		}
 
-	// 5. Structural decode — image.DecodeConfig parses the header (width /
-	//    height / colorspace) without decoding the pixels. Catches polyglots
-	//    where the first 512 bytes look like one format but the rest is
-	//    something else. We don't keep the config; the call is purely a
-	//    "does this parse" check.
-	if _, _, err := image.DecodeConfig(bytes.NewReader(data)); err != nil {
-		writeError(w, 400, errIconBadBytes)
-		return
+		// 5. Structural decode — image.DecodeConfig parses the header (width /
+		//    height / colorspace) without decoding the pixels. Catches polyglots
+		//    where the first 512 bytes look like one format but the rest is
+		//    something else. We don't keep the config; the call is purely a
+		//    "does this parse" check.
+		if _, _, err := image.DecodeConfig(bytes.NewReader(data)); err != nil {
+			writeError(w, 400, errIconBadBytes)
+			return
+		}
 	}
 
 	// 6. Random 12-byte filename. Hex-encoded → 24 chars + extension.
@@ -196,6 +242,12 @@ func serveIcon(d Deps, w http.ResponseWriter, r *http.Request) {
 	ext := strings.ToLower(strings.TrimPrefix(filepath.Ext(filename), "."))
 	if ct, ok := allowedIconExt[ext]; ok {
 		w.Header().Set("Content-Type", ct)
+	}
+	if ext == "svg" {
+		// Even though uploaded SVGs are validated script-free and render inert via
+		// <img>, a direct hit on this URL renders it as a document — block any
+		// script/active content with a strict CSP + sandbox.
+		w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; sandbox")
 	}
 	w.Header().Set("Cache-Control", "public, max-age=86400")
 	// X-Content-Type-Options: belt-and-braces, prevent any sniff override

@@ -14,7 +14,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { toast } from '@/hooks/use-toast'
-import { authApi, conversationsApi, memoriesApi } from '@/api'
+import { conversationsApi, memoriesApi } from '@/api'
 import { useConversations } from '@/store/conversations'
 
 export default function Privacy() {
@@ -24,20 +24,6 @@ export default function Privacy() {
   const [clearing, setClearing] = useState(false)
   const { t } = useTranslation(['settings', 'common'])
   const reloadConvs = useConversations((s) => s.load)
-
-  /** Server-side memory toggle. Persisted in the user's per-user settings
-   *  so the orchestrator's MemoryWorker reads the SAME value (§4.16). The
-   *  local store still mirrors it for instant UI feedback. */
-  async function onToggleMemory(v: boolean) {
-    set({ memoriesEnabled: v })
-    try {
-      await authApi.updateSettings({ memory_enabled: v })
-    } catch (e) {
-      // Revert local if server refused.
-      set({ memoriesEnabled: !v })
-      toast.error(t('common:actions.failed', { defaultValue: 'Failed to save' }), e instanceof Error ? e.message : undefined)
-    }
-  }
 
   /** Permanent clear: deletes every conversation + every memory of the
    *  logged-in user. Each row goes through the existing ownership-checked
@@ -86,12 +72,6 @@ export default function Privacy() {
           description={t('settings:privacy.keepBody')}
         >
           <Switch checked={p.retainHistory} onCheckedChange={(v) => set({ retainHistory: Boolean(v) })} />
-        </SettingsRow>
-        <SettingsRow
-          label={t('settings:privacy.memory')}
-          description={t('settings:privacy.memoryBody')}
-        >
-          <Switch checked={p.memoriesEnabled} onCheckedChange={(v) => void onToggleMemory(Boolean(v))} />
         </SettingsRow>
       </SettingsSection>
 

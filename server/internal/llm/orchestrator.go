@@ -53,6 +53,8 @@ type ToolContext struct {
 	ProjectName string
 	DB          *sql.DB
 	RAG         *rag.Service
+	// DeepResearch raises the per-turn tool budgets (deep_research.go).
+	DeepResearch bool
 	// ImageModelID is the user's pre-selected image model (§4.12-B).
 	ImageModelID string
 	// OnArtifact lets a tool surface a produced file (sandbox output, image).
@@ -72,10 +74,22 @@ var perTurnToolLimits = map[string]int{
 	"image_generate": 4,
 }
 
+// deepResearchToolLimits are the much higher per-turn caps used while the Deep
+// Research engine runs — it deliberately fans out many searches + source reads.
+var deepResearchToolLimits = map[string]int{
+	"web_search":     40,
+	"web_fetch":      25,
+	"image_generate": 4,
+}
+
 // charge increments the per-turn counter for a tool and returns an error when
 // the limit is exceeded.
 func (tc *ToolContext) charge(name string) error {
-	limit, ok := perTurnToolLimits[name]
+	limits := perTurnToolLimits
+	if tc.DeepResearch {
+		limits = deepResearchToolLimits
+	}
+	limit, ok := limits[name]
 	if !ok || limit == 0 {
 		return nil
 	}
@@ -132,7 +146,14 @@ type RunRequest struct {
 	// turn parented to it directly — no new user sibling is created. §4.15:
 	// regenerate forks at the assistant level, not the user level.
 	ReuseExistingUserMessage bool
+	// Mode selects an alternate turn pipeline. "" = normal chat;
+	// ModeDeepResearch runs the multi-round research engine (deep_research.go).
+	Mode string
 }
+
+// ModeDeepResearch is the RunRequest.Mode value that triggers the Deep Research
+// engine (plan → multi-round web search + source reading → verify → cited report).
+const ModeDeepResearch = "deep-research"
 
 // RunResult is what Run returns to the SSE handler after the stream finishes.
 type RunResult struct {
@@ -229,6 +250,20 @@ func (o *Orchestrator) Run(ctx context.Context, req RunRequest, onEvent func(Sse
 		ModelID: &tmpModelID, Provider: &tmpProvider,
 	})
 
+	// 2b. Per-model group quota (§ user groups): if the user's group can't use
+	//     this model, or its window quota is exhausted, persist a refusal and
+	//     stop before generating.
+	if msg, ok := o.checkModelQuota(ctx, conv.UserID, model); !ok {
+		refusalBlocks, _ := json.Marshal([]UnifiedBlock{{Kind: "text", Text: msg}})
+		_ = store.FinishMessage(ctx, o.db, assistantMsg.ID, store.MessageFinishPatch{
+			Blocks: refusalBlocks, Citations: []byte("[]"), StopReason: "quota_exceeded", Status: "complete",
+		})
+		onEvent(SseEvent{Type: "refusal", MessageID: assistantMsg.ID, Message: msg})
+		onEvent(SseEvent{Type: "done", MessageID: assistantMsg.ID, StopReason: "quota_exceeded"})
+		assistantMsg.Blocks = refusalBlocks
+		return &RunResult{UserMessage: userMsg, AssistantMessage: assistantMsg}, nil
+	}
+
 	// 3. Build context.
 	projectName := ""
 	projectInstructions := ""
@@ -295,7 +330,7 @@ func (o *Orchestrator) Run(ctx context.Context, req RunRequest, onEvent func(Sse
 	if ragMode == "" {
 		ragMode = "auto"
 	}
-	if o.rag != nil && len(kbIDs) > 0 && ragMode != "tool" {
+	if o.rag != nil && len(kbIDs) > 0 && ragMode != "tool" && req.Mode != ModeDeepResearch {
 		recent := recentHistoryStrings(history, 6)
 		var snippets []rag.Snippet
 		var decision rag.RouteDecision
@@ -318,8 +353,18 @@ func (o *Orchestrator) Run(ctx context.Context, req RunRequest, onEvent func(Sse
 		}
 	}
 
-	// 7. Active memories (only ACTIVE + QUERY_DEPENDENT, design.md §4.16).
-	activeMemories, _ := store.ListMemoriesActive(ctx, o.db, conv.UserID)
+	// 7. Active memories (only ACTIVE + QUERY_DEPENDENT, design.md §4.16) — but
+	//    only when the user (and global setting) keep memory enabled. With memory
+	//    off, no conversation gets memory injected.
+	activeMemories := []store.Memory{}
+	if store.MemoryEnabledForUser(ctx, o.db, conv.UserID) {
+		activeMemories, _ = store.ListMemoriesActive(ctx, o.db, conv.UserID)
+	}
+
+	// 7b. Personalization (§ user persona): tone traits + custom instructions +
+	//     nickname, read from per-user settings and injected into the system
+	//     prompt so the assistant adopts the user's preferred style.
+	persona := readUserPersona(ctx, o.db, conv.UserID)
 
 	// 8. Skills for this model (§4.17). Native models get the slim index plus
 	//    the use_skill tool (progressive disclosure); prompt/none models can't
@@ -351,6 +396,21 @@ func (o *Orchestrator) Run(ctx context.Context, req RunRequest, onEvent func(Sse
 	//     image attachments instead of silently dropping them.
 	o.resolveAttachments(ctx, conv.UserID, uHist, model, onEvent)
 
+	// 9d. Conversation-scoped data files staged into the sandbox
+	//     (/workspace/uploads). Listing them in the system prompt lets the model
+	//     operate on a CSV/XLSX uploaded in an earlier turn — it persists in the
+	//     conversation's sandbox session and is re-staged on every tool call.
+	//     Mirrors the staging filter in tools.pythonExecuteTool.
+	sandboxFiles := []ProjectFileSummary{}
+	if convFiles, ferr := store.ListFilesByConversation(ctx, o.db, conv.ID, conv.UserID); ferr == nil {
+		for _, f := range convFiles {
+			switch f.Kind {
+			case "sheet", "text", "code", "pdf":
+				sandboxFiles = append(sandboxFiles, ProjectFileSummary{Name: f.Filename, Kind: f.Kind})
+			}
+		}
+	}
+
 	// 10. Compose the six-segment system prompt (§4.8).
 	system := composeSystemPrompt(systemPromptOpts{
 		ModelSystem:         model.SystemPrompt,
@@ -362,6 +422,8 @@ func (o *Orchestrator) Run(ctx context.Context, req RunRequest, onEvent func(Sse
 		SkillsFull:          skillFull,
 		Memories:            activeMemories,
 		ProjectFiles:        projectFiles,
+		SandboxFiles:        sandboxFiles,
+		Persona:             persona,
 	})
 
 	// 11. Title generation (§6.3) — fire-and-forget the first time.
@@ -410,6 +472,7 @@ func (o *Orchestrator) Run(ctx context.Context, req RunRequest, onEvent func(Sse
 			UserID: conv.UserID, ConvID: conv.ID, MessageID: assistantMsg.ID,
 			KBIDs: kbIDs, ProjectID: conv.ProjectID, ProjectName: projectName,
 			DB: o.db, RAG: o.rag, ImageModelID: imageModelID,
+			DeepResearch: req.Mode == ModeDeepResearch,
 			OnArtifact: func(a ArtifactRef) {
 				producedArtifacts = append(producedArtifacts, a)
 				onEvent(SseEvent{Type: "artifact", ID: a.ID, URL: a.URL, Title: a.Filename, Summary: a.MimeType})
@@ -430,7 +493,15 @@ func (o *Orchestrator) Run(ctx context.Context, req RunRequest, onEvent func(Sse
 		}
 	}
 
-	result, err := provider.Stream(ctx, provReq, runner, streamToUser)
+	var result *UnifiedResult
+	if req.Mode == ModeDeepResearch {
+		// Deep Research: plan → multi-round web search + source reading → verify
+		// → comprehensive cited report. Returns the same UnifiedResult shape, so
+		// all finalize/persist/usage/done logic below is path-agnostic.
+		result, err = o.runDeepResearch(ctx, provReq, runner, provider, streamToUser, conv, assistantMsg)
+	} else {
+		result, err = provider.Stream(ctx, provReq, runner, streamToUser)
+	}
 	if err != nil {
 		// §6.2 stop-button semantics: when the user (or the kill switch) cancels
 		// the context, the provider returns ctx.Err() — preserve whatever the
@@ -561,6 +632,8 @@ func (o *Orchestrator) Run(ctx context.Context, req RunRequest, onEvent func(Sse
 		Cost:             chatCost,
 		Currency:         model.Currency,
 	})
+	// Update the fixed-window quota counter for this user+model (§ user groups).
+	o.recordQuotaUsage(ctx, conv.UserID, model, chatCost)
 
 	// Non-streaming models: now that generation is complete, emit the full
 	// answer as a single text delta.
@@ -724,6 +797,55 @@ type systemPromptOpts struct {
 	SkillsFull          []SkillFull
 	Memories            []store.Memory
 	ProjectFiles        []ProjectFileSummary
+	// SandboxFiles are conversation-uploaded data files staged at
+	// /workspace/uploads (CSV/XLSX/text/code/PDF). Listed only when
+	// python_execute is enabled.
+	SandboxFiles []ProjectFileSummary
+	// Persona is the user's personalization (tone traits + custom instructions
+	// + nickname). Empty fields render nothing.
+	Persona UserPersona
+}
+
+// UserPersona is the per-user personalization read from settings.
+type UserPersona struct {
+	Traits   []string `json:"traits"`   // stable trait keys (concise, friendly, …)
+	Custom   string   `json:"custom"`   // free-form custom instructions
+	Nickname string   `json:"nickname"` // what to call the user
+}
+
+func (p UserPersona) empty() bool {
+	return len(p.Traits) == 0 && strings.TrimSpace(p.Custom) == "" && strings.TrimSpace(p.Nickname) == ""
+}
+
+// personaTraitPhrases maps the UI's trait keys to a short instruction phrase.
+// Unknown keys fall through to the raw key so a future preset still reads okay.
+var personaTraitPhrases = map[string]string{
+	"concise":      "concise and to the point",
+	"detailed":     "thorough and detailed",
+	"friendly":     "warm and friendly",
+	"professional": "professional",
+	"encouraging":  "encouraging and supportive",
+	"direct":       "direct and straight-shooting",
+	"witty":        "witty, with light humor",
+	"socratic":     "Socratic — guide with questions",
+	"genz":         "casual, Gen-Z tone",
+	"formal":       "formal",
+}
+
+// readUserPersona loads the persona from per-user settings keys persona_traits
+// / persona_custom / persona_nickname. Missing keys yield empty fields.
+func readUserPersona(ctx context.Context, db *sql.DB, userID string) UserPersona {
+	var p UserPersona
+	if raw, err := store.GetUserSettingKey(ctx, db, userID, "persona_traits"); err == nil && len(raw) > 0 {
+		_ = json.Unmarshal(raw, &p.Traits)
+	}
+	if raw, err := store.GetUserSettingKey(ctx, db, userID, "persona_custom"); err == nil && len(raw) > 0 {
+		_ = json.Unmarshal(raw, &p.Custom)
+	}
+	if raw, err := store.GetUserSettingKey(ctx, db, userID, "persona_nickname"); err == nil && len(raw) > 0 {
+		_ = json.Unmarshal(raw, &p.Nickname)
+	}
+	return p
 }
 
 // recentHistoryStrings returns up to n trailing "role: text" strings from the
@@ -767,6 +889,30 @@ func composeSystemPrompt(o systemPromptOpts) string {
 		b.WriteString("You are Aurelia, a thoughtful AI assistant. Answer in the user's language, write with calm clarity, and use Markdown formatting (code in fenced blocks, math in $...$). When you use any tool, briefly explain what you did before showing the result.")
 	}
 
+	// ①.5 user personalization — tone traits + custom instructions + nickname.
+	// Placed high so the assistant adopts the user's preferred style.
+	if !o.Persona.empty() {
+		b.WriteString("\n\n## How the user wants you to respond\n")
+		var phrases []string
+		for _, key := range o.Persona.Traits {
+			if ph, ok := personaTraitPhrases[key]; ok {
+				phrases = append(phrases, ph)
+			} else if k := strings.TrimSpace(key); k != "" {
+				phrases = append(phrases, k)
+			}
+		}
+		if len(phrases) > 0 {
+			fmt.Fprintf(&b, "Match this tone: %s.\n", strings.Join(phrases, "; "))
+		}
+		if n := strings.TrimSpace(o.Persona.Nickname); n != "" {
+			fmt.Fprintf(&b, "Address the user as \"%s\".\n", n)
+		}
+		if c := strings.TrimSpace(o.Persona.Custom); c != "" {
+			b.WriteString(c)
+			b.WriteString("\n")
+		}
+	}
+
 	// §4.11.7 prompt-injection defense — added inline so the rule travels with
 	// the stable system prefix (cacheable). Without this, a poisoned document
 	// in retrieval can hijack the model with "Ignore previous instructions…".
@@ -801,6 +947,15 @@ func composeSystemPrompt(o systemPromptOpts) string {
 				}
 				b.WriteString(g.line)
 			}
+		}
+		if wrote {
+			// Multi-round tools: every tool can be called repeatedly in one turn.
+			// If a result is empty, off-topic, or low-quality, refine the
+			// arguments and call again (e.g. a different search query, or re-read
+			// a file a different way) before answering — don't settle for a weak
+			// first result. Keep any "let me look this up…" narration brief; do
+			// the work, then answer.
+			b.WriteString("- You may call tools multiple times in one turn. If a tool result is empty, irrelevant, or weak, adjust the input and run it again before answering rather than giving up or guessing.\n")
 		}
 
 		// §4.5.1 "quality watershed": when the user asks for a downloadable
@@ -894,6 +1049,16 @@ doc.save("/workspace/outputs/report.docx")
 
 **Excel (.xlsx):** openpyxl or xlsxwriter (charts, conditional formatting, frozen panes all supported).
 `)
+
+			// Conversation-uploaded data files persist in the sandbox across turns
+			// — list them so the model can act on a file uploaded earlier.
+			if len(o.SandboxFiles) > 0 {
+				b.WriteString("\n## Files uploaded to this conversation (sandbox: /workspace/uploads/)\n")
+				for _, f := range o.SandboxFiles {
+					fmt.Fprintf(&b, "- /workspace/uploads/%s (%s)\n", f.Name, f.Kind)
+				}
+				b.WriteString("These persist across turns in this conversation's sandbox session. Analyse them with python_execute — pandas.read_csv()/read_excel() for spreadsheets. Inspect first (shape, columns, dtypes, head), then compute over as many python_execute calls as you need; if a first read doesn't fit the data, adjust and read again. Write results to /workspace/outputs/ to return them.\n")
+			}
 		}
 	}
 

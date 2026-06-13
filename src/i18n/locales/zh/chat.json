@@ -14,9 +14,11 @@
     "placeholder": "随便问点什么——或把你的思考粘进来。",
     "attach": "添加附件",
     "addImage": "添加图片",
-    "voice": "语音输入（即将上线）",
-    "voiceMocked": "语音输入为模拟",
-    "voiceMockedBody": "本版本未接入麦克风采集。",
+    "voice": "语音输入",
+    "voiceStop": "停止录音",
+    "voiceUnsupported": "当前浏览器不支持语音输入。",
+    "voicePermission": "麦克风权限被拒绝。",
+    "voiceFailed": "无法转写本次录音。",
     "research": "研究",
     "researchTooltip": "深度研究模式",
     "canvas": "画布",
@@ -52,7 +54,7 @@
     "copyMessage": "复制消息",
     "readAloud": "朗读",
     "readAloudMocked": "朗读功能为模拟。",
-    "shareMocked": "分享为模拟。",
+    "shareMocked": "已复制分享链接",
     "shareCopied": "分享链接已复制",
     "branch": "切换分支",
     "prevBranch": "上一个分支",
@@ -65,6 +67,31 @@
   },
   "sources": {
     "label": "来源"
+  },
+  "research": {
+    "title": "深度研究",
+    "steps": "{{done}}/{{total}}",
+    "planLabel": "研究计划",
+    "sourcesLabel": "来源（{{count}}）"
+  },
+  "share": {
+    "title": "分享对话",
+    "body": "创建一个公开链接，分享此对话的只读快照。之后的新消息不会出现在分享中。",
+    "bodyShared": "任何拥有此链接的人都可以查看此对话的只读快照。",
+    "createCta": "创建分享链接",
+    "revokeCta": "取消分享",
+    "revoked": "已取消分享",
+    "failed": "出错了",
+    "linkCopied": "分享链接已复制",
+    "publicHint": "公开 — 无需登录即可查看。",
+    "tryCta": "体验 Aurelia",
+    "missingTitle": "该分享不可用",
+    "missingBody": "链接可能有误，或所有者已取消分享此对话。",
+    "eyebrow": "分享的对话",
+    "untitled": "未命名对话",
+    "roleUser": "用户",
+    "roleAssistant": "助手",
+    "footer": "由 Aurelia 分享 —— 一个用心的 AI 工作空间。"
   },
   "code": {
     "run": "运行",
@@ -142,7 +169,8 @@
     "section": "模型",
     "moreSoon": "更多模型即将上线",
     "current": "当前模型",
-    "label": "模型：{{name}}"
+    "label": "模型：{{name}}",
+    "upgrade": "升级套餐解锁"
   },
   "commandMenu": {
     "placeholder": "搜索会话，或执行命令…",
@@ -169,9 +197,10 @@
   },
   "signedOut": "你已退出登录。",
   "userMenu": {
-    "memory": "记忆",
+    "personalization": "个性化",
     "knowledge": "知识库",
-    "admin": "管理后台"
+    "admin": "管理后台",
+    "subscription": "订阅"
   },
   "suggestions": {
     "outline-essay": {

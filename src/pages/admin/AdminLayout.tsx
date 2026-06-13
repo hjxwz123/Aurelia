@@ -5,7 +5,7 @@
 import { useEffect } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { ArrowLeft, Boxes, Cpu, FileText, GaugeCircle, KeyRound, Settings2, Sparkles, Users, Wrench } from 'lucide-react'
+import { ArrowLeft, Boxes, Cpu, FileText, GaugeCircle, KeyRound, Layers, Mic, Settings2, Sparkles, Users, Wrench } from 'lucide-react'
 import { useAuth } from '@/store/auth'
 import { cn } from '@/lib/utils'
 
@@ -25,8 +25,10 @@ export default function AdminLayout() {
     { to: '/admin/skills', icon: Sparkles, label: t('admin:skills.title') },
     { to: '/admin/documents', icon: FileText, label: t('admin:documents.title') },
     { to: '/admin/tools', icon: Wrench, label: t('admin:tools.title') },
+    { to: '/admin/audio', icon: Mic, label: t('admin:audio.title') },
     { to: '/admin/oauth', icon: KeyRound, label: t('admin:oauth.title') },
     { to: '/admin/users', icon: Users, label: t('admin:users.title') },
+    { to: '/admin/user-groups', icon: Layers, label: t('admin:groups.title') },
     { to: '/admin/usage', icon: GaugeCircle, label: t('admin:usage.title') },
     { to: '/admin/settings', icon: Settings2, label: t('admin:settings.title') },
   ]

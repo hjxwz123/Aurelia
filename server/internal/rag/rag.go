@@ -141,12 +141,17 @@ func (s *Service) runPipeline(ctx context.Context, docID string) error {
 	storageCfg := storageBlockFromSettings(s.db)
 	storageClient := storage.New(sbURL, sbKey, storageCfg)
 
-	// Parse: text docs locally; image/scanned docs via MinerU OCR (§4.11-C).
-	// The state machine surfaces the OCR leg distinctly: parsing → ocr →
-	// embedding → ready.
-	if !isProbablyText(d.MimeType, d.StoragePath) && mineruURL != "" && mineruKey != "" && storageClient.Enabled() {
-		_ = store.UpdateDocumentStatus(ctx, s.db, docID, "ocr", "", 0)
+	// Spreadsheets are data, not prose: never parse or embed them. They stay as
+	// conversation files and are analysed in the code sandbox (python_execute
+	// stages them to /workspace/uploads). Mark ready with zero chunks so the
+	// ingest pipeline completes cleanly instead of vectorising rows of numbers.
+	if isSpreadsheetData(d.Filename, d.MimeType) {
+		return store.UpdateDocumentStatus(ctx, s.db, docID, "ready", "", 0)
 	}
+
+	// Parse: text docs + text-native PDF/DOC(X)/PPT(X) locally; only scanned or
+	// image-bearing documents go to MinerU OCR (§4.11-C). parseDocument makes the
+	// per-document call from the file's content.
 	content, err := parseDocument(ctx, d.StoragePath, d.MimeType, d.Filename, mineruURL, mineruKey, storageClient)
 	if err != nil {
 		return err

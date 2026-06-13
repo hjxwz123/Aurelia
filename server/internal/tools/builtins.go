@@ -172,7 +172,7 @@ type pythonExecuteTool struct {
 
 func (t *pythonExecuteTool) Name() string { return "python_execute" }
 func (t *pythonExecuteTool) Description() string {
-	return "Run Python code in a sandboxed environment for math, data analysis, plotting, file processing, and generating downloadable files (PDF/PPTX/DOCX/PNG). The session preserves /workspace files across calls. User-uploaded data files are available under /workspace/uploads/. Write outputs to /workspace/outputs to return them as downloadable artifacts. Stdout/stderr is returned."
+	return "Run Python in a persistent sandbox for math, data analysis, plotting, spreadsheet/CSV processing, and generating downloadable files (PDF/PPTX/DOCX/XLSX/PNG). The session and its /workspace persist across calls AND across turns in this conversation, so call it several times in a row — inspect the data first (shape/columns/head), then compute, and read again differently if the first attempt doesn't fit. User-uploaded data files (CSV/XLSX/text/PDF) are at /workspace/uploads/ (read spreadsheets with pandas.read_csv / pandas.read_excel; pandas, numpy, openpyxl are installed). Write outputs to /workspace/outputs to return them as downloadable artifacts. Stdout/stderr is returned."
 }
 func (t *pythonExecuteTool) InputSchema() json.RawMessage {
 	return json.RawMessage(`{"type":"object","properties":{"code":{"type":"string"}},"required":["code"]}`)

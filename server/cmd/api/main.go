@@ -3,9 +3,9 @@
 // Runs the HTTP API described in design.md §6. Wires the SQLite-backed store,
 // Provider registry, tools registry, async queue, and the SSE-aware chat
 // orchestrator into a single net/http handler. Boots clean against an empty
-// database (the migration runs at startup) and seeds an initial admin user
-// + a "mock" channel so the system is usable end-to-end without any third
-// party keys.
+// database (the migration runs at startup) and seeds an initial admin user.
+// An admin must then configure a real provider channel + model before chat
+// works — there is no mock fallback.
 package main
 
 import (

@@ -36,7 +36,18 @@ export interface ReasoningTool {
   id: string
   tool: ToolCall
 }
-export type ReasoningItem = ReasoningThinking | ReasoningTool
+/**
+ * Narration the model writes BEFORE a tool call ("Let me search the news…").
+ * It belongs in the reasoning trace, not the final answer, so the answer stays
+ * the clean last-round text. Captured by flushing in-progress answer text into
+ * the trace when a tool starts (§4.3).
+ */
+export interface ReasoningNarration {
+  kind: 'narration'
+  id: string
+  text: string
+}
+export type ReasoningItem = ReasoningThinking | ReasoningTool | ReasoningNarration
 
 export interface Citation {
   id: string
@@ -45,6 +56,28 @@ export interface Citation {
   url: string
   domain: string
   snippet?: string
+}
+
+/** Live (and persisted) state of a Deep Research turn (§ deep-research mode). */
+export interface ResearchTask {
+  id: string
+  question: string
+  status: 'pending' | 'researching' | 'partial' | 'done'
+  round?: number
+}
+export interface ResearchSource {
+  id: string
+  url: string
+  title: string
+  domain: string
+  status: 'found' | 'read' | 'kept' | 'failed'
+  verdict?: string
+}
+export interface ResearchState {
+  title: string
+  tasks: ResearchTask[]
+  sources: ResearchSource[]
+  rounds?: number
 }
 
 export interface Attachment {
@@ -83,6 +116,10 @@ export interface Message {
    *  exact order they happened (§7.1-4), so the UI can render them woven
    *  together instead of "all thinking, then all tools". */
   reasoning?: ReasoningItem[]
+  /** Deep Research progress/state (plan, sources) for the research panel. */
+  research?: ResearchState
+  /** Turn mode — 'deep-research' renders the research panel + badge. */
+  mode?: 'default' | 'deep-research' | 'canvas'
   /** Files produced by tools during this turn (downloadable). */
   artifacts?: ArtifactRef[]
   /** Set when the model declined to answer (content filter). */

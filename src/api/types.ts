@@ -16,7 +16,54 @@ export interface ApiUser {
   role: 'user' | 'admin'
   status: 'active' | 'banned' | 'disabled'
   settings: Record<string, unknown>
+  group_id?: string
+  /** True when the account requires a 2FA code at login (§ 2FA). */
+  totp_enabled?: boolean
   created_at: number
+}
+
+/** Owner-facing descriptor of a conversation's public share (§ sharing). */
+export interface ApiShareInfo {
+  id: string
+  created_at: number
+}
+
+/** One message in a public share snapshot — cost-stripped, identity-free. */
+export interface ApiSharedMessage {
+  role: 'user' | 'assistant'
+  blocks: ApiBlock[]
+  citations: ApiCitation[]
+  created_at: number
+}
+
+/** The public read-only conversation served at /share/:token. */
+export interface ApiSharedConversation {
+  title: string
+  messages: ApiSharedMessage[]
+  created_at: number
+}
+
+/** Membership tier (§ user groups). */
+export interface ApiUserGroup {
+  id: string
+  name: string
+  description: string
+  features: string[]
+  price_usd: number
+  price_cny: number
+  is_default: boolean
+  sort_order: number
+  created_at: number
+  updated_at: number
+}
+
+/** Per-model, per-group usage cap. */
+export interface ApiModelQuota {
+  model_id: string
+  group_id: string
+  period_seconds: number
+  limit_type: 'cost' | 'count'
+  limit_value: number
 }
 
 export interface ApiAuthResponse {
@@ -57,7 +104,7 @@ export interface ApiPublicOAuthProvider {
 export interface ApiChannel {
   id: string
   name: string
-  type: 'openai' | 'claude' | 'gemini' | 'mock'
+  type: 'openai' | 'claude' | 'gemini'
   api_format: 'chat' | 'responses' | ''
   base_url: string
   has_api_key: boolean
@@ -91,6 +138,8 @@ export interface ApiModel {
   currency: string
   dim: number
   updated_at: number
+  /** True when the model is restricted and the user's group has no grant (§ user groups). */
+  locked?: boolean
 }
 
 export interface ApiSkill {
@@ -172,6 +221,7 @@ export type ApiBlockKind =
   | 'image'
   | 'document'
   | 'artifact'
+  | 'research'
 
 export interface ApiBlock {
   kind: ApiBlockKind
@@ -274,3 +324,8 @@ export type ApiSseEvent =
   | { type: 'refusal'; message_id?: string; message?: string }
   | { type: 'error'; message: string }
   | { type: 'done'; stop_reason?: string; usage?: { input_tokens: number; output_tokens: number } }
+  // Deep Research progress (§ deep-research mode).
+  | { type: 'research_plan'; message_id?: string; text?: string; summary?: string }
+  | { type: 'research_task'; id: string; text?: string; status?: string; name?: string }
+  | { type: 'research_source'; id: string; url?: string; title?: string; summary?: string; status?: string }
+  | { type: 'research_section'; id: string; title?: string; status?: string }

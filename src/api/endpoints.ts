@@ -13,9 +13,13 @@ import type {
   ApiMemory,
   ApiMessage,
   ApiModel,
+  ApiModelQuota,
   ApiOAuthProvider,
   ApiProject,
+  ApiUserGroup,
   ApiPublicOAuthProvider,
+  ApiShareInfo,
+  ApiSharedConversation,
   ApiSkill,
   ApiUsageReportRow,
   ApiUser,
@@ -27,7 +31,17 @@ export const authApi = {
   signupOpen: () => api<{ open: boolean }>('/public/signup-open'),
   me: () => api<ApiUser>('/me'),
   login: (email: string, password: string) =>
-    api<ApiAuthResponse>('/auth/login', { method: 'POST', body: { email, password } }),
+    api<ApiAuthResponse | { totp_required: true; ticket: string }>('/auth/login', {
+      method: 'POST',
+      body: { email, password },
+    }),
+  /** Complete a 2FA-gated login with the ticket from the password step. */
+  loginTwoFactor: (ticket: string, code: string) =>
+    api<ApiAuthResponse>('/auth/login/2fa', { method: 'POST', body: { ticket, code } }),
+  /** Begin 2FA setup — returns the secret + otpauth URI for the authenticator. */
+  setup2fa: () => api<{ secret: string; otpauth_url: string }>('/me/2fa/setup', { method: 'POST' }),
+  enable2fa: (code: string) => api<{ ok: true }>('/me/2fa/enable', { method: 'POST', body: { code } }),
+  disable2fa: (code: string) => api<{ ok: true }>('/me/2fa/disable', { method: 'POST', body: { code } }),
   register: (email: string, password: string, name: string) =>
     api<ApiAuthResponse | { verification_required: boolean; email: string }>('/auth/register', { method: 'POST', body: { email, password, name } }),
   refresh: () => api<ApiAuthResponse>('/auth/refresh', { method: 'POST' }),
@@ -39,7 +53,8 @@ export const authApi = {
   getSettings: () => api<Record<string, unknown>>('/me/settings'),
   updateSettings: (patch: Record<string, unknown>) =>
     api<Record<string, unknown>>('/me/settings', { method: 'PATCH', body: patch }),
-  usage: () => api<{ days: number; cost: number; messages: number }>('/me/usage'),
+  // Cost is intentionally NOT exposed to users — only message volume.
+  usage: () => api<{ days: number; messages: number }>('/me/usage'),
   // Email verification
   verifyEmail: (email: string, code: string) =>
     api<ApiAuthResponse>('/auth/verify-email', { method: 'POST', body: { email, code } }),
@@ -65,6 +80,24 @@ export const modelsApi = {
 
 export const skillsApi = {
   list: () => api<ApiSkill[]>('/skills'),
+}
+
+// ----- User groups (membership tiers) --------------------------------------
+
+export const groupsApi = {
+  /** Groups visible to the signed-in user (subscription page). */
+  list: () => api<ApiUserGroup[]>('/user-groups'),
+}
+
+// ----- Audio (speech-to-text) ----------------------------------------------
+
+export const audioApi = {
+  /** Transcribe a recorded audio blob via the admin-configured voice model. */
+  transcribe: (file: Blob, filename = 'audio.webm') => {
+    const fd = new FormData()
+    fd.append('file', file, filename)
+    return api<{ text: string }>('/audio/transcriptions', { method: 'POST', body: fd })
+  },
 }
 
 // ----- Projects ------------------------------------------------------------
@@ -122,6 +155,19 @@ export const conversationsApi = {
     api<{ ok: true }>(`/conversations/${encodeURIComponent(id)}/documents/${encodeURIComponent(docId)}/promote`, {
       method: 'POST',
     }),
+  // Public read-only sharing (§ sharing).
+  getShare: (id: string) =>
+    api<{ share: ApiShareInfo | null }>(`/conversations/${encodeURIComponent(id)}/share`),
+  createShare: (id: string) =>
+    api<ApiShareInfo>(`/conversations/${encodeURIComponent(id)}/share`, { method: 'POST' }),
+  deleteShare: (id: string) =>
+    api<{ ok: true }>(`/conversations/${encodeURIComponent(id)}/share`, { method: 'DELETE' }),
+}
+
+// ----- Public share view (no auth) ----------------------------------------
+
+export const sharedApi = {
+  get: (token: string) => api<ApiSharedConversation>(`/public/shared/${encodeURIComponent(token)}`),
 }
 
 // ----- Knowledge bases ----------------------------------------------------
@@ -189,9 +235,32 @@ export const adminApi = {
   removeOAuthProvider: (id: string) =>
     api<{ ok: true }>(`/admin/oauth-providers/${encodeURIComponent(id)}`, { method: 'DELETE' }),
 
+  // User groups + per-model quotas (§ user groups).
+  userGroups: () => api<ApiUserGroup[]>('/admin/user-groups'),
+  createUserGroup: (body: Partial<ApiUserGroup>) =>
+    api<ApiUserGroup>('/admin/user-groups', { method: 'POST', body }),
+  updateUserGroup: (id: string, body: Partial<ApiUserGroup>) =>
+    api<ApiUserGroup>(`/admin/user-groups/${encodeURIComponent(id)}`, { method: 'PATCH', body }),
+  removeUserGroup: (id: string) =>
+    api<{ ok: true }>(`/admin/user-groups/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  setUserGroup: (id: string, group_id: string) =>
+    api<{ ok: true }>(`/admin/users/${encodeURIComponent(id)}/group`, { method: 'POST', body: { group_id } }),
+  modelQuotas: (id: string) => api<ApiModelQuota[]>(`/admin/models/${encodeURIComponent(id)}/quotas`),
+  setModelQuotas: (id: string, quotas: ApiModelQuota[]) =>
+    api<{ ok: true }>(`/admin/models/${encodeURIComponent(id)}/quotas`, { method: 'PUT', body: { quotas } }),
+
   users: () => api<ApiUser[]>('/admin/users'),
+  createUser: (body: { email: string; name: string; password: string; role: 'user' | 'admin' }) =>
+    api<ApiUser>('/admin/users', { method: 'POST', body }),
+  setUserPassword: (id: string, new_password: string) =>
+    api<{ ok: true }>(`/admin/users/${encodeURIComponent(id)}/password`, { method: 'POST', body: { new_password } }),
+  setUserRole: (id: string, role: 'user' | 'admin') =>
+    api<{ ok: true }>(`/admin/users/${encodeURIComponent(id)}/role`, { method: 'POST', body: { role } }),
   banUser: (id: string) => api<{ ok: true }>(`/admin/users/${encodeURIComponent(id)}/ban`, { method: 'POST' }),
   unbanUser: (id: string) => api<{ ok: true }>(`/admin/users/${encodeURIComponent(id)}/unban`, { method: 'POST' }),
+  /** Reset (turn off) a user's 2FA — recovery for a lost authenticator (§ 2FA). */
+  disableUser2fa: (id: string) =>
+    api<{ ok: true }>(`/admin/users/${encodeURIComponent(id)}/2fa/disable`, { method: 'POST' }),
   // §8.1 abuse-triage drill-down. Returns one user's conversations (all
   // statuses — admin can still inspect archived/banned content) and the
   // full message timeline of any single conversation, both bypassing the
@@ -204,6 +273,8 @@ export const adminApi = {
     api<ApiMessage[]>(
       `/admin/conversations/${encodeURIComponent(id)}/messages${mode ? `?mode=${mode}` : ''}`,
     ),
+  deleteConversation: (id: string) =>
+    api<{ ok: true }>(`/admin/conversations/${encodeURIComponent(id)}`, { method: 'DELETE' }),
 
   usage: (days = 30) => api<{ days: number; rows: ApiUsageReportRow[]; trend: { bucket_start: number; input_tokens: number; output_tokens: number; calls: number; cost: number }[] }>(`/admin/usage?days=${days}`),
 

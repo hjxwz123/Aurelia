@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { MoreHorizontal, Pencil, Share2, Star, Trash2, Archive, ArrowDown, FolderKanban } from 'lucide-react'
+import { MoreHorizontal, Pencil, Share2, Star, Trash2, Archive, ArrowDown, FolderKanban, Copy, Check, Globe, Loader2 } from 'lucide-react'
 import { Composer } from '@/components/chat/composer'
 import { MessageList } from '@/components/chat/message-list'
 import { ModelPicker } from '@/components/chat/model-picker'
@@ -28,7 +28,10 @@ import { Input } from '@/components/ui/input'
 import { useConversations } from '@/store/conversations'
 import { useModels } from '@/store/models'
 import { useProjects } from '@/store/projects'
+import { conversationsApi, ApiError } from '@/api'
+import type { ApiShareInfo } from '@/api/types'
 import { toast } from '@/hooks/use-toast'
+import { useCopy } from '@/hooks/use-clipboard'
 import { accentClasses } from '@/lib/project-helpers'
 import { cn, truncate } from '@/lib/utils'
 import type { Attachment } from '@/types/chat'
@@ -58,6 +61,53 @@ export default function ChatThread() {
   const [renaming, setRenaming] = useState(false)
   const [renameDraft, setRenameDraft] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [shareOpen, setShareOpen] = useState(false)
+  const [share, setShare] = useState<ApiShareInfo | null>(null)
+  const [shareLoading, setShareLoading] = useState(false)
+  const [shareBusy, setShareBusy] = useState(false)
+  const { copied, copy } = useCopy()
+  const shareUrl = share ? `${window.location.origin}/share/${share.id}` : ''
+
+  // Load the current share state whenever the dialog opens.
+  useEffect(() => {
+    if (!shareOpen || !id) return
+    let active = true
+    setShareLoading(true)
+    conversationsApi
+      .getShare(id)
+      .then((r) => active && setShare(r.share))
+      .catch(() => active && setShare(null))
+      .finally(() => active && setShareLoading(false))
+    return () => {
+      active = false
+    }
+  }, [shareOpen, id])
+
+  async function createShare() {
+    if (!id) return
+    setShareBusy(true)
+    try {
+      setShare(await conversationsApi.createShare(id))
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : t('chat:share.failed'))
+    } finally {
+      setShareBusy(false)
+    }
+  }
+
+  async function revokeShare() {
+    if (!id) return
+    setShareBusy(true)
+    try {
+      await conversationsApi.deleteShare(id)
+      setShare(null)
+      toast.success(t('chat:share.revoked'))
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : t('chat:share.failed'))
+    } finally {
+      setShareBusy(false)
+    }
+  }
 
   const streaming = useMemo(
     () => conversation?.messages.some((m) => m.streaming),
@@ -105,13 +155,18 @@ export default function ChatThread() {
     )
   }
 
-  function submit(text: string, attachments: Attachment[], opts: { params?: Record<string, unknown> }) {
+  function submit(
+    text: string,
+    attachments: Attachment[],
+    opts: { mode?: 'default' | 'deep-research' | 'canvas'; params?: Record<string, unknown> },
+  ) {
     if (!conversation) return
     void sendMessage({
       conversationId: conversation.id,
       text,
       modelId: conversation.modelId,
       attachments,
+      mode: opts.mode,
       params: opts.params,
     })
     setAutoFollow(true)
@@ -175,10 +230,7 @@ export default function ChatThread() {
         <Tooltip content={t('chat:topbar.shareTooltip')}>
           <button
             type="button"
-            onClick={() => {
-              void navigator.clipboard?.writeText(`${window.location.origin}/chat/${conversation.id}`)
-              toast.success(t('chat:actions.shareCopied'))
-            }}
+            onClick={() => setShareOpen(true)}
             aria-label={t('chat:sidebar.share')}
             className="inline-flex items-center justify-center size-8 rounded-[8px] text-[var(--color-fg-muted)] hover:bg-[var(--color-bg-muted)] hover:text-[var(--color-fg)] interactive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
           >
@@ -301,6 +353,72 @@ export default function ChatThread() {
               {t('common:actions.delete')}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={shareOpen} onOpenChange={setShareOpen}>
+        <DialogContent size="sm">
+          <DialogHeader>
+            <DialogTitle>{t('chat:share.title')}</DialogTitle>
+            <DialogDescription>
+              {share ? t('chat:share.bodyShared') : t('chat:share.body')}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogBody>
+            {shareLoading ? (
+              <div className="flex items-center gap-2 text-sm text-[var(--color-fg-subtle)] py-2">
+                <Loader2 size={14} className="animate-spin" aria-hidden />
+                {t('common:common.loading')}
+              </div>
+            ) : share ? (
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center gap-2">
+                  <Input
+                    readOnly
+                    value={shareUrl}
+                    onFocus={(e) => e.currentTarget.select()}
+                    className="font-mono text-[12px]"
+                  />
+                  <Button
+                    variant="secondary"
+                    leadingIcon={copied ? <Check size={14} aria-hidden /> : <Copy size={14} aria-hidden />}
+                    onClick={() => void copy(shareUrl)}
+                  >
+                    {copied ? t('common:actions.copied') : t('common:actions.copy')}
+                  </Button>
+                </div>
+                <p className="inline-flex items-center gap-1.5 text-[12px] text-[var(--color-fg-subtle)]">
+                  <Globe size={12} aria-hidden />
+                  {t('chat:share.publicHint')}
+                </p>
+              </div>
+            ) : (
+              <div className="flex flex-col items-start gap-3 py-1">
+                <Button
+                  onClick={() => void createShare()}
+                  loading={shareBusy}
+                  leadingIcon={<Globe size={14} aria-hidden />}
+                >
+                  {t('chat:share.createCta')}
+                </Button>
+              </div>
+            )}
+          </DialogBody>
+          {share ? (
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => setShareOpen(false)}>
+                {t('common:actions.close')}
+              </Button>
+              <Button
+                variant="destructive"
+                loading={shareBusy}
+                leadingIcon={<Trash2 size={14} aria-hidden />}
+                onClick={() => void revokeShare()}
+              >
+                {t('chat:share.revokeCta')}
+              </Button>
+            </DialogFooter>
+          ) : null}
         </DialogContent>
       </Dialog>
     </div>

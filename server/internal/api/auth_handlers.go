@@ -277,6 +277,18 @@ func loginHandler(d Deps, w http.ResponseWriter, r *http.Request) {
 		writeError(w, 401, errors.New("invalid email or password"))
 		return
 	}
+	// 2FA gate (§ 2FA login): with TOTP enabled, the password alone doesn't mint
+	// a session — return a short-lived ticket the client redeems with a code via
+	// /auth/login/2fa.
+	if user.TotpEnabled {
+		ticket := issueTwofaTicket(d, user.ID)
+		if ticket == "" {
+			writeError(w, 500, errors.New("could not start two-factor challenge"))
+			return
+		}
+		writeJSON(w, 200, map[string]any{"totp_required": true, "ticket": ticket})
+		return
+	}
 	finaliseSession(d, w, user)
 }
 

@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -27,7 +28,7 @@ func (p *OpenAIProvider) ID() string { return "openai" }
 // Stream runs one model turn against either OpenAI format.
 func (p *OpenAIProvider) Stream(ctx context.Context, req UnifiedChatRequest, tools ToolRunner, onEvent func(SseEvent)) (*UnifiedResult, error) {
 	if req.Model.APIKey == "" {
-		return (&MockProvider{logger: p.logger}).Stream(ctx, req, tools, onEvent)
+		return nil, errors.New("this channel has no API key configured")
 	}
 	switch req.Model.APIFormat {
 	case "responses":
@@ -149,12 +150,17 @@ func (p *OpenAIProvider) streamChat(ctx context.Context, req UnifiedChatRequest,
 			resp.Body.Close()
 			return nil, fmt.Errorf("openai %d: %s", resp.StatusCode, string(b))
 		}
-		text, calls, finish, u, err := readOpenAIChatStream(resp.Body, onEvent)
+		text, reasoning, calls, finish, u, err := readOpenAIChatStream(resp.Body, onEvent)
 		resp.Body.Close()
 		if err != nil {
 			return nil, err
 		}
 		allText.WriteString(text)
+		// Thinking precedes the round's text so the reasoning trace reads
+		// think → answer/tool in order.
+		if reasoning != "" {
+			allBlocks = append(allBlocks, UnifiedBlock{Kind: "thinking", Text: reasoning})
+		}
 		if text != "" {
 			allBlocks = append(allBlocks, UnifiedBlock{Kind: "text", Text: text})
 		}
@@ -270,7 +276,7 @@ func (p *OpenAIProvider) promptRunOnce(base string, req UnifiedChatRequest) Prom
 			b, _ := io.ReadAll(resp.Body)
 			return "", Usage{}, fmt.Errorf("openai %d: %s", resp.StatusCode, string(b))
 		}
-		text, _, _, u, err := readOpenAIChatStream(resp.Body, func(SseEvent) {})
+		text, _, _, _, u, err := readOpenAIChatStream(resp.Body, func(SseEvent) {})
 		return text, u, err
 	}
 }
@@ -292,7 +298,13 @@ type hostedToolCall struct {
 func officialToolSpec(name string) map[string]any {
 	switch name {
 	case "web_search":
-		return map[string]any{"type": "web_search"}
+		// search_context_size mirrors the documented default ("medium"); the
+		// other documented knobs (external_web_access, search_content_types)
+		// keep their API defaults, which match the reference, and are omitted so
+		// older OpenAI-compatible endpoints don't 400 on unknown fields. Pair
+		// this with include=["web_search_call.action.sources"] (set on the body)
+		// so the cited sources come back.
+		return map[string]any{"type": "web_search", "search_context_size": "medium"}
 	case "code_interpreter":
 		return map[string]any{"type": "code_interpreter", "container": map[string]any{"type": "auto"}}
 	case "image_generation":
@@ -318,10 +330,11 @@ func hostedToolName(itemType string) string {
 	return strings.TrimSuffix(itemType, "_call")
 }
 
-func readOpenAIChatStream(body io.Reader, onEvent func(SseEvent)) (string, []openAIToolCall, string, Usage, error) {
+func readOpenAIChatStream(body io.Reader, onEvent func(SseEvent)) (string, string, []openAIToolCall, string, Usage, error) {
 	scanner := bufio.NewScanner(body)
 	scanner.Buffer(make([]byte, 64*1024), 1024*1024)
 	text := strings.Builder{}
+	reasoning := strings.Builder{}
 	usage := Usage{}
 	finish := "end_turn"
 	// Tool calls are accumulated by index — OpenAI streams partial args.
@@ -343,6 +356,17 @@ func readOpenAIChatStream(body io.Reader, onEvent func(SseEvent)) (string, []ope
 		for _, c := range choices {
 			ch, _ := c.(map[string]any)
 			delta, _ := ch["delta"].(map[string]any)
+			// Reasoning models on the Chat Completions wire (OpenAI o-series via
+			// compatible gateways, DeepSeek-R1, etc.) stream chain-of-thought as
+			// `reasoning_content` or `reasoning` deltas — surface them as thinking.
+			if s, _ := delta["reasoning_content"].(string); s != "" {
+				reasoning.WriteString(s)
+				onEvent(SseEvent{Type: "thinking_delta", Text: s})
+			}
+			if s, _ := delta["reasoning"].(string); s != "" {
+				reasoning.WriteString(s)
+				onEvent(SseEvent{Type: "thinking_delta", Text: s})
+			}
 			if s, _ := delta["content"].(string); s != "" {
 				text.WriteString(s)
 				onEvent(SseEvent{Type: "text_delta", Text: s})
@@ -386,7 +410,7 @@ func readOpenAIChatStream(body io.Reader, onEvent func(SseEvent)) (string, []ope
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		return "", nil, "", usage, err
+		return "", "", nil, "", usage, err
 	}
 	calls := []openAIToolCall{}
 	for _, c := range toolByIdx {
@@ -395,7 +419,7 @@ func readOpenAIChatStream(body io.Reader, onEvent func(SseEvent)) (string, []ope
 		}
 		calls = append(calls, *c)
 	}
-	return text.String(), calls, finish, usage, nil
+	return text.String(), reasoning.String(), calls, finish, usage, nil
 }
 
 // streamResponses drives the OpenAI Responses API (`POST /v1/responses`),
@@ -466,11 +490,15 @@ func (p *OpenAIProvider) streamResponses(ctx context.Context, req UnifiedChatReq
 	}
 
 	var respTools []map[string]any
+	wantWebSearch := false
 	if len(req.OfficialTools) > 0 {
 		// §2.3-B: attach OpenAI-hosted tools; OpenAI executes them server-side.
 		// We attach NO function tools — the loop below just streams the answer,
 		// and hosted-tool rounds surface as tool_start/tool_result events.
 		for _, name := range req.OfficialTools {
+			if name == "web_search" {
+				wantWebSearch = true
+			}
 			if spec := officialToolSpec(name); spec != nil {
 				respTools = append(respTools, spec)
 			}
@@ -510,6 +538,11 @@ func (p *OpenAIProvider) streamResponses(ctx context.Context, req UnifiedChatReq
 		if len(respTools) > 0 {
 			body["tools"] = respTools
 		}
+		// Ask the API to return the sources the hosted web_search consulted, so
+		// we can surface them as citations (only valid when web_search is on).
+		if wantWebSearch {
+			body["include"] = []string{"web_search_call.action.sources"}
+		}
 		body = MergeParamControls(body, req.ParamControls, req.ParamOverrides)
 		raw, _ := json.Marshal(body)
 		httpReq, _ := http.NewRequestWithContext(ctx, "POST", base+"/v1/responses", bytes.NewReader(raw))
@@ -526,13 +559,19 @@ func (p *OpenAIProvider) streamResponses(ctx context.Context, req UnifiedChatReq
 			return nil, fmt.Errorf("openai responses %d: %s", resp.StatusCode, string(b))
 		}
 
-		text, calls, hosted, u, err := readOpenAIResponsesStream(resp.Body, onEvent)
+		text, reasoning, calls, hosted, citations, u, err := readOpenAIResponsesStream(resp.Body, onEvent)
 		resp.Body.Close()
 		if err != nil {
 			return nil, err
 		}
 		usage.InputTokens += u.InputTokens
 		usage.OutputTokens += u.OutputTokens
+		allCitations = append(allCitations, citations...)
+		// Persist the reasoning summary as a thinking block so it survives reload
+		// (it was only streamed live before).
+		if reasoning != "" {
+			allBlocks = append(allBlocks, UnifiedBlock{Kind: "thinking", Text: reasoning})
+		}
 		// Persist OpenAI-hosted tool rounds as tool_call blocks so reloads show
 		// the same steps the user saw live (§2.3-B).
 		for _, h := range hosted {
@@ -622,11 +661,34 @@ func (p *OpenAIProvider) streamResponses(ctx context.Context, req UnifiedChatReq
 //
 // The function returns the joined visible text, the parsed function-call list,
 // and the input/output token counts.
-func readOpenAIResponsesStream(body io.Reader, onEvent func(SseEvent)) (string, []openAIToolCall, []hostedToolCall, Usage, error) {
+func readOpenAIResponsesStream(body io.Reader, onEvent func(SseEvent)) (string, string, []openAIToolCall, []hostedToolCall, []Citation, Usage, error) {
 	scanner := bufio.NewScanner(body)
 	scanner.Buffer(make([]byte, 64*1024), 1024*1024)
 	text := strings.Builder{}
+	reasoning := strings.Builder{}
 	usage := Usage{}
+	// Web-search citations: inline url_citation annotations + the sources the
+	// hosted web_search_call consulted (via include). Deduped by URL, emitted
+	// live, and returned for persistence.
+	var citations []Citation
+	seenCite := map[string]bool{}
+	addCitation := func(url, title, snippet string) {
+		url = strings.TrimSpace(url)
+		if url == "" || seenCite[url] {
+			return
+		}
+		seenCite[url] = true
+		c := Citation{
+			ID:      fmt.Sprintf("oac%d", len(citations)+1),
+			Index:   len(citations) + 1,
+			Title:   strings.TrimSpace(title),
+			URL:     url,
+			Snippet: strings.TrimSpace(snippet),
+			Source:  "web",
+		}
+		citations = append(citations, c)
+		onEvent(SseEvent{Type: "citation", Citation: &c})
+	}
 	type callBuf struct {
 		ID, Name string
 		Args     strings.Builder
@@ -658,7 +720,17 @@ func readOpenAIResponsesStream(body io.Reader, onEvent func(SseEvent)) (string, 
 			}
 		case "response.reasoning_summary_text.delta", "response.reasoning.delta":
 			if s, _ := ev["delta"].(string); s != "" {
+				reasoning.WriteString(s)
 				onEvent(SseEvent{Type: "thinking_delta", Text: s})
+			}
+		case "response.output_text.annotation.added":
+			// Inline web-search citations the model attached to the answer text.
+			if ann, _ := ev["annotation"].(map[string]any); ann != nil {
+				if at, _ := ann["type"].(string); at == "url_citation" {
+					url, _ := ann["url"].(string)
+					title, _ := ann["title"].(string)
+					addCitation(url, title, "")
+				}
 			}
 		case "response.output_item.added":
 			it, _ := ev["item"].(map[string]any)
@@ -694,6 +766,21 @@ func readOpenAIResponsesStream(body io.Reader, onEvent func(SseEvent)) (string, 
 				if s, _ := it["status"].(string); s != "" && s != "completed" {
 					status = "error"
 				}
+				// Harvest the sources the web_search consulted (include=
+				// web_search_call.action.sources) as citations.
+				if action, _ := it["action"].(map[string]any); action != nil {
+					if srcs, _ := action["sources"].([]any); srcs != nil {
+						for _, s := range srcs {
+							sm, _ := s.(map[string]any)
+							if sm == nil {
+								continue
+							}
+							url, _ := sm["url"].(string)
+							title, _ := sm["title"].(string)
+							addCitation(url, title, "")
+						}
+					}
+				}
 				onEvent(SseEvent{Type: "tool_result", Name: h.Name, ID: itemID, Status: status})
 			}
 		case "response.function_call_arguments.delta":
@@ -728,14 +815,14 @@ func readOpenAIResponsesStream(body io.Reader, onEvent func(SseEvent)) (string, 
 			if r != nil {
 				if errObj, ok := r["error"].(map[string]any); ok {
 					msg, _ := errObj["message"].(string)
-					return text.String(), nil, nil, usage, fmt.Errorf("openai responses error: %s", msg)
+					return text.String(), reasoning.String(), nil, nil, citations, usage, fmt.Errorf("openai responses error: %s", msg)
 				}
 			}
-			return text.String(), nil, nil, usage, fmt.Errorf("openai responses failed")
+			return text.String(), reasoning.String(), nil, nil, citations, usage, fmt.Errorf("openai responses failed")
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		return "", nil, nil, usage, err
+		return "", "", nil, nil, citations, usage, err
 	}
 	calls := []openAIToolCall{}
 	for _, itemID := range order {
@@ -755,7 +842,7 @@ func readOpenAIResponsesStream(body io.Reader, onEvent func(SseEvent)) (string, 
 			hosted = append(hosted, *h)
 		}
 	}
-	return text.String(), calls, hosted, usage, nil
+	return text.String(), reasoning.String(), calls, hosted, citations, usage, nil
 }
 
 // parseResponsesOutput is retained for callers that need a non-streaming JSON

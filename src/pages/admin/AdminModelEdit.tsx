@@ -24,6 +24,7 @@ import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { IconUploader } from '@/components/admin/icon-uploader'
+import { ModelQuotaEditor } from '@/components/admin/model-quota-editor'
 import { toast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
 
@@ -335,6 +336,17 @@ export default function AdminModelEdit() {
               </div>
             </section>
           )}
+
+          {/* Section: Permissions / quotas (chat models) --------------------- */}
+          {draft.kind === 'chat' ? (
+            <section className="mt-6 rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] px-6 py-5">
+              <h2 className="font-serif text-lg text-[var(--color-fg)]">{t('admin:models.sections.permissions')}</h2>
+              <p className="mt-1 text-sm text-[var(--color-fg-muted)]">{t('admin:models.permissionsLead')}</p>
+              <div className="mt-4">
+                <ModelQuotaEditor modelId={id} />
+              </div>
+            </section>
+          ) : null}
 
           {/* Section: Pricing ------------------------------------------------- */}
           <section className="mt-6 rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] px-6 py-5">

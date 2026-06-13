@@ -1,7 +1,7 @@
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ArrowLeft, User, Palette, Sparkles, ShieldCheck, Keyboard, CreditCard } from 'lucide-react'
+import { ArrowLeft, User, Wand2, Palette, Sparkles, ShieldCheck, Keyboard } from 'lucide-react'
 import { Logo } from '@/components/brand/logo'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
 import { LanguageToggle } from '@/components/ui/language-toggle'
@@ -10,11 +10,11 @@ import { useTheme } from '@/store/theme'
 
 const tabDefs = [
   { to: '/settings/account', key: 'account', icon: User },
+  { to: '/settings/personalization', key: 'personalization', icon: Wand2 },
   { to: '/settings/appearance', key: 'appearance', icon: Palette },
   { to: '/settings/models', key: 'models', icon: Sparkles },
   { to: '/settings/privacy', key: 'privacy', icon: ShieldCheck },
   { to: '/settings/shortcuts', key: 'shortcuts', icon: Keyboard },
-  { to: '/settings/billing', key: 'billing', icon: CreditCard },
 ] as const
 
 export default function SettingsLayout() {

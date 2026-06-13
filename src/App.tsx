@@ -17,7 +17,6 @@ const ProjectsList = lazy(() => import('@/pages/projects/ProjectsList'))
 const ProjectDetail = lazy(() => import('@/pages/projects/ProjectDetail'))
 const KnowledgeBasesList = lazy(() => import('@/pages/kb/KnowledgeBasesList'))
 const KnowledgeBaseDetail = lazy(() => import('@/pages/kb/KnowledgeBaseDetail'))
-const MemoryView = lazy(() => import('@/pages/memory/MemoryView'))
 const AuthLayout = lazy(() => import('@/pages/auth/AuthLayout'))
 const Login = lazy(() => import('@/pages/auth/Login'))
 const Register = lazy(() => import('@/pages/auth/Register'))
@@ -26,21 +25,25 @@ const SettingsLayout = lazy(() => import('@/pages/settings/SettingsLayout'))
 const SettingsAccount = lazy(() => import('@/pages/settings/Account'))
 const SettingsAppearance = lazy(() => import('@/pages/settings/Appearance'))
 const SettingsModels = lazy(() => import('@/pages/settings/Models'))
+const SettingsPersonalization = lazy(() => import('@/pages/settings/Personalization'))
 const SettingsPrivacy = lazy(() => import('@/pages/settings/Privacy'))
 const SettingsShortcuts = lazy(() => import('@/pages/settings/Shortcuts'))
-const SettingsBilling = lazy(() => import('@/pages/settings/Billing'))
+const Subscription = lazy(() => import('@/pages/subscription/Subscription'))
+const SharedConversation = lazy(() => import('@/pages/share/SharedConversation'))
 const AdminLayout = lazy(() => import('@/pages/admin/AdminLayout'))
 const AdminChannels = lazy(() => import('@/pages/admin/AdminChannels'))
 const AdminModels = lazy(() => import('@/pages/admin/AdminModels'))
 const AdminModelEdit = lazy(() => import('@/pages/admin/AdminModelEdit'))
 const AdminSkills = lazy(() => import('@/pages/admin/AdminSkills'))
 const AdminUsers = lazy(() => import('@/pages/admin/AdminUsers'))
+const AdminUserGroups = lazy(() => import('@/pages/admin/AdminUserGroups'))
 const AdminUserConversations = lazy(() => import('@/pages/admin/AdminUserConversations'))
 const AdminUserConversation = lazy(() => import('@/pages/admin/AdminUserConversation'))
 const AdminUsage = lazy(() => import('@/pages/admin/AdminUsage'))
 const AdminSettings = lazy(() => import('@/pages/admin/AdminSettings'))
 const AdminDocuments = lazy(() => import('@/pages/admin/AdminDocuments'))
 const AdminTools = lazy(() => import('@/pages/admin/AdminTools'))
+const AdminAudio = lazy(() => import('@/pages/admin/AdminAudio'))
 const AdminOAuth = lazy(() => import('@/pages/admin/AdminOAuth'))
 const NotFound = lazy(() => import('@/pages/NotFound'))
 
@@ -106,6 +109,7 @@ export default function App() {
         <Suspense fallback={<RouteFallback />}>
           <Routes>
             <Route path="/welcome" element={<Landing />} />
+            <Route path="/share/:token" element={<SharedConversation />} />
             <Route path="/" element={<ChatLayout />}>
               <Route index element={<ChatHome />} />
               <Route path="chat/:id" element={<ChatThread />} />
@@ -122,8 +126,8 @@ export default function App() {
               <Route index element={<KnowledgeBasesList />} />
               <Route path=":id" element={<KnowledgeBaseDetail />} />
             </Route>
-            <Route path="/memory" element={<ChatLayout />}>
-              <Route index element={<MemoryView />} />
+            <Route path="/subscription" element={<ChatLayout />}>
+              <Route index element={<Subscription />} />
             </Route>
             <Route element={<AuthLayout />}>
               <Route path="/login" element={<Login />} />
@@ -135,9 +139,9 @@ export default function App() {
               <Route path="account" element={<SettingsAccount />} />
               <Route path="appearance" element={<SettingsAppearance />} />
               <Route path="models" element={<SettingsModels />} />
+              <Route path="personalization" element={<SettingsPersonalization />} />
               <Route path="privacy" element={<SettingsPrivacy />} />
               <Route path="shortcuts" element={<SettingsShortcuts />} />
-              <Route path="billing" element={<SettingsBilling />} />
             </Route>
             <Route path="/admin" element={<AdminLayout />}>
               <Route index element={<AdminChannels />} />
@@ -146,11 +150,13 @@ export default function App() {
               <Route path="models/:id" element={<AdminModelEdit />} />
               <Route path="skills" element={<AdminSkills />} />
               <Route path="users" element={<AdminUsers />} />
+              <Route path="user-groups" element={<AdminUserGroups />} />
               <Route path="users/:id/conversations" element={<AdminUserConversations />} />
               <Route path="users/:id/conversations/:cid" element={<AdminUserConversation />} />
               <Route path="usage" element={<AdminUsage />} />
               <Route path="documents" element={<AdminDocuments />} />
               <Route path="tools" element={<AdminTools />} />
+              <Route path="audio" element={<AdminAudio />} />
               <Route path="oauth" element={<AdminOAuth />} />
               <Route path="settings" element={<AdminSettings />} />
             </Route>

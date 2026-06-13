@@ -15,8 +15,9 @@ import {
   FolderKanban,
   ChevronRight,
   BookText,
-  BrainCircuit,
+  Wand2,
   ShieldCheck,
+  Layers,
 } from 'lucide-react'
 import { Logo, LogoMark } from '@/components/brand/logo'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -48,6 +49,8 @@ import { useProjects } from '@/store/projects'
 import { useSettings } from '@/store/settings'
 import { useAuth } from '@/store/auth'
 import { useCommandMenu } from '@/hooks/use-command-menu'
+import { useCopy } from '@/hooks/use-clipboard'
+import { conversationsApi, ApiError } from '@/api'
 import { accentClasses } from '@/lib/project-helpers'
 import { type DateBucket, bucketFor, modKey, cn, truncate } from '@/lib/utils'
 import { toast } from '@/hooks/use-toast'
@@ -340,9 +343,22 @@ function ConversationItem({
   const star = useConversations((s) => s.toggleStar)
   const archive = useConversations((s) => s.archiveConversation)
   const navigate = useNavigate()
+  const { copy } = useCopy()
   const [renaming, setRenaming] = useState(false)
   const [draft, setDraft] = useState(conversation.title)
   const [confirm, setConfirm] = useState(false)
+
+  // Create (or refresh) a public share and copy its link in one tap (§ sharing).
+  // Managing / revoking the share lives in the conversation's Share dialog.
+  async function shareConversation() {
+    try {
+      const s = await conversationsApi.createShare(conversation.id)
+      await copy(`${window.location.origin}/share/${s.id}`)
+      toast.success(t('share.linkCopied'))
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : t('share.failed'))
+    }
+  }
 
   return (
     <li>
@@ -387,7 +403,7 @@ function ConversationItem({
                 <Star size={13} aria-hidden />
                 {conversation.starred ? t('common:actions.unstar') : t('common:actions.star')}
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => toast.info(t('actions.shareMocked'))}>
+              <DropdownMenuItem onClick={() => void shareConversation()}>
                 <Share2 size={13} aria-hidden />
                 {t('sidebar.share')}
               </DropdownMenuItem>
@@ -507,13 +523,17 @@ function UserMenu({ collapsed }: { collapsed: boolean }) {
           <Settings size={13} aria-hidden />
           {t('settings:user.settings')}
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => navigate('/memory')}>
-          <BrainCircuit size={13} aria-hidden />
-          {t('chat:userMenu.memory', { defaultValue: 'Memory' })}
+        <DropdownMenuItem onClick={() => navigate('/settings/personalization')}>
+          <Wand2 size={13} aria-hidden />
+          {t('chat:userMenu.personalization', { defaultValue: 'Personalization' })}
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => navigate('/kb')}>
           <BookText size={13} aria-hidden />
           {t('chat:userMenu.knowledge', { defaultValue: 'Knowledge' })}
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => navigate('/subscription')}>
+          <Layers size={13} aria-hidden />
+          {t('chat:userMenu.subscription', { defaultValue: 'Subscription' })}
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => setArchivedOpen(true)}>
           <Archive size={13} aria-hidden />

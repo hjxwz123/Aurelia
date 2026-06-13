@@ -2,11 +2,40 @@
   "title": "Settings",
   "tabs": {
     "account": "Account",
+    "personalization": "Personalization",
     "appearance": "Appearance",
     "models": "Models",
     "privacy": "Privacy",
-    "shortcuts": "Shortcuts",
-    "billing": "Billing"
+    "shortcuts": "Shortcuts"
+  },
+  "personalization": {
+    "title": "Personalization",
+    "subtitle": "Tune how the assistant talks to you, and manage what it remembers.",
+    "styleTitle": "Response style",
+    "styleSubtitle": "Pick the traits the assistant should lean into, and add your own instructions.",
+    "traitsLabel": "What traits should the assistant have?",
+    "traits": {
+      "concise": "Concise",
+      "detailed": "Detailed",
+      "friendly": "Friendly",
+      "professional": "Professional",
+      "encouraging": "Encouraging",
+      "direct": "Direct",
+      "witty": "Witty",
+      "socratic": "Socratic",
+      "genz": "Gen Z",
+      "formal": "Formal"
+    },
+    "nicknameLabel": "What should the assistant call you?",
+    "nicknamePlaceholder": "Nickname",
+    "customLabel": "Anything else the assistant should know about you?",
+    "customPlaceholder": "Interests, how you like answers structured, things to avoid…",
+    "saved": "Personalization saved",
+    "memoryTitle": "Memory",
+    "memorySubtitle": "The assistant can remember durable facts about you across chats.",
+    "memoryToggle": "Enable memory",
+    "memoryToggleBody": "When off, no conversation uses or saves memory.",
+    "memoryDisabled": "Memory is off. Turn it on to view and manage saved memories."
   },
   "account": {
     "title": "Account",
@@ -42,7 +71,26 @@
     "saved": "Profile saved.",
     "passwordMocked": "Password change is mocked.",
     "twoFactorMocked": "2FA is mocked in this build.",
-    "sessionsMocked": "Session list is mocked."
+    "sessionsMocked": "Session list is mocked.",
+    "twofa": {
+      "label": "Two-factor authentication",
+      "onBody": "On — a code from your authenticator is required at every sign-in.",
+      "offBody": "Add a second step at sign-in with an authenticator app (TOTP).",
+      "enable": "Enable",
+      "disable": "Disable",
+      "enableTitle": "Enable two-factor",
+      "enableLead": "Scan or type this key into your authenticator app (Google Authenticator, Authy, 1Password…), then enter the 6-digit code it shows.",
+      "secretLabel": "Setup key",
+      "secretHint": "Add a manual / time-based (TOTP) entry with this key.",
+      "codeLabel": "Code from app",
+      "enabled": "Two-factor is on",
+      "disabled": "Two-factor is off",
+      "disableTitle": "Disable two-factor",
+      "disableLead": "Enter a current code from your authenticator to turn off two-factor.",
+      "failed": "Something went wrong",
+      "codeRequired": "Enter the 6-digit code",
+      "invalid": "That code didn’t work — try again"
+    }
   },
   "appearance": {
     "title": "Appearance",
@@ -140,51 +188,6 @@
       "shortcuts": "Show keyboard shortcuts",
       "focus-composer": "Focus composer"
     }
-  },
-  "billing": {
-    "title": "Billing",
-    "subtitle": "Plans, usage, and invoices.",
-    "current": "Current plan",
-    "currentFree": "You're on the free plan.",
-    "currentPaid": "Your subscription renews next month.",
-    "payment": "Payment method",
-    "paymentBody": "No real card is stored in this build.",
-    "paymentMocked": "Card update is mocked.",
-    "invoices": "Invoice history",
-    "invoicesBody": "We'd show your last 12 invoices here.",
-    "invoicesMocked": "Invoices are mocked.",
-    "switchPlan": "Switch plan",
-    "tiers": {
-      "free": {
-        "name": "Free",
-        "blurb": "For occasional conversations.",
-        "features": ["Aurelia Prose", "20 conversations / day", "Standard speed"]
-      },
-      "pro": {
-        "name": "Pro",
-        "blurb": "For people who think for a living.",
-        "features": [
-          "Aurelia Prose & Reason",
-          "Canvas mode",
-          "Priority response",
-          "Unlimited conversations",
-          "Export to Markdown"
-        ]
-      },
-      "max": {
-        "name": "Max",
-        "blurb": "For research, code, and long deliberation.",
-        "features": [
-          "Everything in Pro",
-          "Aurelia Deep with citations",
-          "Higher rate limits",
-          "Team workspace",
-          "Custom retention"
-        ]
-      }
-    },
-    "switchTo": "Switch to {{name}}",
-    "switchMocked": "Plan switch to {{name}} is mocked."
   },
   "user": {
     "menuAria": "Account",

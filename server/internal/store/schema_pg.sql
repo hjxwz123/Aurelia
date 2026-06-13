@@ -26,8 +26,34 @@ CREATE TABLE IF NOT EXISTS users (
   status        TEXT NOT NULL DEFAULT 'active',
   token_ver     INTEGER NOT NULL DEFAULT 0,
   settings      TEXT NOT NULL DEFAULT '{}',
+  group_id      TEXT NOT NULL DEFAULT 'ug_free',
+  totp_secret   TEXT NOT NULL DEFAULT '',
+  totp_enabled  INTEGER NOT NULL DEFAULT 0,
   created_at    BIGINT NOT NULL DEFAULT (extract(epoch from now())::bigint)
 );
+
+CREATE TABLE IF NOT EXISTS user_groups (
+  id          TEXT PRIMARY KEY,
+  name        TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  features    TEXT NOT NULL DEFAULT '[]',
+  price_usd   REAL NOT NULL DEFAULT 0,
+  price_cny   REAL NOT NULL DEFAULT 0,
+  is_default  INTEGER NOT NULL DEFAULT 0,
+  sort_order  INTEGER NOT NULL DEFAULT 0,
+  created_at  BIGINT NOT NULL DEFAULT (extract(epoch from now())::bigint),
+  updated_at  BIGINT NOT NULL DEFAULT (extract(epoch from now())::bigint)
+);
+
+CREATE TABLE IF NOT EXISTS model_group_quotas (
+  model_id       TEXT NOT NULL REFERENCES models(id) ON DELETE CASCADE,
+  group_id       TEXT NOT NULL REFERENCES user_groups(id) ON DELETE CASCADE,
+  period_seconds INTEGER NOT NULL DEFAULT 604800,
+  limit_type     TEXT NOT NULL DEFAULT 'count',
+  limit_value    REAL NOT NULL DEFAULT 0,
+  PRIMARY KEY (model_id, group_id)
+);
+CREATE INDEX IF NOT EXISTS idx_mgq_group ON model_group_quotas(group_id);
 
 CREATE TABLE IF NOT EXISTS channels (
   id          TEXT PRIMARY KEY,
@@ -163,6 +189,18 @@ CREATE TABLE IF NOT EXISTS messages (
 CREATE INDEX IF NOT EXISTS idx_messages_conv ON messages(conversation_id);
 CREATE INDEX IF NOT EXISTS idx_messages_parent ON messages(parent_id);
 
+-- Public read-only conversation shares (cost-stripped snapshot; revoke = delete).
+CREATE TABLE IF NOT EXISTS conversation_shares (
+  id              TEXT PRIMARY KEY,
+  conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+  user_id         TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  title           TEXT NOT NULL DEFAULT '',
+  snapshot        TEXT NOT NULL DEFAULT '[]',
+  created_at      BIGINT NOT NULL DEFAULT (extract(epoch from now())::bigint)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_conv_shares_conv ON conversation_shares(conversation_id);
+CREATE INDEX IF NOT EXISTS idx_conv_shares_user ON conversation_shares(user_id);
+
 CREATE TABLE IF NOT EXISTS files (
   id              TEXT PRIMARY KEY,
   user_id         TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -251,6 +289,7 @@ CREATE TABLE IF NOT EXISTS usage_logs (
 );
 CREATE INDEX IF NOT EXISTS idx_usage_user_time ON usage_logs(user_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_usage_model_time ON usage_logs(model_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_usage_user_model_time ON usage_logs(user_id, model_id, created_at);
 
 CREATE TABLE IF NOT EXISTS artifacts (
   id           TEXT PRIMARY KEY,

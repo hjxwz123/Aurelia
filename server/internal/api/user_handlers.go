@@ -104,14 +104,15 @@ func updateMeSettingsHandler(d Deps, w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, json.RawMessage(upd.Settings))
 }
 
-// meUsageHandler returns cost + message-count over the last N days.
+// meUsageHandler returns the user's message-count over the last N days. Cost is
+// deliberately NOT returned to users — only admins can view spend (/admin/usage).
 func meUsageHandler(d Deps, w http.ResponseWriter, r *http.Request) {
 	u := authUser(r)
 	days := 30
-	cost, count, err := store.SumUsageByUser(r.Context(), d.DB, u.ID, days)
+	_, count, err := store.SumUsageByUser(r.Context(), d.DB, u.ID, days)
 	if err != nil {
 		writeError(w, 500, err)
 		return
 	}
-	writeJSON(w, 200, map[string]any{"days": days, "cost": cost, "messages": count})
+	writeJSON(w, 200, map[string]any{"days": days, "messages": count})
 }

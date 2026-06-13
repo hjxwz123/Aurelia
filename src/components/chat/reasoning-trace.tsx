@@ -105,22 +105,44 @@ export function ReasoningTrace({ reasoning, streaming = false, settled = false }
         />
       </button>
 
-      {expanded ? (
-        <div className="space-y-2 px-3 pb-3 pt-1">
-          {items.map((it) =>
-            it.kind === 'thinking' ? (
-              <div
-                key={it.id}
-                className="whitespace-pre-wrap font-mono text-[12px] leading-relaxed text-[var(--color-fg-faint)]"
-              >
-                {it.text}
-              </div>
-            ) : (
-              <ToolStep key={it.id} toolCall={it.tool} />
-            ),
-          )}
+      {/* grid 0fr→1fr animates height without measuring; the global
+          prefers-reduced-motion rule neutralises the transition automatically. */}
+      <div
+        className={cn(
+          'grid transition-[grid-template-rows] duration-300 ease-[var(--ease-out)]',
+          expanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]',
+        )}
+      >
+        <div className="overflow-hidden">
+          <div className="space-y-2 px-3 pb-3 pt-1">
+            {items.map((it) => {
+              if (it.kind === 'thinking') {
+                return (
+                  <div
+                    key={it.id}
+                    className="whitespace-pre-wrap font-mono text-[12px] leading-relaxed text-[var(--color-fg-faint)]"
+                  >
+                    {it.text}
+                  </div>
+                )
+              }
+              if (it.kind === 'narration') {
+                // Pre-tool narration: render as prose (distinct from mono
+                // chain-of-thought) so it reads like the aside it is.
+                return (
+                  <div
+                    key={it.id}
+                    className="whitespace-pre-wrap text-[12.5px] leading-relaxed text-[var(--color-fg-muted)]"
+                  >
+                    {it.text}
+                  </div>
+                )
+              }
+              return <ToolStep key={it.id} toolCall={it.tool} />
+            })}
+          </div>
         </div>
-      ) : null}
+      </div>
     </div>
   )
 }

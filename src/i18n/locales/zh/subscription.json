@@ -1,0 +1,16 @@
+{
+  "back": "返回对话",
+  "title": "订阅",
+  "subtitle": "你所在的用户组决定了你可以使用哪些模型以及多少额度。",
+  "currentPlan": "当前用户组",
+  "free": "免费",
+  "allPlans": "全部用户组",
+  "current": "当前",
+  "youreOnThis": "你正在使用此用户组",
+  "switchCta": "切换",
+  "upgradeCta": "升级",
+  "upgradeTitle": "切换到 {{name}}",
+  "upgradeBody": "用户组的变更由管理员处理。如需切换到此用户组，请联系工作区管理员。",
+  "priceFree": "免费",
+  "loadFailed": "加载用户组失败"
+}

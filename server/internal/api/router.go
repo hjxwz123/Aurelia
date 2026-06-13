@@ -46,6 +46,7 @@ func NewRouter(d Deps) http.Handler {
 	// to enumerate passwords / spam refresh.
 	mux.handle("POST", "/api/auth/register", rateLimitedIP(d, "auth", 5, 60*time.Second, wrap(d, registerHandler)))
 	mux.handle("POST", "/api/auth/login", rateLimitedIP(d, "auth", 10, 60*time.Second, wrap(d, loginHandler)))
+	mux.handle("POST", "/api/auth/login/2fa", rateLimitedIP(d, "auth", 10, 60*time.Second, wrap(d, login2faHandler)))
 	mux.handle("POST", "/api/auth/logout", wrap(d, logoutHandler))
 	mux.handle("POST", "/api/auth/refresh", rateLimitedIP(d, "auth", 30, 60*time.Second, wrap(d, refreshHandler)))
 	mux.handle("POST", "/api/auth/verify-email", rateLimitedIP(d, "auth", 20, 60*time.Second, wrap(d, verifyEmailHandler)))
@@ -57,6 +58,8 @@ func NewRouter(d Deps) http.Handler {
 	})
 	mux.handle("GET", "/api/public/signup-open", wrap(d, signupOpenHandler))
 	mux.handle("GET", "/api/public/oauth-providers", wrap(d, oauthProvidersPublicHandler))
+	// Public read-only conversation share (token in the path; no auth).
+	mux.handle("GET", "/api/public/shared/:token", wrap(d, publicSharedHandler))
 
 	// OAuth / social login. /start is a top-level browser navigation; /callback
 	// is hit by the provider redirect (GET) or Apple's form_post (POST).
@@ -72,6 +75,9 @@ func NewRouter(d Deps) http.Handler {
 	mux.handle("GET", "/api/me/settings", requireAuth(d, meSettingsHandler))
 	mux.handle("PATCH", "/api/me/settings", requireAuth(d, updateMeSettingsHandler))
 	mux.handle("GET", "/api/me/upload-policy", requireAuth(d, meUploadPolicyHandler))
+	mux.handle("POST", "/api/me/2fa/setup", requireAuth(d, twofaSetupHandler))
+	mux.handle("POST", "/api/me/2fa/enable", requireAuth(d, twofaEnableHandler))
+	mux.handle("POST", "/api/me/2fa/disable", requireAuth(d, twofaDisableHandler))
 	mux.handle("GET", "/api/me/memories", requireAuth(d, listMemoriesHandler))
 	mux.handle("POST", "/api/me/memories", requireAuth(d, createMemoryHandler))
 	mux.handle("PATCH", "/api/me/memories/:id", requireAuth(d, updateMemoryHandler))
@@ -81,6 +87,8 @@ func NewRouter(d Deps) http.Handler {
 	mux.handle("GET", "/api/image-models", requireAuth(d, listImageModelsHandler))
 	mux.handle("GET", "/api/embedding-models", requireAuth(d, listEmbeddingModelsHandler))
 	mux.handle("GET", "/api/skills", requireAuth(d, listSkillsPublicHandler))
+	mux.handle("GET", "/api/user-groups", requireAuth(d, listUserGroupsPublic))
+	mux.handle("POST", "/api/audio/transcriptions", requireAuth(d, transcribeAudioHandler))
 
 	mux.handle("GET", "/api/projects", requireAuth(d, listProjectsHandler))
 	mux.handle("POST", "/api/projects", requireAuth(d, createProjectHandler))
@@ -104,6 +112,9 @@ func NewRouter(d Deps) http.Handler {
 	mux.handle("PATCH", "/api/conversations/:id/active-leaf", requireAuth(d, setActiveLeafHandler))
 	mux.handle("POST", "/api/conversations/:id/fork", requireAuth(d, forkConversationHandler))
 	mux.handle("POST", "/api/conversations/:id/documents/:docId/promote", requireAuth(d, promoteDocumentHandler))
+	mux.handle("GET", "/api/conversations/:id/share", requireAuth(d, getShareHandler))
+	mux.handle("POST", "/api/conversations/:id/share", requireAuth(d, createShareHandler))
+	mux.handle("DELETE", "/api/conversations/:id/share", requireAuth(d, deleteShareHandler))
 
 	mux.handle("POST", "/api/files", requireAuth(d, uploadFileHandler))
 	mux.handle("GET", "/api/artifacts/:id", requireAuth(d, downloadArtifactHandler))
@@ -125,13 +136,24 @@ func NewRouter(d Deps) http.Handler {
 	mux.handle("PATCH", "/api/admin/models/:id", requireAdmin(d, updateModelAdmin))
 	mux.handle("DELETE", "/api/admin/models/:id", requireAdmin(d, deleteModelAdmin))
 	mux.handle("PUT", "/api/admin/models/:id/skills", requireAdmin(d, setModelSkillsAdmin))
+	mux.handle("GET", "/api/admin/models/:id/quotas", requireAdmin(d, listModelQuotasAdmin))
+	mux.handle("PUT", "/api/admin/models/:id/quotas", requireAdmin(d, setModelQuotasAdmin))
+	mux.handle("GET", "/api/admin/user-groups", requireAdmin(d, listUserGroupsAdmin))
+	mux.handle("POST", "/api/admin/user-groups", requireAdmin(d, createUserGroupAdmin))
+	mux.handle("PATCH", "/api/admin/user-groups/:id", requireAdmin(d, updateUserGroupAdmin))
+	mux.handle("DELETE", "/api/admin/user-groups/:id", requireAdmin(d, deleteUserGroupAdmin))
+	mux.handle("POST", "/api/admin/users/:id/group", requireAdmin(d, setUserGroupAdmin))
 	mux.handle("GET", "/api/admin/skills", requireAdmin(d, listSkillsAdmin))
 	mux.handle("POST", "/api/admin/skills", requireAdmin(d, createSkillAdmin))
 	mux.handle("PATCH", "/api/admin/skills/:id", requireAdmin(d, updateSkillAdmin))
 	mux.handle("DELETE", "/api/admin/skills/:id", requireAdmin(d, deleteSkillAdmin))
 	mux.handle("GET", "/api/admin/users", requireAdmin(d, listUsersAdmin))
+	mux.handle("POST", "/api/admin/users", requireAdmin(d, createUserAdmin))
 	mux.handle("POST", "/api/admin/users/:id/ban", requireAdmin(d, banUserAdmin))
 	mux.handle("POST", "/api/admin/users/:id/unban", requireAdmin(d, unbanUserAdmin))
+	mux.handle("POST", "/api/admin/users/:id/password", requireAdmin(d, setUserPasswordAdmin))
+	mux.handle("POST", "/api/admin/users/:id/role", requireAdmin(d, setUserRoleAdmin))
+	mux.handle("POST", "/api/admin/users/:id/2fa/disable", requireAdmin(d, adminDisableTwofaHandler))
 	// User drill-down for support / abuse triage. The list endpoint returns
 	// the user's conversations; the thread endpoint returns the full message
 	// timeline of one conversation (including assistant/tool turns) so an
@@ -139,6 +161,7 @@ func NewRouter(d Deps) http.Handler {
 	mux.handle("GET", "/api/admin/users/:id/conversations", requireAdmin(d, listUserConversationsAdmin))
 	mux.handle("GET", "/api/admin/conversations/:id", requireAdmin(d, getConversationAdmin))
 	mux.handle("GET", "/api/admin/conversations/:id/messages", requireAdmin(d, listConversationMessagesAdmin))
+	mux.handle("DELETE", "/api/admin/conversations/:id", requireAdmin(d, deleteConversationAdmin))
 	mux.handle("GET", "/api/admin/usage", requireAdmin(d, usageReportAdmin))
 	mux.handle("GET", "/api/admin/oauth-providers", requireAdmin(d, listOAuthProvidersAdmin))
 	mux.handle("POST", "/api/admin/oauth-providers", requireAdmin(d, createOAuthProviderAdmin))

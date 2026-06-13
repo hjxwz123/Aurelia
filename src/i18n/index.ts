@@ -14,6 +14,7 @@ import enProjects from './locales/en/projects.json'
 import enAdmin from './locales/en/admin.json'
 import enKb from './locales/en/kb.json'
 import enMemory from './locales/en/memory.json'
+import enSubscription from './locales/en/subscription.json'
 
 // Chinese bundles
 import zhCommon from './locales/zh/common.json'
@@ -27,6 +28,7 @@ import zhProjects from './locales/zh/projects.json'
 import zhAdmin from './locales/zh/admin.json'
 import zhKb from './locales/zh/kb.json'
 import zhMemory from './locales/zh/memory.json'
+import zhSubscription from './locales/zh/subscription.json'
 
 export const SUPPORTED_LANGUAGES = [
   { code: 'en', label: 'English', short: 'EN' },
@@ -36,7 +38,7 @@ export const SUPPORTED_LANGUAGES = [
 export type LanguageCode = (typeof SUPPORTED_LANGUAGES)[number]['code']
 
 export const DEFAULT_NS = 'common'
-export const NAMESPACES = ['common', 'nav', 'landing', 'chat', 'auth', 'settings', 'errors', 'projects', 'admin', 'kb', 'memory'] as const
+export const NAMESPACES = ['common', 'nav', 'landing', 'chat', 'auth', 'settings', 'errors', 'projects', 'admin', 'kb', 'memory', 'subscription'] as const
 
 const resources = {
   en: {
@@ -51,6 +53,7 @@ const resources = {
     admin: enAdmin,
     kb: enKb,
     memory: enMemory,
+    subscription: enSubscription,
   },
   zh: {
     common: zhCommon,
@@ -64,6 +67,7 @@ const resources = {
     admin: zhAdmin,
     kb: zhKb,
     memory: zhMemory,
+    subscription: zhSubscription,
   },
 } as const
 

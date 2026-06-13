@@ -14,9 +14,11 @@
     "placeholder": "Ask anything — or paste your thinking.",
     "attach": "Attach files",
     "addImage": "Add image",
-    "voice": "Voice input (coming soon)",
-    "voiceMocked": "Voice input is mocked",
-    "voiceMockedBody": "We have not wired a microphone capture in this build.",
+    "voice": "Voice input",
+    "voiceStop": "Stop recording",
+    "voiceUnsupported": "Voice input isn't supported in this browser.",
+    "voicePermission": "Microphone access was denied.",
+    "voiceFailed": "Couldn't transcribe the recording.",
     "research": "Research",
     "researchTooltip": "Deep research mode",
     "canvas": "Canvas",
@@ -53,7 +55,7 @@
     "copyMessage": "Copy message",
     "readAloud": "Read aloud",
     "readAloudMocked": "Reading aloud is mocked in this build.",
-    "shareMocked": "Share is mocked in this build.",
+    "shareMocked": "Share link copied",
     "shareCopied": "Share link copied",
     "branch": "Switch branch",
     "prevBranch": "Previous branch",
@@ -66,6 +68,31 @@
   },
   "sources": {
     "label": "Sources"
+  },
+  "research": {
+    "title": "Deep research",
+    "steps": "{{done}}/{{total}}",
+    "planLabel": "Research plan",
+    "sourcesLabel": "Sources ({{count}})"
+  },
+  "share": {
+    "title": "Share conversation",
+    "body": "Create a public link to a read-only snapshot of this conversation. Later messages stay private.",
+    "bodyShared": "Anyone with this link can view a read-only snapshot of this conversation.",
+    "createCta": "Create share link",
+    "revokeCta": "Unshare",
+    "revoked": "Share link revoked",
+    "failed": "Something went wrong",
+    "linkCopied": "Share link copied",
+    "publicHint": "Public — no sign-in needed to view.",
+    "tryCta": "Try Aurelia",
+    "missingTitle": "This share isn’t available",
+    "missingBody": "The link may be wrong, or the owner has unshared this conversation.",
+    "eyebrow": "Shared conversation",
+    "untitled": "Untitled conversation",
+    "roleUser": "User",
+    "roleAssistant": "Assistant",
+    "footer": "Shared from Aurelia — a thoughtful AI workspace."
   },
   "code": {
     "run": "Run",
@@ -143,7 +170,8 @@
     "section": "Models",
     "moreSoon": "More models coming soon",
     "current": "Current model",
-    "label": "Model: {{name}}"
+    "label": "Model: {{name}}",
+    "upgrade": "Upgrade to unlock"
   },
   "commandMenu": {
     "placeholder": "Search conversations, run a command…",
@@ -170,9 +198,10 @@
   },
   "signedOut": "You've been signed out.",
   "userMenu": {
-    "memory": "Memory",
+    "personalization": "Personalization",
     "knowledge": "Knowledge",
-    "admin": "Admin"
+    "admin": "Admin",
+    "subscription": "Subscription"
   },
   "suggestions": {
     "outline-essay": {

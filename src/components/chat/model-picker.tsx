@@ -1,5 +1,6 @@
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, Lock } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { useNavigate } from 'react-router-dom'
 import { useModels } from '@/store/models'
 import {
   DropdownMenu,
@@ -26,6 +27,7 @@ export function ModelPicker({ value, onChange, className }: ModelPickerProps) {
   const models = useModels((s) => s.models)
   const current = models.find((m) => m.id === value) ?? models[0]
   const { t } = useTranslation('chat')
+  const navigate = useNavigate()
 
   return (
     <DropdownMenu>
@@ -48,24 +50,40 @@ export function ModelPicker({ value, onChange, className }: ModelPickerProps) {
         <DropdownMenuLabel>{t('modelPicker.section')}</DropdownMenuLabel>
         {models.map((m) => {
           const active = m.id === value
+          const locked = Boolean(m.locked)
           return (
             <DropdownMenuItem
               key={m.id}
-              onSelect={() => onChange(m.id)}
-              className="items-start py-2.5 gap-2"
+              onSelect={(e) => {
+                // Locked models stay visible (§ user groups) but route to the
+                // subscription page to upgrade rather than becoming selectable.
+                if (locked) {
+                  e.preventDefault()
+                  navigate('/subscription')
+                  return
+                }
+                onChange(m.id)
+              }}
+              className={cn('items-start py-2.5 gap-2', locked && 'opacity-70')}
             >
-              <ModelIcon icon={m.icon} size={16} className="mt-0.5" />
+              <ModelIcon icon={m.icon} size={16} className={cn('mt-0.5', locked && 'grayscale')} />
               <div className="flex flex-col gap-1 flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="font-medium text-[var(--color-fg)] truncate">{m.label}</span>
-                  {active && (
+                  {locked ? (
+                    <Lock size={12} aria-hidden className="ml-auto shrink-0 text-[var(--color-fg-subtle)]" />
+                  ) : active ? (
                     <span
                       className="ml-auto size-1.5 rounded-full bg-[var(--color-accent)] shrink-0"
                       aria-label={t('modelPicker.current')}
                     />
-                  )}
+                  ) : null}
                 </div>
-                {m.description ? (
+                {locked ? (
+                  <span className="text-[11.5px] text-[var(--color-accent)] leading-snug">
+                    {t('modelPicker.upgrade')}
+                  </span>
+                ) : m.description ? (
                   <span className="text-[11.5px] text-[var(--color-fg-muted)] leading-snug">
                     {m.description}
                   </span>

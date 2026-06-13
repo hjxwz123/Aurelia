@@ -82,10 +82,16 @@ func Migrate(db *sql.DB) error {
 	schema := schemaSQL
 	addImageRef := `ALTER TABLE chunks ADD COLUMN image_ref TEXT`
 	addOfficialTools := `ALTER TABLE models ADD COLUMN official_tools TEXT NOT NULL DEFAULT '[]'`
+	addGroupID := `ALTER TABLE users ADD COLUMN group_id TEXT NOT NULL DEFAULT 'ug_free'`
+	addTotpSecret := `ALTER TABLE users ADD COLUMN totp_secret TEXT NOT NULL DEFAULT ''`
+	addTotpEnabled := `ALTER TABLE users ADD COLUMN totp_enabled INTEGER NOT NULL DEFAULT 0`
 	if usePostgres {
 		schema = schemaPGSQL
 		addImageRef = `ALTER TABLE chunks ADD COLUMN IF NOT EXISTS image_ref TEXT`
 		addOfficialTools = `ALTER TABLE models ADD COLUMN IF NOT EXISTS official_tools TEXT NOT NULL DEFAULT '[]'`
+		addGroupID = `ALTER TABLE users ADD COLUMN IF NOT EXISTS group_id TEXT NOT NULL DEFAULT 'ug_free'`
+		addTotpSecret = `ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_secret TEXT NOT NULL DEFAULT ''`
+		addTotpEnabled = `ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_enabled INTEGER NOT NULL DEFAULT 0`
 	}
 	if _, err := db.Exec(schema); err != nil {
 		return fmt.Errorf("apply schema: %w", err)
@@ -94,14 +100,15 @@ func Migrate(db *sql.DB) error {
 	// IF NOT EXISTS won't add columns to a pre-existing table. On SQLite a
 	// duplicate-column error is expected and ignored; Postgres uses IF NOT
 	// EXISTS so it's a clean no-op.
-	for _, ddl := range []string{addImageRef, addOfficialTools} {
+	for _, ddl := range []string{addImageRef, addOfficialTools, addGroupID, addTotpSecret, addTotpEnabled} {
 		_, _ = db.Exec(ddl)
 	}
 	return nil
 }
 
-// Seed installs the bootstrap admin user + the always-on mock channel/model
-// so the server is functional on a fresh database without provider keys.
+// Seed installs the bootstrap admin user + default global settings. The system
+// ships with NO mock provider — an admin must configure a real channel + model
+// and set the default/task model before chat works.
 func Seed(db *sql.DB, cfg config.Config) error {
 	// Admin user.
 	var existingID string
@@ -112,18 +119,6 @@ func Seed(db *sql.DB, cfg config.Config) error {
 		}
 	} else if err != nil {
 		return fmt.Errorf("check admin: %w", err)
-	}
-
-	// Mock channel + model — gives the system a working chat path before any
-	// real keys are wired up. See internal/llm/mock_provider.go.
-	var n int
-	if err := db.QueryRow("SELECT COUNT(*) FROM channels WHERE type='mock'").Scan(&n); err != nil {
-		return fmt.Errorf("check channels: %w", err)
-	}
-	if n == 0 && cfg.EnableMockKeys {
-		if err := seedMock(db); err != nil {
-			return err
-		}
 	}
 
 	// Default global settings.
@@ -146,6 +141,20 @@ func Seed(db *sql.DB, cfg config.Config) error {
 			return fmt.Errorf("seed setting %s: %w", k, err)
 		}
 	}
+
+	// Default "Free" membership group — always present. New users and any
+	// legacy user without a group resolve to it (§ user groups).
+	if _, err := db.Exec(`INSERT INTO user_groups(id, name, description, features, price_usd, price_cny, is_default, sort_order)
+		VALUES('ug_free', 'Free', 'Default access tier.', '[]', 0, 0, 1, 0)
+		ON CONFLICT(id) DO NOTHING`); err != nil {
+		return fmt.Errorf("seed free group: %w", err)
+	}
+	// Backfill any user whose group no longer resolves (NULL/empty/dangling) to
+	// the free group.
+	if _, err := db.Exec(`UPDATE users SET group_id='ug_free'
+		WHERE group_id IS NULL OR group_id='' OR group_id NOT IN (SELECT id FROM user_groups)`); err != nil {
+		return fmt.Errorf("backfill user groups: %w", err)
+	}
 	return nil
 }
 
@@ -160,35 +169,4 @@ func seedAdmin(db *sql.DB, cfg config.Config) error {
 		id, cfg.SeedAdminEmail, hash, "Aurelia Admin",
 	)
 	return err
-}
-
-func seedMock(db *sql.DB) error {
-	channelID := "ch_mock"
-	if _, err := db.Exec(
-		`INSERT INTO channels(id, name, type, api_format, base_url, api_key, enabled, sort_order) VALUES(?, 'Mock provider', 'mock', '', '', '', 1, 0)
-		 ON CONFLICT(id) DO NOTHING`, channelID); err != nil {
-		return err
-	}
-	// One chat model.
-	if _, err := db.Exec(
-		`INSERT INTO models(id, channel_id, kind, request_id, label, description, icon, tool_mode, vision, stream, system_prompt, param_controls, currency)
-		 VALUES('m_mock_chat', ?, 'chat', 'aurelia-mock-1', 'Aurelia Mock', 'Local mock streaming model. No external calls.', 'sparkles', 'native', 1, 1, '', '[]', 'USD')
-		 ON CONFLICT(id) DO NOTHING`, channelID); err != nil {
-		return err
-	}
-	// One embedding model so KBs can be created without external keys.
-	if _, err := db.Exec(
-		`INSERT INTO models(id, channel_id, kind, request_id, label, description, icon, dim, currency)
-		 VALUES('m_mock_embed', ?, 'embedding', 'aurelia-mock-embed', 'Aurelia Local Embed', 'Lightweight local hash embedding. For dev only.', 'circuit-board', 256, 'USD')
-		 ON CONFLICT(id) DO NOTHING`, channelID); err != nil {
-		return err
-	}
-	// Set defaults if unset.
-	if _, err := db.Exec(`UPDATE settings SET value=? WHERE key='default_model_id' AND value=?`, `"m_mock_chat"`, `""`); err != nil {
-		return err
-	}
-	if _, err := db.Exec(`UPDATE settings SET value=? WHERE key='task_model_id' AND value=?`, `"m_mock_chat"`, `""`); err != nil {
-		return err
-	}
-	return nil
 }
