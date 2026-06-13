@@ -1,5 +1,5 @@
 import { memo, useDeferredValue, useEffect, useMemo, useState } from 'react'
-import { tokenizeMarkdown, inlineMarkdownToHtml } from '@/lib/markdown'
+import { tokenizeMarkdown, inlineMarkdownToHtml, blockMarkdownToHtml } from '@/lib/markdown'
 import { CodeBlock } from './code-block'
 import { MermaidDiagram } from './mermaid-diagram'
 import { cn } from '@/lib/utils'
@@ -119,11 +119,22 @@ export const Markdown = memo(function Markdown({ content, className, live = fals
           case 'hr':
             return <hr key={i} className={cn('my-6 border-[var(--color-divider)]', blockAnim)} />
           case 'table':
+            // Block-parse so GFM pipe tables become real <table> markup. The
+            // sanitizer strips classes off table elements, so styling is applied
+            // from the wrapper via arbitrary child selectors.
             return (
               <div
                 key={i}
-                className={cn('overflow-x-auto', blockAnim)}
-                dangerouslySetInnerHTML={{ __html: inlineMarkdownToHtml(b.content) }}
+                className={cn(
+                  'my-4 overflow-x-auto rounded-[10px] border border-[var(--color-border)]',
+                  '[&_table]:w-full [&_table]:border-collapse [&_table]:text-sm',
+                  '[&_thead]:bg-[var(--color-bg-muted)]',
+                  '[&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th]:font-semibold [&_th]:text-[var(--color-fg)] [&_th]:border-b [&_th]:border-[var(--color-border)]',
+                  '[&_td]:px-3 [&_td]:py-2 [&_td]:align-top [&_td]:text-[var(--color-fg-muted)] [&_td]:border-b [&_td]:border-[var(--color-divider)]',
+                  '[&_tr:last-child_td]:border-b-0',
+                  blockAnim,
+                )}
+                dangerouslySetInnerHTML={{ __html: blockMarkdownToHtml(b.content) }}
               />
             )
           default:

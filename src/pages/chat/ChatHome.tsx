@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Composer } from '@/components/chat/composer'
@@ -35,6 +35,12 @@ export default function ChatHome() {
   const defaultModelId = useModels((s) => s.defaultId)
   const user = useAuth((s) => s.user)
 
+  // The model the user picks in the composer before the conversation exists.
+  // Falls back to the (async-loaded) default until they choose, so a new chat
+  // honours the picker instead of always using the default model.
+  const [pickedModelId, setPickedModelId] = useState<string | null>(null)
+  const modelId = pickedModelId ?? defaultModelId
+
   const firstName = (user?.name || user?.email?.split('@')[0] || 'friend').split(' ')[0]
   // Greeting depends on the active language; recompute whenever t changes.
   const greeting = useMemo(
@@ -44,14 +50,14 @@ export default function ChatHome() {
   const cards = useMemo(() => fisherYatesPick(SUGGESTIONS, 4), [])
 
   async function startNew(text: string, attachments: Attachment[], opts: { params?: Record<string, unknown> } = {}) {
-    const conv = await createConversation(defaultModelId)
+    const conv = await createConversation(modelId)
     if (!conv) return
     navigate(`/chat/${conv.id}`)
     // Fire-and-forget the stream; the ChatThread page will react to store updates.
     void sendMessage({
       conversationId: conv.id,
       text,
-      modelId: conv.modelId || defaultModelId,
+      modelId: conv.modelId || modelId,
       attachments,
       params: opts.params,
     })
@@ -73,8 +79,8 @@ export default function ChatHome() {
 
         <div className="mt-10 mx-auto w-full max-w-[44rem]">
           <Composer
-            modelId={defaultModelId}
-            onModelChange={() => undefined}
+            modelId={modelId}
+            onModelChange={setPickedModelId}
             onSubmit={(text, atts, opts) => void startNew(text, atts, opts)}
             autoFocus
           />

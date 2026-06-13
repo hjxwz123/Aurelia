@@ -318,22 +318,50 @@ func refreshHandler(d Deps, w http.ResponseWriter, r *http.Request) {
 }
 
 func finaliseSession(d Deps, w http.ResponseWriter, user *store.User) {
-	access, exp, err := d.Auth.IssueAccess(user.ID, user.Role, user.TokenVer)
+	access, exp, err := issueSessionCookies(d, w, user)
 	if err != nil {
 		writeError(w, 500, err)
 		return
 	}
+	writeJSON(w, 200, authResp{User: user, AccessToken: access, ExpiresAt: exp.Unix()})
+}
+
+// issueSessionCookies mints the access + refresh tokens, persists the refresh
+// jti, and writes both cookies. Shared by finaliseSession (which then returns
+// JSON) and the OAuth callback (which redirects). Returns the access token and
+// its expiry so the JSON path can echo them.
+func issueSessionCookies(d Deps, w http.ResponseWriter, user *store.User) (string, time.Time, error) {
+	access, exp, err := d.Auth.IssueAccess(user.ID, user.Role, user.TokenVer)
+	if err != nil {
+		return "", time.Time{}, err
+	}
 	refresh, refreshExp, jti, err := d.Auth.IssueRefresh(user.ID)
 	if err != nil {
-		writeError(w, 500, err)
-		return
+		return "", time.Time{}, err
 	}
 	_ = store.SaveRefreshToken(context.Background(), d.DB, jti, user.ID, refreshExp)
 
 	setCookie(w, "auth_token", access, exp, false)
 	setCookie(w, "refresh_token", refresh, refreshExp, true)
+	return access, exp, nil
+}
 
-	writeJSON(w, 200, authResp{User: user, AccessToken: access, ExpiresAt: exp.Unix()})
+// externalBaseURL reconstructs the public scheme://host the browser used,
+// honouring the standard reverse-proxy forwarding headers. Used to build OAuth
+// redirect URIs and the post-login redirect target.
+func externalBaseURL(r *http.Request) string {
+	scheme := "http"
+	if r.TLS != nil {
+		scheme = "https"
+	}
+	if p := r.Header.Get("X-Forwarded-Proto"); p != "" {
+		scheme = strings.TrimSpace(strings.Split(p, ",")[0])
+	}
+	host := r.Host
+	if h := r.Header.Get("X-Forwarded-Host"); h != "" {
+		host = strings.TrimSpace(strings.Split(h, ",")[0])
+	}
+	return scheme + "://" + host
 }
 
 func setCookie(w http.ResponseWriter, name, value string, expires time.Time, restrictPath bool) {

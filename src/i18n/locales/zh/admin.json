@@ -128,6 +128,57 @@
       "missingFields": "请填写名称、描述和指令。"
     }
   },
+  "oauth": {
+    "title": "登录方式",
+    "lead": "第三方 / OAuth 登录。可添加 Google、GitHub、Apple，或任意支持 OAuth2/OIDC 协议的登录方式,并自定义名称与图标。配置后会自动出现在登录页;未配置时登录页只显示邮箱 + 密码。",
+    "new": "添加登录方式",
+    "empty": "暂无第三方登录方式 — 用户使用邮箱 + 密码登录。",
+    "noClientId": "未填 client id",
+    "kinds": {
+      "google": "Google",
+      "github": "GitHub",
+      "apple": "Apple",
+      "oidc": "自定义(OAuth2 / OIDC)"
+    },
+    "fields": {
+      "kind": "登录方式",
+      "name": "按钮文字",
+      "icon": "图标",
+      "iconPlaceholder": "🔑 / https://… / —",
+      "clientId": "Client ID",
+      "clientSecret": "Client Secret",
+      "clientSecretApple": "私钥(.p8)",
+      "clientSecretHintEdit": "留空保留原密钥。",
+      "authUrl": "授权地址(Authorize URL)",
+      "tokenUrl": "令牌地址(Token URL)",
+      "userinfoUrl": "用户信息地址(Userinfo URL)",
+      "scopes": "Scopes",
+      "scopesHint": "空格分隔。留空使用默认(openid email profile)。",
+      "teamId": "Team ID",
+      "keyId": "Key ID",
+      "enabled": "启用(在登录页显示)",
+      "redirectUri": "回调地址(Redirect URI)",
+      "redirectUriHint": "把这个完整地址填到第三方控制台的「允许的回调 / 重定向 URI」中。",
+      "redirectUriNew": "请先保存 — 保存后会生成需要在第三方控制台登记的回调地址。"
+    },
+    "hints": {
+      "google": "在 Google Cloud → API 和服务 → 凭据 中创建 OAuth 客户端,然后填入 Client ID 与 Client Secret。",
+      "github": "在 GitHub 设置 → 开发者设置 → OAuth Apps 中创建应用,然后填入 Client ID 与 Client Secret。",
+      "apple": "在 Apple Developer 后台创建 Services ID 和 AuthKey(.p8)。Client ID 即 Services ID;把 .p8 内容粘贴为私钥,并填写 Team ID 与 Key ID。",
+      "oidc": "任意 OAuth2 / OpenID Connect 服务。填写客户端凭据以及授权 / 令牌 / 用户信息端点。"
+    },
+    "editorTitle": "编辑登录方式",
+    "newTitle": "添加登录方式",
+    "removeTitle": "删除登录方式?",
+    "removeBody": "将删除\"{{name}}\"。通过它创建的账号仍可使用,重置密码后可用邮箱 + 密码登录。",
+    "created": "已添加登录方式",
+    "updated": "已更新登录方式",
+    "removed": "已删除登录方式",
+    "copy": "复制回调地址",
+    "errors": {
+      "nameRequired": "请填写按钮文字"
+    }
+  },
   "users": {
     "title": "用户",
     "lead": "封禁滥用账户(立即吊销所有 access token)。",

@@ -13,7 +13,9 @@ import type {
   ApiMemory,
   ApiMessage,
   ApiModel,
+  ApiOAuthProvider,
   ApiProject,
+  ApiPublicOAuthProvider,
   ApiSkill,
   ApiUsageReportRow,
   ApiUser,
@@ -48,6 +50,9 @@ export const authApi = {
     api<{ ok: true }>('/auth/forgot-password', { method: 'POST', body: { email } }),
   resetPassword: (email: string, code: string, new_password: string) =>
     api<{ ok: true }>('/auth/reset-password', { method: 'POST', body: { email, code, new_password } }),
+  // Enabled social-login providers for the login screen (no secrets). Empty
+  // array → the UI hides the OAuth section entirely.
+  oauthProviders: () => api<ApiPublicOAuthProvider[]>('/public/oauth-providers'),
 }
 
 // ----- Models / skills -----------------------------------------------------
@@ -173,6 +178,16 @@ export const adminApi = {
   updateSkill: (id: string, body: Partial<ApiSkill>) =>
     api<ApiSkill>(`/admin/skills/${encodeURIComponent(id)}`, { method: 'PATCH', body }),
   removeSkill: (id: string) => api<{ ok: true }>(`/admin/skills/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+
+  // OAuth / social login providers. client_secret is write-only — send it on
+  // create/update, never expect it back (has_secret flags whether one is set).
+  oauthProviders: () => api<ApiOAuthProvider[]>('/admin/oauth-providers'),
+  createOAuthProvider: (body: Partial<ApiOAuthProvider> & { client_secret?: string }) =>
+    api<ApiOAuthProvider>('/admin/oauth-providers', { method: 'POST', body }),
+  updateOAuthProvider: (id: string, body: Partial<ApiOAuthProvider> & { client_secret?: string }) =>
+    api<ApiOAuthProvider>(`/admin/oauth-providers/${encodeURIComponent(id)}`, { method: 'PATCH', body }),
+  removeOAuthProvider: (id: string) =>
+    api<{ ok: true }>(`/admin/oauth-providers/${encodeURIComponent(id)}`, { method: 'DELETE' }),
 
   users: () => api<ApiUser[]>('/admin/users'),
   banUser: (id: string) => api<{ ok: true }>(`/admin/users/${encodeURIComponent(id)}/ban`, { method: 'POST' }),

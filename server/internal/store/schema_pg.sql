@@ -270,3 +270,32 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
   revoked    INTEGER NOT NULL DEFAULT 0,
   created_at BIGINT NOT NULL DEFAULT (extract(epoch from now())::bigint)
 );
+
+-- OAuth / social login providers (see schema.sql for the full rationale).
+CREATE TABLE IF NOT EXISTS oauth_providers (
+  id            TEXT PRIMARY KEY,
+  kind          TEXT NOT NULL,
+  name          TEXT NOT NULL,
+  icon          TEXT NOT NULL DEFAULT '',
+  client_id     TEXT NOT NULL DEFAULT '',
+  client_secret TEXT NOT NULL DEFAULT '',
+  auth_url      TEXT NOT NULL DEFAULT '',
+  token_url     TEXT NOT NULL DEFAULT '',
+  userinfo_url  TEXT NOT NULL DEFAULT '',
+  scopes        TEXT NOT NULL DEFAULT '',
+  team_id       TEXT NOT NULL DEFAULT '',
+  key_id        TEXT NOT NULL DEFAULT '',
+  enabled       INTEGER NOT NULL DEFAULT 1,
+  sort_order    INTEGER NOT NULL DEFAULT 0,
+  updated_at    BIGINT NOT NULL DEFAULT (extract(epoch from now())::bigint)
+);
+
+CREATE TABLE IF NOT EXISTS oauth_identities (
+  provider_id TEXT NOT NULL,
+  subject     TEXT NOT NULL,
+  user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  email       TEXT NOT NULL DEFAULT '',
+  created_at  BIGINT NOT NULL DEFAULT (extract(epoch from now())::bigint),
+  PRIMARY KEY (provider_id, subject)
+);
+CREATE INDEX IF NOT EXISTS idx_oauth_identities_user ON oauth_identities(user_id);

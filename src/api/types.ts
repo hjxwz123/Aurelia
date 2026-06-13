@@ -25,6 +25,35 @@ export interface ApiAuthResponse {
   expires_at: number
 }
 
+export type OAuthKind = 'google' | 'github' | 'apple' | 'oidc'
+
+/** Full provider record (admin view). client_secret is never returned. */
+export interface ApiOAuthProvider {
+  id: string
+  kind: OAuthKind
+  name: string
+  icon: string
+  client_id: string
+  has_secret: boolean
+  auth_url: string
+  token_url: string
+  userinfo_url: string
+  scopes: string
+  team_id: string
+  key_id: string
+  enabled: boolean
+  sort_order: number
+  updated_at: number
+}
+
+/** Minimal provider shape exposed to the public login page. */
+export interface ApiPublicOAuthProvider {
+  id: string
+  kind: OAuthKind
+  name: string
+  icon: string
+}
+
 export interface ApiChannel {
   id: string
   name: string

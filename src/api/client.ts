@@ -28,6 +28,15 @@ export function getAccessToken(): string | null {
   return memoryToken
 }
 
+/**
+ * Absolute URL for a backend path, used for full-page navigations that can't go
+ * through the fetch wrapper (e.g. the OAuth `/start` redirect). Returns the same
+ * `API_BASE`-prefixed path the `api()` helper hits.
+ */
+export function apiUrl(path: string): string {
+  return API_BASE + path
+}
+
 export class ApiError extends Error {
   readonly status: number
   readonly body: unknown

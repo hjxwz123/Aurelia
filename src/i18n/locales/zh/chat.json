@@ -63,6 +63,9 @@
     "code_interpreter": "代码解释器",
     "deep_research": "深度研究"
   },
+  "sources": {
+    "label": "来源"
+  },
   "code": {
     "run": "运行",
     "rerun": "重新运行",

@@ -65,6 +65,28 @@ type Model struct {
 	UpdatedAt       int64           `json:"updated_at"`
 }
 
+// OAuthProvider is an admin-configured social/OAuth login method. The
+// client_secret is never serialised (mirrors Channel.APIKey); HasSecret tells
+// the admin UI whether a secret is on file without leaking it.
+type OAuthProvider struct {
+	ID           string `json:"id"`
+	Kind         string `json:"kind"` // google | github | apple | oidc
+	Name         string `json:"name"`
+	Icon         string `json:"icon"`
+	ClientID     string `json:"client_id"`
+	ClientSecret string `json:"-"`
+	HasSecret    bool   `json:"has_secret"`
+	AuthURL      string `json:"auth_url"`
+	TokenURL     string `json:"token_url"`
+	UserInfoURL  string `json:"userinfo_url"`
+	Scopes       string `json:"scopes"`
+	TeamID       string `json:"team_id"`
+	KeyID        string `json:"key_id"`
+	Enabled      bool   `json:"enabled"`
+	SortOrder    int    `json:"sort_order"`
+	UpdatedAt    int64  `json:"updated_at"`
+}
+
 // Skill is the §4.17 record. Assets carry references to template files.
 type Skill struct {
 	ID           string          `json:"id"`
