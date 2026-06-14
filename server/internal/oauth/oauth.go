@@ -122,7 +122,12 @@ func (c Config) AuthCodeURL(redirectURI, state, codeChallenge string) string {
 	return c.AuthURL + sep + q.Encode()
 }
 
-// Exchange swaps the authorization code for tokens.
+// Exchange swaps the authorization code for tokens. It supports both client
+// authentication methods the spec allows: it first tries client_secret_post
+// (secret in the body — what Google/GitHub/most use), then falls back to
+// client_secret_basic (HTTP Basic, the OIDC DEFAULT) when the provider answers
+// with an auth error. A failed client-auth request does not consume the
+// single-use code, so the retry is safe.
 func (c Config) Exchange(ctx context.Context, redirectURI, code, codeVerifier string) (Tokens, error) {
 	secret := c.ClientSecret
 	if c.Kind == "apple" {
@@ -137,24 +142,51 @@ func (c Config) Exchange(ctx context.Context, redirectURI, code, codeVerifier st
 	form.Set("code", code)
 	form.Set("redirect_uri", redirectURI)
 	form.Set("client_id", c.ClientID)
-	form.Set("client_secret", secret)
 	if codeVerifier != "" {
 		form.Set("code_verifier", codeVerifier)
 	}
+
+	// Attempt 1 — client_secret_post: client_secret in the body.
+	postForm := cloneValues(form)
+	if secret != "" {
+		postForm.Set("client_secret", secret)
+	}
+	tok, status, err := c.postToken(ctx, postForm, "")
+	if err == nil {
+		return tok, nil
+	}
+
+	// Attempt 2 — client_secret_basic: credentials in an Authorization: Basic
+	// header. Only when the first attempt looks like a client-auth rejection.
+	if secret != "" && (status == http.StatusUnauthorized || isInvalidClient(err)) {
+		authz := "Basic " + base64.StdEncoding.EncodeToString([]byte(c.ClientID+":"+secret))
+		if tok2, _, err2 := c.postToken(ctx, cloneValues(form), authz); err2 == nil {
+			return tok2, nil
+		}
+	}
+	return Tokens{}, err
+}
+
+// postToken performs one token-endpoint POST and parses the response. authHeader,
+// when non-empty, is sent as the Authorization header (client_secret_basic).
+func (c Config) postToken(ctx context.Context, form url.Values, authHeader string) (Tokens, int, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.TokenURL, strings.NewReader(form.Encode()))
 	if err != nil {
-		return Tokens{}, err
+		return Tokens{}, 0, err
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Accept", "application/json") // GitHub returns form-encoded otherwise
+	if authHeader != "" {
+		req.Header.Set("Authorization", authHeader)
+	}
 	resp, err := httpClient.Do(req)
 	if err != nil {
-		return Tokens{}, err
+		return Tokens{}, 0, err
 	}
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if resp.StatusCode >= 400 {
-		return Tokens{}, fmt.Errorf("token endpoint %d: %s", resp.StatusCode, snippet(body))
+		return Tokens{}, resp.StatusCode, fmt.Errorf("token endpoint %d: %s", resp.StatusCode, snippet(body))
 	}
 	var tr struct {
 		AccessToken      string `json:"access_token"`
@@ -163,15 +195,29 @@ func (c Config) Exchange(ctx context.Context, redirectURI, code, codeVerifier st
 		ErrorDescription string `json:"error_description"`
 	}
 	if err := json.Unmarshal(body, &tr); err != nil {
-		return Tokens{}, fmt.Errorf("decode token response: %w", err)
+		return Tokens{}, resp.StatusCode, fmt.Errorf("decode token response: %w", err)
 	}
 	if tr.Error != "" {
-		return Tokens{}, fmt.Errorf("token endpoint error: %s %s", tr.Error, tr.ErrorDescription)
+		return Tokens{}, resp.StatusCode, fmt.Errorf("token endpoint error: %s %s", tr.Error, tr.ErrorDescription)
 	}
 	if tr.AccessToken == "" && tr.IDToken == "" {
-		return Tokens{}, errors.New("token endpoint returned no tokens")
+		return Tokens{}, resp.StatusCode, errors.New("token endpoint returned no tokens")
 	}
-	return Tokens{AccessToken: tr.AccessToken, IDToken: tr.IDToken}, nil
+	return Tokens{AccessToken: tr.AccessToken, IDToken: tr.IDToken}, resp.StatusCode, nil
+}
+
+func cloneValues(v url.Values) url.Values {
+	out := make(url.Values, len(v))
+	for k, vs := range v {
+		cp := make([]string, len(vs))
+		copy(cp, vs)
+		out[k] = cp
+	}
+	return out
+}
+
+func isInvalidClient(err error) bool {
+	return err != nil && strings.Contains(strings.ToLower(err.Error()), "invalid_client")
 }
 
 // FetchUserInfo normalises the provider's identity. GitHub uses its REST API;
