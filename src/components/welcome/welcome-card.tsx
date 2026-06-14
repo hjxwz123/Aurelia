@@ -62,6 +62,7 @@ export function WelcomeCard() {
   const onboarded = Boolean((user?.settings as Record<string, unknown> | undefined)?.onboarded)
   const eligible = status === 'authenticated' && Boolean(user) && !onboarded
 
+  const [mounted, setMounted] = useState(false)
   const [open, setOpen] = useState(false)
   const [step, setStep] = useState(0)
   const [saving, setSaving] = useState(false)
@@ -74,16 +75,18 @@ export function WelcomeCard() {
   } | null>(null)
 
   // Open once when first eligible, snapshotting the current prefs so Skip can
-  // undo any live previews the user made.
+  // undo any live previews the user made. `mounted` keeps the dialog in the tree
+  // through its exit animation even after `open` flips false.
   useEffect(() => {
-    if (eligible && !open && initial.current === null) {
+    if (eligible && !mounted && initial.current === null) {
       initial.current = { lang, accent, theme: themePref, replyStyle, memory }
+      setMounted(true)
       setOpen(true)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eligible])
 
-  if (!open) return null
+  if (!mounted) return null
 
   const last = STEPS.length - 1
   const current = STEPS[step]
@@ -96,16 +99,25 @@ export function WelcomeCard() {
     })
   }
 
+  // Close with the exit animation: flip `open` (Radix plays the zoom-into-app
+  // close), then unmount after it finishes.
+  function close() {
+    setOpen(false)
+    window.setTimeout(() => setMounted(false), 360)
+  }
+
   function handleStart() {
+    if (!open) return
     setSaving(true)
     // Memory is the only choice with a server-side mirror; the rest are
     // localStorage-backed and already applied live.
     markOnboarded({ memory_enabled: memory })
-    setOpen(false)
     setSaving(false)
+    close()
   }
 
   function handleSkip() {
+    if (!open) return
     const init = initial.current
     if (init) {
       if (lang !== init.lang) setLang(init.lang)
@@ -115,7 +127,7 @@ export function WelcomeCard() {
       if (memory !== init.memory) setPrivacy({ memoriesEnabled: init.memory })
     }
     markOnboarded({})
-    setOpen(false)
+    close()
   }
 
   function renderControl(key: StepKey) {
@@ -193,7 +205,11 @@ export function WelcomeCard() {
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) handleSkip() }}>
-      <DialogContent size="xl" showClose={false} className="p-0 overflow-hidden">
+      <DialogContent
+        size="xl"
+        showClose={false}
+        className="p-0 overflow-hidden data-[state=closed]:animate-[welcome-exit_340ms_var(--ease-in)]"
+      >
         {/* a11y: one stable title/description for the dialog as a whole. */}
         <DialogTitle className="sr-only">{t('welcome:config.title')}</DialogTitle>
         <DialogDescription className="sr-only">{t('welcome:config.subtitle')}</DialogDescription>

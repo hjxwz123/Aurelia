@@ -38,6 +38,7 @@ import { ReasoningTrace } from './reasoning-trace'
 import { ResearchPanel } from './research-panel'
 import { CitationList } from './citation'
 import { ImageLightbox } from './image-lightbox'
+import { FilePreview } from './file-preview'
 import { toast } from '@/hooks/use-toast'
 import { cn, safeHref } from '@/lib/utils'
 
@@ -80,6 +81,9 @@ export function MessageRow({ message, userName, onRegenerate, onEdit, onSaveEdit
   // Lightbox: which image is being previewed (null = closed). Driven from the
   // attachment id so the Dialog re-mounts cleanly on each preview.
   const [lightbox, setLightbox] = useState<{ src: string; alt?: string } | null>(null)
+  // Non-image attachment preview (pdf / docx / text / fallback) — opens a modal
+  // instead of letting the click download the file.
+  const [filePreview, setFilePreview] = useState<{ name: string; url?: string; kind: Attachment['kind'] } | null>(null)
   const editRef = useRef<HTMLTextAreaElement>(null)
   const { copied, copy } = useCopy()
 
@@ -237,19 +241,20 @@ export function MessageRow({ message, userName, onRegenerate, onEdit, onSaveEdit
                       />
                     </button>
                   ) : (
-                    <a
+                    <button
                       key={a.id}
-                      href={a.previewUrl ?? undefined}
-                      target={a.previewUrl ? '_blank' : undefined}
-                      rel={a.previewUrl ? 'noreferrer' : undefined}
+                      type="button"
+                      onClick={() => setFilePreview({ name: a.name, url: a.previewUrl, kind: a.kind })}
+                      aria-label={t('actions.previewFile', { defaultValue: 'Preview file' })}
                       className={cn(
                         'inline-flex items-center gap-1.5 rounded-[8px] border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 text-[11.5px] text-[var(--color-fg-muted)] max-w-[18rem]',
-                        a.previewUrl && 'interactive hover:bg-[var(--color-bg-muted)] hover:text-[var(--color-fg)]',
+                        'interactive hover:bg-[var(--color-bg-muted)] hover:text-[var(--color-fg)]',
+                        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]',
                       )}
                     >
                       <KindIcon kind={a.kind} />
                       <span className="truncate">{a.name}</span>
-                    </a>
+                    </button>
                   ),
                 )}
                 {/* TODO(#8): when this conversation belongs to a project, offer an
@@ -529,6 +534,12 @@ export function MessageRow({ message, userName, onRegenerate, onEdit, onSaveEdit
         onOpenChange={(o) => !o && setLightbox(null)}
         src={lightbox?.src ?? ''}
         alt={lightbox?.alt}
+      />
+      {/* Non-image attachment preview modal. */}
+      <FilePreview
+        open={filePreview !== null}
+        onOpenChange={(o) => !o && setFilePreview(null)}
+        file={filePreview}
       />
     </div>
   )

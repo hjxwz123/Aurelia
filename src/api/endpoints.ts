@@ -251,6 +251,9 @@ export const adminApi = {
   models: (kind?: 'chat' | 'image' | 'embedding') =>
     api<ApiModel[]>(`/admin/models${kind ? `?kind=${encodeURIComponent(kind)}` : ''}`),
   createModel: (body: Partial<ApiModel>) => api<ApiModel>('/admin/models', { method: 'POST', body }),
+  // Persist a new model order: `ids` is the full list in the desired order.
+  reorderModels: (ids: string[]) =>
+    api<{ ok: true }>('/admin/models/reorder', { method: 'PATCH', body: { ids } }),
   updateModel: (id: string, body: Partial<ApiModel>) =>
     api<ApiModel>(`/admin/models/${encodeURIComponent(id)}`, { method: 'PATCH', body }),
   removeModel: (id: string) => api<{ ok: true }>(`/admin/models/${encodeURIComponent(id)}`, { method: 'DELETE' }),

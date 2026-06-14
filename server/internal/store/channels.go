@@ -280,6 +280,24 @@ func DeleteModel(ctx context.Context, db *sql.DB, id string) error {
 	return err
 }
 
+// ReorderModels assigns sort_order = position for each id in the given order, in
+// one transaction. The admin list orders by sort_order, so this is what makes a
+// drag / move-up-down persist. Ids not present are ignored.
+func ReorderModels(ctx context.Context, db *sql.DB, ids []string) error {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	now := time.Now().Unix()
+	for i, id := range ids {
+		if _, err := tx.ExecContext(ctx, `UPDATE models SET sort_order=?, updated_at=? WHERE id=?`, i, now, id); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
 // SkillsForModel returns the skill ids associated with the model.
 func SkillsForModel(ctx context.Context, db *sql.DB, modelID string) ([]string, error) {
 	rows, err := db.QueryContext(ctx, `SELECT skill_id FROM model_skills WHERE model_id=?`, modelID)
