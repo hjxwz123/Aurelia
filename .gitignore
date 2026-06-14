@@ -23,3 +23,6 @@ server/.env
 
 __pycache__/
 *.pyc
+
+# VS Code line-counter extension output (generated)
+.VSCodeCounter/
