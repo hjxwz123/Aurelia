@@ -174,7 +174,7 @@ func oauthCallbackHandler(d Deps, w http.ResponseWriter, r *http.Request) {
 		// history, Referer headers and access logs. The SPA only sees ?twofa=1.
 		http.SetCookie(w, &http.Cookie{
 			Name: "aurelia_2fa", Value: ticket, Path: "/api/auth",
-			HttpOnly: true, Secure: true, SameSite: http.SameSiteLaxMode, MaxAge: 300,
+			HttpOnly: true, Secure: secureCookie(r), SameSite: http.SameSiteLaxMode, MaxAge: 300,
 		})
 		http.Redirect(w, r, base+"/login?twofa=1", http.StatusFound)
 		return

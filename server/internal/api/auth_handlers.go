@@ -369,9 +369,22 @@ func issueSessionCookies(d Deps, w http.ResponseWriter, r *http.Request, user *s
 		CreatedAt: inheritCreatedAt,
 	})
 
-	setCookie(w, "auth_token", access, exp, false)
-	setCookie(w, "refresh_token", refresh, refreshExp, true)
+	secure := secureCookie(r)
+	setCookie(w, "auth_token", access, exp, false, secure)
+	setCookie(w, "refresh_token", refresh, refreshExp, true, secure)
 	return access, exp, nil
+}
+
+// secureCookie reports whether session cookies should carry the Secure flag —
+// true only when the browser↔edge connection is HTTPS (directly, or terminated
+// by a trusted proxy that sets X-Forwarded-Proto=https). Marking cookies Secure
+// on a plain-HTTP site makes browsers drop them, which silently logs the user
+// out on the next page load (refresh can't find the refresh_token cookie).
+func secureCookie(r *http.Request) bool {
+	if r.TLS != nil {
+		return true
+	}
+	return strings.EqualFold(strings.TrimSpace(firstHeader(r, "X-Forwarded-Proto")), "https")
 }
 
 // sessionLocation derives a best-effort human location for the request from the
@@ -425,12 +438,12 @@ func externalBaseURL(r *http.Request) string {
 	return scheme + "://" + host
 }
 
-func setCookie(w http.ResponseWriter, name, value string, expires time.Time, restrictPath bool) {
+func setCookie(w http.ResponseWriter, name, value string, expires time.Time, restrictPath, secure bool) {
 	c := &http.Cookie{
 		Name:     name,
 		Value:    value,
 		HttpOnly: true,
-		Secure:   true,
+		Secure:   secure,
 		Path:     "/",
 		SameSite: http.SameSiteLaxMode,
 		Expires:  expires,

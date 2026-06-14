@@ -156,9 +156,11 @@ func login2faHandler(d Deps, w http.ResponseWriter, r *http.Request) {
 // clear2faCookie expires the OAuth 2FA handoff cookie (Path must match the one
 // set in the OAuth callback).
 func clear2faCookie(w http.ResponseWriter) {
+	// Deletion only (MaxAge -1) — leave Secure off so the removal also takes
+	// effect over plain HTTP (a Secure Set-Cookie is ignored on http://).
 	http.SetCookie(w, &http.Cookie{
 		Name: "aurelia_2fa", Value: "", Path: "/api/auth",
-		HttpOnly: true, Secure: true, SameSite: http.SameSiteLaxMode, MaxAge: -1,
+		HttpOnly: true, Secure: false, SameSite: http.SameSiteLaxMode, MaxAge: -1,
 	})
 }
 
