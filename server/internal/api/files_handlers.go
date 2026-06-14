@@ -230,6 +230,9 @@ func uploadFileHandler(d Deps, w http.ResponseWriter, r *http.Request) {
 			d.RAG.Ingest(doc.ID)
 		}
 	}
+	// Surface a persistent download URL so the frontend can render thumbnails
+	// after the local blob URL is revoked (§ user-bubble image preview).
+	f.URL = "/api/files/" + f.ID
 	writeJSON(w, 201, f)
 }
 
@@ -318,4 +321,54 @@ func downloadArtifactHandler(d Deps, w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("content-disposition", disp+`; filename="`+cleanName+`"`)
 	_, _ = io.Copy(w, f)
+}
+
+// downloadFileHandler streams an uploaded file (multipart attachment) to its
+// owner. Symmetric with downloadArtifactHandler but reads from `files` rather
+// than `artifacts`. The user-bubble image preview + lightbox call this URL —
+// the previous behaviour leaned on the local blob URL, which was revoked once
+// the composer cleared its draft, leaving the gallery broken.
+func downloadFileHandler(d Deps, w http.ResponseWriter, r *http.Request) {
+	u := authUser(r)
+	id := pathParam(r, "id")
+	f, err := store.GetFile(r.Context(), d.DB, id, u.ID)
+	if err != nil || f == nil {
+		writeError(w, 404, errNotFound)
+		return
+	}
+	// Resolve a safe absolute path inside UploadDir.
+	cleanName := filepath.Base(f.Filename)
+	full := filepath.Clean(f.StoragePath)
+	upDir := filepath.Clean(d.Config.UploadDir) + string(filepath.Separator)
+	if full == "" || !strings.HasPrefix(full, upDir) {
+		writeError(w, 404, errNotFound)
+		return
+	}
+	fp, err := os.Open(full)
+	if err != nil {
+		writeError(w, 404, errNotFound)
+		return
+	}
+	defer fp.Close()
+	info, err := fp.Stat()
+	if err != nil {
+		writeError(w, 500, err)
+		return
+	}
+	mime := f.MimeType
+	if mime == "" {
+		mime = "application/octet-stream"
+	}
+	w.Header().Set("content-type", mime)
+	w.Header().Set("content-length", strconv.FormatInt(info.Size(), 10))
+	// Cache so a single conversation page's repeated image-tag fetches don't
+	// re-stream the same file on every navigation. The file_id never collides,
+	// so a long TTL is safe; we keep it private since the file is owner-scoped.
+	w.Header().Set("cache-control", "private, max-age=86400")
+	disp := "attachment"
+	if strings.HasPrefix(mime, "image/") {
+		disp = "inline"
+	}
+	w.Header().Set("content-disposition", disp+`; filename="`+cleanName+`"`)
+	_, _ = io.Copy(w, fp)
 }

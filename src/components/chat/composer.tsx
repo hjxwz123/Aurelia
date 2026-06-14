@@ -220,8 +220,11 @@ export function Composer({
       params: Object.keys(params).length > 0 ? params : undefined,
     })
     setValue('')
+    // Only revoke leftover blob: URLs — uploadAttachment already swapped its
+    // own. Leaves persistent /api/files/… URLs intact so the message bubble
+    // can render the image after submit.
     attachments.forEach((a) => {
-      if (a.previewUrl) URL.revokeObjectURL(a.previewUrl)
+      if (a.previewUrl && a.previewUrl.startsWith('blob:')) URL.revokeObjectURL(a.previewUrl)
     })
     setAttachments([])
     setMode('default')
@@ -230,6 +233,10 @@ export function Composer({
   // Upload one held file into the given conversation scope (rag=1 for doc-like
   // files), returning the chip updated with the server id, or null on failure.
   // A blank scopeId falls back to a scope-less upload (attachment only, no RAG).
+  //
+  // On success we swap the local blob URL for the persistent backend URL
+  // (`/api/files/<id>`) BEFORE revoking the blob — otherwise the user-bubble
+  // image preview later renders a dead URL once handleSubmit clears the draft.
   async function uploadAttachment(file: File, local: PendingAttachment, scopeId?: string): Promise<PendingAttachment | null> {
     try {
       const form = new FormData()
@@ -240,8 +247,21 @@ export function Composer({
       const isDocLike = local.kind === 'pdf' || local.kind === 'doc' || local.kind === 'sheet' || /\.txt$|\.md$|\.markdown$/i.test(local.name)
       const ragFlag = (kbIds && kbIds.length > 0) || isDocLike
       const url = `/files${scopeId ? `?conversation_id=${encodeURIComponent(scopeId)}${ragFlag ? '&rag=1' : ''}` : ''}`
-      const res = await api<ApiAttachment & { id: string }>(url, { method: 'POST', body: form })
-      const updated: PendingAttachment = { ...local, id: res.id, uploading: false, file: undefined }
+      const res = await api<ApiAttachment & { id: string; url?: string }>(url, { method: 'POST', body: form })
+      // Persistent URL replaces the blob URL. Fall back to /api/files/<id>
+      // when the response omits `url` (older backends).
+      const persistentUrl = res.url || `/api/files/${encodeURIComponent(res.id)}`
+      // Revoke the blob URL ONLY now that we have a persistent replacement.
+      if (local.previewUrl && local.previewUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(local.previewUrl)
+      }
+      const updated: PendingAttachment = {
+        ...local,
+        id: res.id,
+        uploading: false,
+        file: undefined,
+        previewUrl: persistentUrl,
+      }
       setAttachments((s) => s.map((a) => (a.id === local.id ? updated : a)))
       return updated
     } catch (e) {
@@ -288,7 +308,7 @@ export function Composer({
   function removeAttachment(id: string) {
     setAttachments((s) => {
       const target = s.find((a) => a.id === id)
-      if (target?.previewUrl) URL.revokeObjectURL(target.previewUrl)
+      if (target?.previewUrl && target.previewUrl.startsWith('blob:')) URL.revokeObjectURL(target.previewUrl)
       return s.filter((a) => a.id !== id)
     })
   }

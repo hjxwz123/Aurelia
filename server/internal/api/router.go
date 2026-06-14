@@ -132,6 +132,7 @@ func NewRouter(d Deps) http.Handler {
 	mux.handle("DELETE", "/api/conversations/:id/share", requireAuth(d, deleteShareHandler))
 
 	mux.handle("POST", "/api/files", requireAuth(d, uploadFileHandler))
+	mux.handle("GET", "/api/files/:id", requireAuth(d, downloadFileHandler))
 	mux.handle("GET", "/api/artifacts/:id", requireAuth(d, downloadArtifactHandler))
 
 	mux.handle("GET", "/api/kbs", requireAuth(d, listKBsHandler))
