@@ -79,6 +79,10 @@
       "title": "Contenu bloqué",
       "body": "Votre message peut enfreindre nos conditions d’utilisation.",
       "cta": "Veuillez modifier votre message et réessayer."
+    },
+    "error": {
+      "title": "Échec de la réponse — veuillez réessayer",
+      "retry": "Réessayer"
     }
   },
   "tools": {

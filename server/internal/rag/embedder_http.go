@@ -45,6 +45,29 @@ type embeddingResponse struct {
 	} `json:"data"`
 }
 
+// embedHTTPError carries the upstream status so the caller can distinguish a
+// hard rejection (e.g. 400 on an unsupported `dimensions` value) from transient
+// failures and react — like retrying without the dimensions hint.
+type embedHTTPError struct {
+	status int
+	body   string
+}
+
+func (e *embedHTTPError) Error() string {
+	return fmt.Sprintf("embeddings %d: %s", e.status, e.body)
+}
+
+// buildBody marshals the request. dimensions is included only when withDim is
+// set and a positive dim is configured (OpenAI-compatible `dimensions` param).
+func (e *httpEmbedder) buildBody(texts []string, withDim bool) []byte {
+	m := map[string]any{"model": e.model, "input": texts}
+	if withDim && e.dim > 0 {
+		m["dimensions"] = e.dim
+	}
+	b, _ := json.Marshal(m)
+	return b
+}
+
 // httpEmbedder calls an OpenAI-format `/v1/embeddings` endpoint (§4.11-D). Any
 // OpenAI-compatible gateway works — the admin configures base_url + key + model
 // via a channel/model of kind=embedding, or via the EMBEDDING_* env vars.
@@ -91,8 +114,19 @@ func (e *httpEmbedder) Embed(ctx context.Context, texts []string) ([][]float32, 
 	if strings.HasSuffix(base, "/v1") {
 		endpoint = base + "/embeddings"
 	}
-	body, _ := json.Marshal(map[string]any{"model": e.model, "input": texts})
-	parsed, err := e.postEmbeddings(ctx, endpoint, body)
+	// Ask for the configured width via the `dimensions` param so providers that
+	// support it (OpenAI text-embedding-3, DashScope text-embedding-v3/v4) return
+	// exactly what the admin set instead of their default. If the provider rejects
+	// it (older model / unsupported value — e.g. asking v3 for 1536), retry
+	// WITHOUT the hint and let the caller reconcile to whatever native width comes
+	// back, so ingestion still succeeds.
+	parsed, err := e.postEmbeddings(ctx, endpoint, e.buildBody(texts, e.dim > 0))
+	if err != nil && e.dim > 0 {
+		var he *embedHTTPError
+		if errors.As(err, &he) && he.status == http.StatusBadRequest {
+			parsed, err = e.postEmbeddings(ctx, endpoint, e.buildBody(texts, false))
+		}
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -155,7 +189,7 @@ func (e *httpEmbedder) postEmbeddings(ctx context.Context, url string, body []by
 		if resp.StatusCode >= 400 {
 			b, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 			resp.Body.Close()
-			return parsed, fmt.Errorf("embeddings %d: %s", resp.StatusCode, strings.TrimSpace(string(b)))
+			return parsed, &embedHTTPError{status: resp.StatusCode, body: strings.TrimSpace(string(b))}
 		}
 		err = json.NewDecoder(resp.Body).Decode(&parsed)
 		resp.Body.Close()

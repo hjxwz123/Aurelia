@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"mime/multipart"
 	"net/http"
 	"net/url"
@@ -169,6 +170,7 @@ func stripHTML(s string) string {
 type pythonExecuteTool struct {
 	sandbox     sandbox.Service
 	artifactDir string
+	logger      *log.Logger
 }
 
 func (t *pythonExecuteTool) Name() string { return "python_execute" }
@@ -192,6 +194,12 @@ func (t *pythonExecuteTool) Execute(ctx context.Context, input []byte, tc *llm.T
 
 	// Safe-mode fallback when no sandbox backend is wired in.
 	if t.sandbox == nil || !t.sandbox.Enabled() {
+		// Log loudly: this is the usual reason the model says "I can't run code /
+		// host a download". It means SANDBOX_BASE_URL is empty in the API
+		// container (or the admin cleared sandbox_base_url).
+		if t.logger != nil {
+			t.logger.Printf("python_execute: SANDBOX NOT CONFIGURED — running in safe-mode (set SANDBOX_BASE_URL / Admin → settings sandbox_base_url)")
+		}
 		if answer := tryQuickArithmetic(in.Code); answer != "" {
 			return "stdout:\n" + answer + "\n(local arithmetic evaluator; configure the sandbox in Admin → settings for real Python execution)", nil, nil
 		}
@@ -207,6 +215,12 @@ func (t *pythonExecuteTool) Execute(ctx context.Context, input []byte, tc *llm.T
 	if sessionID == "" {
 		sid, err := t.sandbox.NewSession(ctx)
 		if err != nil {
+			// Reachability/auth problem talking to the sandbox sidecar — surface
+			// it in the server log so it's diagnosable (the model only sees a
+			// generic tool error otherwise).
+			if t.logger != nil {
+				t.logger.Printf("python_execute: sandbox NewSession failed: %v", err)
+			}
 			return "", nil, fmt.Errorf("sandbox session: %w", err)
 		}
 		sessionID = sid

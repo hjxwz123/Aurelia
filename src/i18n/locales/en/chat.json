@@ -79,6 +79,10 @@
       "title": "Content blocked",
       "body": "Your message may violate our usage terms.",
       "cta": "Please edit your message and try again."
+    },
+    "error": {
+      "title": "Reply failed — please try again",
+      "retry": "Retry"
     }
   },
   "tools": {

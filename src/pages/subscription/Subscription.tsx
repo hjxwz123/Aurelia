@@ -28,7 +28,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { toast } from '@/hooks/use-toast'
-import { cn, formatRelativeDate } from '@/lib/utils'
+import { cn, formatAbsoluteDate } from '@/lib/utils'
 
 export default function Subscription() {
   const { t } = useTranslation(['subscription', 'common'])
@@ -62,7 +62,7 @@ export default function Subscription() {
   const expiresAt = user?.group_expires_at ?? 0
   const expiresLabel =
     expiresAt > 0
-      ? t('subscription:expiresOn', { date: formatRelativeDate(expiresAt * 1000) })
+      ? t('subscription:expiresOn', { date: formatAbsoluteDate(expiresAt * 1000) })
       : null
 
   /**
@@ -105,7 +105,7 @@ export default function Subscription() {
       // metadata (rare, but cheap).
       groupsApi.list().then(setGroups).catch(() => undefined)
       setRedeemCode('')
-      const date = res.expires_at > 0 ? formatRelativeDate(res.expires_at * 1000) : ''
+      const date = res.expires_at > 0 ? formatAbsoluteDate(res.expires_at * 1000) : ''
       toast.success(
         t('subscription:redeem.success'),
         res.expires_at > 0

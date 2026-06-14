@@ -340,6 +340,26 @@ export function MessageRow({ message, userName, onRegenerate, onEdit, onSaveEdit
                     className="inline-block align-text-bottom w-[2px] h-[1.05em] bg-[var(--color-accent)] ml-0.5 animate-[fade-in_400ms_ease-in-out_infinite_alternate]"
                   />
                 ) : null}
+                {message.error && !message.streaming ? (
+                  <div
+                    role="alert"
+                    className="mt-2 rounded-xl border border-[var(--color-danger)] bg-[var(--color-danger-soft)] px-4 py-3"
+                  >
+                    <div className="flex items-center gap-2 text-[var(--color-danger)] font-medium text-sm">
+                      <AlertTriangle size={16} aria-hidden />
+                      {t('message.error.title')}
+                    </div>
+                    <p className="mt-1 text-[12.5px] text-[var(--color-fg-subtle)] break-words">{message.error}</p>
+                    <button
+                      type="button"
+                      onClick={() => onRegenerate?.(message.id)}
+                      className="mt-2.5 inline-flex items-center gap-1.5 h-8 px-3 rounded-[9px] text-sm font-medium bg-[var(--color-danger)] text-[var(--color-fg-inverted)] interactive hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
+                    >
+                      <RefreshCw size={13} aria-hidden />
+                      {t('message.error.retry')}
+                    </button>
+                  </div>
+                ) : null}
                 {message.citations && message.citations.length > 0 ? (
                   <CitationList citations={message.citations} />
                 ) : null}

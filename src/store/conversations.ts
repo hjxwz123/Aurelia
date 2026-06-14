@@ -365,6 +365,11 @@ export const useConversations = create<ConversationStore>((set, get) => ({
     // never clears and the spinner spins forever). Falls back to the local id
     // for a failure before message_start (§ stream-error E7).
     let serverAssistantId = assistantId
+    // When the turn errors we keep the optimistic message (with its error flag +
+    // retry button) and SKIP the tree reconcile — otherwise reloadActivePath
+    // would replace it with the server's empty/partial row and the error (a
+    // client-only field) would vanish, leaving a blank reply with no retry.
+    let errored = false
     try {
       let lastCitations: Citation[] = []
       const toolCallsById = new Map<string, ToolCall>()
@@ -536,10 +541,11 @@ export const useConversations = create<ConversationStore>((set, get) => ({
             break
           }
           case 'error':
+            errored = true
             updateAssistant(set, input.conversationId, serverAssistantId, (m) => ({
               ...m,
               streaming: false,
-              content: m.content + (m.content ? '\n\n' : '') + `*An error occurred — ${ev.message}*`,
+              error: ev.message || 'error',
             }))
             break
           case 'done':
@@ -552,21 +558,20 @@ export const useConversations = create<ConversationStore>((set, get) => ({
         }
       }
       // Stream finished cleanly — reconcile to the canonical tree path so the
-      // user/assistant siblings collapse and the `< n/m >` picker appears.
-      await get().reloadActivePath(input.conversationId)
+      // user/assistant siblings collapse and the `< n/m >` picker appears. Skip
+      // it on an error turn so the error message + retry button survive (a
+      // reconcile would replace them with the server's empty row).
+      if (!errored) await get().reloadActivePath(input.conversationId)
     } catch (e) {
       // Target the CURRENT server id so the patch lands even after the
-      // message_start re-key; always clear streaming so the spinner stops.
+      // message_start re-key; always clear streaming so the spinner stops, and
+      // mark the turn as failed so the bubble shows the red retry banner. We do
+      // NOT reconcile here — that would wipe the (client-only) error flag.
       updateAssistant(set, input.conversationId, serverAssistantId, (m) => ({
         ...m,
         streaming: false,
-        content:
-          m.content + (m.content ? '\n\n' : '') + `*Stream interrupted: ${errorMessage(e)}*`,
+        error: errorMessage(e),
       }))
-      // Reconcile to the canonical tree path, same as a clean end — once nothing
-      // is still streaming this collapses optimistic siblings and surfaces the
-      // `< n/m >` picker (no-op if the conversation is gone).
-      await get().reloadActivePath(input.conversationId)
     } finally {
       streamControllers.delete(assistantId)
     }
