@@ -62,7 +62,8 @@
     "fork": "分支为新对话",
     "forked": "已分支为新对话",
     "viewImage": "查看图片",
-    "removeAttachment": "移除附件"
+    "removeAttachment": "移除附件",
+    "previewFile": "预览文件"
   },
   "message": {
     "refused": "模型拒绝回答此请求。",
@@ -256,5 +257,11 @@
       "title": "推荐一份小书单",
       "prompt": "推荐 5 本关于「孤独」的短篇好书——不同传统，不要重复。"
     }
+  },
+  "filePreview": {
+    "failed": "无法加载此文件的预览。",
+    "unsupported": "此文件类型无法在浏览器中预览。",
+    "open": "在新标签页打开",
+    "download": "下载"
   }
 }

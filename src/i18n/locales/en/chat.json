@@ -63,7 +63,8 @@
     "fork": "Fork to new conversation",
     "forked": "Forked to a new conversation",
     "viewImage": "View image",
-    "removeAttachment": "Remove attachment"
+    "removeAttachment": "Remove attachment",
+    "previewFile": "Preview file"
   },
   "message": {
     "refused": "The model declined to answer this request.",
@@ -257,5 +258,11 @@
       "title": "Recommend a small library",
       "prompt": "Suggest 5 short books on solitude — different traditions, no overlap."
     }
+  },
+  "filePreview": {
+    "failed": "Couldn't load this file for preview.",
+    "unsupported": "This file type can't be previewed in the browser.",
+    "open": "Open in new tab",
+    "download": "Download"
   }
 }

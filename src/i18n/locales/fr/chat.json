@@ -63,7 +63,8 @@
     "fork": "Dupliquer dans une nouvelle conversation",
     "forked": "Dupliqué dans une nouvelle conversation",
     "viewImage": "Afficher l’image",
-    "removeAttachment": "Supprimer la pièce jointe"
+    "removeAttachment": "Supprimer la pièce jointe",
+    "previewFile": "Aperçu du fichier"
   },
   "message": {
     "refused": "Le modèle a refusé de répondre à cette demande.",
@@ -257,5 +258,11 @@
       "title": "Recommander une petite bibliothèque",
       "prompt": "Suggère-moi 5 livres courts sur la solitude — différentes traditions, sans chevauchement."
     }
+  },
+  "filePreview": {
+    "failed": "Impossible de charger l'aperçu de ce fichier.",
+    "unsupported": "Ce type de fichier ne peut pas être prévisualisé dans le navigateur.",
+    "open": "Ouvrir dans un nouvel onglet",
+    "download": "Télécharger"
   }
 }

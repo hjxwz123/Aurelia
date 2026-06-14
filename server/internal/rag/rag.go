@@ -272,9 +272,10 @@ func (s *Service) runPipeline(ctx context.Context, docID string) error {
 	}
 	if s.vec.Enabled() && len(points) > 0 {
 		if err := s.vec.Upsert(ctx, dim, points); err != nil {
-			// A vector-store failure must not silently drop the document: surface
-			// it so the pipeline's retry/backoff (Ingest) can re-run.
-			return fmt.Errorf("vector upsert: %w", err)
+			// Don't fail the whole ingest on a vector-store problem (e.g. Qdrant
+			// down / mis-keyed): the same vectors are written to Postgres, so
+			// retrieval degrades to brute-force. Log loudly and mark the doc ready.
+			s.logger.Printf("rag: vector upsert for %s failed (%v) — falling back to Postgres brute-force", docID, err)
 		}
 	}
 	// Record embedding spend (§8.3, purpose=embedding) — best-effort.
@@ -440,71 +441,58 @@ func (s *Service) Retrieve(ctx context.Context, userID, convID string, kbIDs []s
 		keywordN := 30
 		hits, err := s.vec.Search(ctx, dim, qVec, vector.Scope{KBIDs: kbIDs, ConversationID: convID}, denseN)
 		if err != nil {
-			return nil, fmt.Errorf("vector search: %w", err)
-		}
-		kwHits, _ := s.vec.SearchKeyword(ctx, dim, query, vector.Scope{KBIDs: kbIDs, ConversationID: convID}, keywordN)
-		merged := map[string]retrievalCandidate{}
-		for _, h := range hits {
-			merged[h.Payload.ChunkID] = retrievalCandidate{
-				chunkID:    h.Payload.ChunkID,
-				documentID: h.Payload.DocumentID,
-				parentID:   h.Payload.ParentID,
-				filename:   h.Payload.Filename,
-				content:    h.Payload.Content,
-				sim:        h.Score,
-				bm:         keywordScore(terms, h.Payload.Content),
+			// Qdrant down / mis-keyed: degrade to the Postgres brute-force copy
+			// instead of failing retrieval (the vectors are dual-written there).
+			s.logger.Printf("rag: qdrant search failed (%v) — falling back to Postgres brute-force", err)
+			bf, bfErr := s.bruteForceCandidates(ctx, kbIDs, convID, qVec, terms)
+			if bfErr != nil {
+				return nil, bfErr
 			}
-		}
-		for _, h := range kwHits {
-			if cur, ok := merged[h.Payload.ChunkID]; ok {
-				// Combine: keep dense sim, refresh bm from independent ranking.
-				cur.bm += keywordScore(terms, h.Payload.Content)
-				merged[h.Payload.ChunkID] = cur
-				continue
+			cands = bf
+		} else {
+			kwHits, _ := s.vec.SearchKeyword(ctx, dim, query, vector.Scope{KBIDs: kbIDs, ConversationID: convID}, keywordN)
+			merged := map[string]retrievalCandidate{}
+			for _, h := range hits {
+				merged[h.Payload.ChunkID] = retrievalCandidate{
+					chunkID:    h.Payload.ChunkID,
+					documentID: h.Payload.DocumentID,
+					parentID:   h.Payload.ParentID,
+					filename:   h.Payload.Filename,
+					content:    h.Payload.Content,
+					sim:        h.Score,
+					bm:         keywordScore(terms, h.Payload.Content),
+				}
 			}
-			merged[h.Payload.ChunkID] = retrievalCandidate{
-				chunkID:    h.Payload.ChunkID,
-				documentID: h.Payload.DocumentID,
-				parentID:   h.Payload.ParentID,
-				filename:   h.Payload.Filename,
-				content:    h.Payload.Content,
-				sim:        0,
-				bm:         keywordScore(terms, h.Payload.Content),
+			for _, h := range kwHits {
+				if cur, ok := merged[h.Payload.ChunkID]; ok {
+					// Combine: keep dense sim, refresh bm from independent ranking.
+					cur.bm += keywordScore(terms, h.Payload.Content)
+					merged[h.Payload.ChunkID] = cur
+					continue
+				}
+				merged[h.Payload.ChunkID] = retrievalCandidate{
+					chunkID:    h.Payload.ChunkID,
+					documentID: h.Payload.DocumentID,
+					parentID:   h.Payload.ParentID,
+					filename:   h.Payload.Filename,
+					content:    h.Payload.Content,
+					sim:        0,
+					bm:         keywordScore(terms, h.Payload.Content),
+				}
 			}
-		}
-		cands = make([]retrievalCandidate, 0, len(merged))
-		for _, c := range merged {
-			cands = append(cands, c)
+			cands = make([]retrievalCandidate, 0, len(merged))
+			for _, c := range merged {
+				cands = append(cands, c)
+			}
 		}
 	} else {
 		// Dev / no-Qdrant path: brute-force cosine over the vectors kept in the
 		// relational store (the dual-write insurance copy).
-		rows, err := store.ListChunksInScope(ctx, s.db, kbIDs, convID)
+		bf, err := s.bruteForceCandidates(ctx, kbIDs, convID, qVec, terms)
 		if err != nil {
 			return nil, err
 		}
-		cands = make([]retrievalCandidate, 0, len(rows))
-		for _, r := range rows {
-			// Parent rows carry section context but no vector — they're returned
-			// via expansion, never scored directly (§4.11-C-2).
-			if r.ChunkType == "parent" || len(r.Embedding) == 0 {
-				continue
-			}
-			v := unpackFloats(r.Embedding)
-			sim := float32(0)
-			if len(v) > 0 {
-				sim = cosine(qVec, v)
-			}
-			cands = append(cands, retrievalCandidate{
-				chunkID:    r.ID,
-				documentID: r.DocumentID,
-				parentID:   r.ParentID,
-				filename:   r.Filename,
-				content:    r.Content,
-				sim:        sim,
-				bm:         keywordScore(terms, r.Content),
-			})
-		}
+		cands = bf
 	}
 	if len(cands) == 0 {
 		return nil, nil
@@ -540,6 +528,39 @@ func (s *Service) Retrieve(ctx context.Context, userID, convID string, kbIDs []s
 		})
 	}
 	return result, nil
+}
+
+// bruteForceCandidates scores every in-scope chunk by cosine over the vectors
+// kept in the relational store (the dual-write insurance copy). Used when Qdrant
+// is disabled OR unavailable, so retrieval keeps working without it.
+func (s *Service) bruteForceCandidates(ctx context.Context, kbIDs []string, convID string, qVec []float32, terms []string) ([]retrievalCandidate, error) {
+	rows, err := store.ListChunksInScope(ctx, s.db, kbIDs, convID)
+	if err != nil {
+		return nil, err
+	}
+	cands := make([]retrievalCandidate, 0, len(rows))
+	for _, r := range rows {
+		// Parent rows carry section context but no vector — they're returned via
+		// expansion, never scored directly (§4.11-C-2).
+		if r.ChunkType == "parent" || len(r.Embedding) == 0 {
+			continue
+		}
+		v := unpackFloats(r.Embedding)
+		sim := float32(0)
+		if len(v) > 0 {
+			sim = cosine(qVec, v)
+		}
+		cands = append(cands, retrievalCandidate{
+			chunkID:    r.ID,
+			documentID: r.DocumentID,
+			parentID:   r.ParentID,
+			filename:   r.Filename,
+			content:    r.Content,
+			sim:        sim,
+			bm:         keywordScore(terms, r.Content),
+		})
+	}
+	return cands, nil
 }
 
 // retrievalCandidate is one scored chunk feeding the reciprocal-rank fusion in

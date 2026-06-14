@@ -149,6 +149,9 @@ func NewRouter(d Deps) http.Handler {
 	mux.handle("DELETE", "/api/admin/channels/:id", requireAdmin(d, deleteChannelAdmin))
 	mux.handle("GET", "/api/admin/models", requireAdmin(d, listModelsAdmin))
 	mux.handle("POST", "/api/admin/models", requireAdmin(d, createModelAdmin))
+	// Must precede the /:id PATCH — both are 4-segment PATCH routes and the mux
+	// picks the first match, so /reorder would otherwise hit updateModelAdmin.
+	mux.handle("PATCH", "/api/admin/models/reorder", requireAdmin(d, reorderModelsAdmin))
 	mux.handle("PATCH", "/api/admin/models/:id", requireAdmin(d, updateModelAdmin))
 	mux.handle("DELETE", "/api/admin/models/:id", requireAdmin(d, deleteModelAdmin))
 	mux.handle("PUT", "/api/admin/models/:id/skills", requireAdmin(d, setModelSkillsAdmin))

@@ -158,6 +158,24 @@ func createModelAdmin(d Deps, w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 201, created)
 }
 
+// reorderModelsAdmin persists a new model order in one shot: the body is the
+// full list of model ids in the desired order, and each row's sort_order is set
+// to its position. One request keeps drag-reordering smooth (no per-swap churn).
+func reorderModelsAdmin(d Deps, w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		IDs []string `json:"ids"`
+	}
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, 400, errInvalidInput)
+		return
+	}
+	if err := store.ReorderModels(r.Context(), d.DB, body.IDs); err != nil {
+		writeError(w, 500, err)
+		return
+	}
+	writeJSON(w, 200, map[string]bool{"ok": true})
+}
+
 func updateModelAdmin(d Deps, w http.ResponseWriter, r *http.Request) {
 	id := pathParam(r, "id")
 	var m store.Model

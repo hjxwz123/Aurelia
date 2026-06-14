@@ -290,9 +290,21 @@ type ChunkInsert struct {
 	EmbeddingModel string
 }
 
+// sanitizeChunkText strips NUL bytes and invalid UTF-8 from parsed text. Postgres
+// TEXT columns reject these (SQLSTATE 22021 "invalid byte sequence for encoding
+// UTF8: 0x00") and binary documents (docx/pdf/xls) routinely carry them, which
+// otherwise fails the whole ingest.
+func sanitizeChunkText(s string) string {
+	if strings.IndexByte(s, 0) >= 0 {
+		s = strings.ReplaceAll(s, "\x00", "")
+	}
+	return strings.ToValidUTF8(s, "")
+}
+
 // CreateChunkFull inserts a chunk row and returns its id.
 func CreateChunkFull(ctx context.Context, db *sql.DB, c ChunkInsert) (string, error) {
 	id := genID("ch")
+	c.Content = sanitizeChunkText(c.Content)
 	var kb, conv, parent, imgRef any
 	if c.KBID != "" {
 		kb = c.KBID

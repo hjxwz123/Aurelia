@@ -63,7 +63,8 @@
     "fork": "分支為新對話",
     "forked": "已分支為新對話",
     "viewImage": "查看圖片",
-    "removeAttachment": "移除附件"
+    "removeAttachment": "移除附件",
+    "previewFile": "預覽檔案"
   },
   "message": {
     "refused": "模型拒絕回答此請求。",
@@ -257,5 +258,11 @@
       "title": "推薦一份小書單",
       "prompt": "推薦 5 本關於「孤獨」的短篇好書——不同傳統，不要重複。"
     }
+  },
+  "filePreview": {
+    "failed": "無法載入此檔案的預覽。",
+    "unsupported": "此檔案類型無法在瀏覽器中預覽。",
+    "open": "在新分頁開啟",
+    "download": "下載"
   }
 }
