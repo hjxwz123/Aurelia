@@ -55,6 +55,9 @@ export const authApi = {
     api<Record<string, unknown>>('/me/settings', { method: 'PATCH', body: patch }),
   // Cost is intentionally NOT exposed to users — only message volume.
   usage: () => api<{ days: number; messages: number }>('/me/usage'),
+  /** Permanently delete the user's account and all data. Requires password confirmation. */
+  deleteAccount: (password: string) =>
+    api<{ ok: true }>('/me', { method: 'DELETE', body: { password } }),
   // Email verification
   verifyEmail: (email: string, code: string) =>
     api<ApiAuthResponse>('/auth/verify-email', { method: 'POST', body: { email, code } }),
@@ -119,6 +122,11 @@ export const projectsApi = {
     api<{ ok: true }>(`/projects/${encodeURIComponent(id)}/documents/${encodeURIComponent(docId)}`, {
       method: 'DELETE',
     }),
+  renameDoc: (id: string, docId: string, filename: string) =>
+    api<{ ok: true }>(`/projects/${encodeURIComponent(id)}/documents/${encodeURIComponent(docId)}`, {
+      method: 'PATCH',
+      body: { filename },
+    }),
 }
 
 // ----- Conversations + messages -------------------------------------------
@@ -142,6 +150,11 @@ export const conversationsApi = {
     api<ApiMessage>(
       `/conversations/${encodeURIComponent(id)}/messages/${encodeURIComponent(msgId)}`,
       { method: 'PATCH', body: { text } },
+    ),
+  feedback: (id: string, msgId: string, feedback: 'like' | 'dislike' | '') =>
+    api<{ ok: true }>(
+      `/conversations/${encodeURIComponent(id)}/messages/${encodeURIComponent(msgId)}/feedback`,
+      { method: 'POST', body: { feedback } },
     ),
   stop: (id: string) => api<{ ok: true }>(`/conversations/${encodeURIComponent(id)}/stop`, { method: 'POST' }),
   setActiveLeaf: (id: string, leaf_id: string) =>

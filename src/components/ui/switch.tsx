@@ -22,7 +22,7 @@ export const Switch = forwardRef<
     >
       <SwitchPrimitive.Thumb
         className={cn(
-          'pointer-events-none block size-[16px] rounded-full bg-white',
+          'pointer-events-none block size-[16px] rounded-full bg-[var(--color-surface-raised)]',
           'shadow-[0_1px_2px_rgba(0,0,0,0.18)]',
           'transition-transform duration-200 ease-[cubic-bezier(0.2,0.8,0.2,1)]',
           'translate-x-[3px] data-[state=checked]:translate-x-[20px]',

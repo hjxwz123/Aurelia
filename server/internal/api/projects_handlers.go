@@ -175,3 +175,32 @@ func deleteProjectDocHandler(d Deps, w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, 200, map[string]bool{"ok": true})
 }
+
+// renameProjectDocHandler renames a document in the project KB.
+func renameProjectDocHandler(d Deps, w http.ResponseWriter, r *http.Request) {
+	u := authUser(r)
+	id := pathParam(r, "id")
+	docID := pathParam(r, "docId")
+	p, err := store.GetProject(r.Context(), d.DB, id, u.ID)
+	if err != nil || p.KBID == "" {
+		writeError(w, 404, errNotFound)
+		return
+	}
+	doc, err := store.GetDocument(r.Context(), d.DB, docID)
+	if err != nil || doc.KBID != p.KBID {
+		writeError(w, 404, errNotFound)
+		return
+	}
+	var body struct {
+		Filename string `json:"filename"`
+	}
+	if err := decodeJSON(r, &body); err != nil || body.Filename == "" {
+		writeError(w, 400, errInvalidInput)
+		return
+	}
+	if err := store.RenameDocument(r.Context(), d.DB, docID, body.Filename); err != nil {
+		writeError(w, 500, err)
+		return
+	}
+	writeJSON(w, 200, map[string]bool{"ok": true})
+}

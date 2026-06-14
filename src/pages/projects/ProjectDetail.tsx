@@ -736,7 +736,7 @@ function AddFileDialog({
     onAdd({
       name: trimmedName,
       kind,
-      size: Math.floor(Math.random() * 200_000) + 4_000,
+      size: excerpt.trim().length || 0,
       excerpt: excerpt.trim() || undefined,
       url: isLink ? url.trim() || undefined : undefined,
     })

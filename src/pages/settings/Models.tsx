@@ -32,7 +32,12 @@ export default function Models() {
     void modelsApi.listImage().then((r) => setImageModels(r.models ?? [])).catch(() => {})
     void authApi
       .getSettings()
-      .then((s) => setImageModelId(typeof s.image_model_id === 'string' ? s.image_model_id : ''))
+      .then((s) => {
+        setImageModelId(typeof s.image_model_id === 'string' ? s.image_model_id : '')
+        if (typeof s.custom_instructions === 'string' && s.custom_instructions) {
+          setModels({ customInstructions: s.custom_instructions })
+        }
+      })
       .catch(() => {})
   }, [list.length, load])
 
@@ -124,7 +129,15 @@ export default function Models() {
                 max: (2000).toLocaleString(),
               })}
             </p>
-            <Button variant="secondary" onClick={() => toast.success(t('settings:models.customSaved'))}>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                void authApi
+                  .updateSettings({ custom_instructions: models.customInstructions })
+                  .then(() => toast.success(t('settings:models.customSaved')))
+                  .catch(() => toast.error(t('common:actions.failed', { defaultValue: 'Failed to save' })))
+              }}
+            >
               {t('common:actions.save')}
             </Button>
           </div>

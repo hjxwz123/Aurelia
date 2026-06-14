@@ -34,6 +34,8 @@ export default function Account() {
   const [email, setEmail] = useState(user?.email ?? '')
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deletePassword, setDeletePassword] = useState('')
+  const [deleting, setDeleting] = useState(false)
   const [pwOpen, setPwOpen] = useState(false)
   const [pw, setPw] = useState({ current: '', next: '' })
 
@@ -124,12 +126,12 @@ export default function Account() {
 
   async function changePassword() {
     if (pw.next.length < 8) {
-      toast.error('Password must be at least 8 characters')
+      toast.error(t('settings:account.passwordMinLength'))
       return
     }
     try {
       await authApi.changePassword(pw.current, pw.next)
-      toast.success('Password updated — please sign in again')
+      toast.success(t('settings:account.passwordUpdated'))
       setPwOpen(false)
       setPw({ current: '', next: '' })
       await logout()
@@ -201,7 +203,7 @@ export default function Account() {
         </SettingsRow>
         <SettingsRow label={t('settings:account.securityRows.sessions')} description={t('settings:account.securityRows.sessionsBody')}>
           <Button variant="ghost" onClick={() => void (async () => { await logout(); navigate('/login') })()}>
-            <LogOut size={13} aria-hidden /> Sign out
+            <LogOut size={13} aria-hidden /> {t('common:actions.signOut')}
           </Button>
         </SettingsRow>
       </SettingsSection>
@@ -221,11 +223,11 @@ export default function Account() {
         <DialogContent size="sm">
           <DialogHeader>
             <DialogTitle>{t('common:actions.changePassword')}</DialogTitle>
-            <DialogDescription>You'll be signed out on success.</DialogDescription>
+            <DialogDescription>{t('settings:account.signOutOnSuccess')}</DialogDescription>
           </DialogHeader>
           <DialogBody>
             <div className="grid gap-3">
-              <Field label="Current password" htmlFor="pw-cur">
+              <Field label={t('settings:account.currentPassword')} htmlFor="pw-cur">
                 <Input
                   id="pw-cur"
                   type="password"
@@ -233,7 +235,7 @@ export default function Account() {
                   onChange={(e) => setPw({ ...pw, current: e.target.value })}
                 />
               </Field>
-              <Field label="New password" htmlFor="pw-new" hint="Minimum 8 characters">
+              <Field label={t('settings:account.newPassword')} htmlFor="pw-new" hint={t('settings:account.newPasswordHint')}>
                 <Input
                   id="pw-new"
                   type="password"
@@ -327,7 +329,7 @@ export default function Account() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+      <Dialog open={confirmDelete} onOpenChange={(o) => { setConfirmDelete(o); if (!o) setDeletePassword('') }}>
         <DialogContent size="sm">
           <DialogHeader>
             <DialogTitle>{t('settings:account.dangerRows.dialogTitle')}</DialogTitle>
@@ -335,15 +337,35 @@ export default function Account() {
               {t('settings:account.dangerRows.dialogBody')}
             </DialogDescription>
           </DialogHeader>
+          <DialogBody>
+            <Field label={t('settings:account.dangerRows.passwordConfirm', { defaultValue: 'Enter your password to confirm' })} htmlFor="delete-pw">
+              <Input
+                id="delete-pw"
+                type="password"
+                value={deletePassword}
+                onChange={(e) => setDeletePassword(e.target.value)}
+                placeholder="••••••••"
+              />
+            </Field>
+          </DialogBody>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setConfirmDelete(false)}>
+            <Button variant="ghost" onClick={() => setConfirmDelete(false)} disabled={deleting}>
               {t('common:actions.cancel')}
             </Button>
             <Button
               variant="destructive"
+              disabled={deleting || deletePassword.length < 1}
+              loading={deleting}
               onClick={() => {
-                setConfirmDelete(false)
-                toast.success(t('settings:account.dangerRows.queued'))
+                setDeleting(true)
+                void authApi.deleteAccount(deletePassword).then(async () => {
+                  setConfirmDelete(false)
+                  toast.success(t('settings:account.dangerRows.deleted', { defaultValue: 'Account deleted' }))
+                  await logout()
+                  navigate('/login')
+                }).catch((e) => {
+                  toast.error(e instanceof ApiError ? e.message : 'Failed to delete account')
+                }).finally(() => setDeleting(false))
               }}
             >
               {t('settings:account.dangerRows.confirm')}

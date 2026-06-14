@@ -85,6 +85,7 @@ func Migrate(db *sql.DB) error {
 	addGroupID := `ALTER TABLE users ADD COLUMN group_id TEXT NOT NULL DEFAULT 'ug_free'`
 	addTotpSecret := `ALTER TABLE users ADD COLUMN totp_secret TEXT NOT NULL DEFAULT ''`
 	addTotpEnabled := `ALTER TABLE users ADD COLUMN totp_enabled INTEGER NOT NULL DEFAULT 0`
+	addFeedback := `ALTER TABLE messages ADD COLUMN feedback TEXT NOT NULL DEFAULT ''`
 	if usePostgres {
 		schema = schemaPGSQL
 		addImageRef = `ALTER TABLE chunks ADD COLUMN IF NOT EXISTS image_ref TEXT`
@@ -92,6 +93,7 @@ func Migrate(db *sql.DB) error {
 		addGroupID = `ALTER TABLE users ADD COLUMN IF NOT EXISTS group_id TEXT NOT NULL DEFAULT 'ug_free'`
 		addTotpSecret = `ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_secret TEXT NOT NULL DEFAULT ''`
 		addTotpEnabled = `ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_enabled INTEGER NOT NULL DEFAULT 0`
+		addFeedback = `ALTER TABLE messages ADD COLUMN IF NOT EXISTS feedback TEXT NOT NULL DEFAULT ''`
 	}
 	if _, err := db.Exec(schema); err != nil {
 		return fmt.Errorf("apply schema: %w", err)
@@ -100,7 +102,7 @@ func Migrate(db *sql.DB) error {
 	// IF NOT EXISTS won't add columns to a pre-existing table. On SQLite a
 	// duplicate-column error is expected and ignored; Postgres uses IF NOT
 	// EXISTS so it's a clean no-op.
-	for _, ddl := range []string{addImageRef, addOfficialTools, addGroupID, addTotpSecret, addTotpEnabled} {
+	for _, ddl := range []string{addImageRef, addOfficialTools, addGroupID, addTotpSecret, addTotpEnabled, addFeedback} {
 		_, _ = db.Exec(ddl)
 	}
 	return nil

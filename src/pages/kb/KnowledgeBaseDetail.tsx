@@ -208,10 +208,10 @@ export default function KnowledgeBaseDetail() {
             <Tabs value={tab} onValueChange={(v) => setTab(v as 'paste' | 'upload')}>
               <TabsList className="mb-4">
                 <TabsTrigger value="paste">
-                  <FileText size={12} aria-hidden /> Paste text
+                  <FileText size={12} aria-hidden /> {t('kb:detail.tabPaste')}
                 </TabsTrigger>
                 <TabsTrigger value="upload">
-                  <Upload size={12} aria-hidden /> Upload file
+                  <Upload size={12} aria-hidden /> {t('kb:detail.tabUpload')}
                 </TabsTrigger>
               </TabsList>
               <TabsContent value="paste">
@@ -224,7 +224,7 @@ export default function KnowledgeBaseDetail() {
                       placeholder="notes.md"
                     />
                   </Field>
-                  <Field label="Content" htmlFor="doc-body">
+                  <Field label={t('kb:detail.contentLabel')} htmlFor="doc-body">
                     <Textarea
                       id="doc-body"
                       rows={10}
@@ -254,7 +254,7 @@ export default function KnowledgeBaseDetail() {
                   />
                   <Upload size={24} className="mx-auto text-[var(--color-fg-subtle)]" aria-hidden />
                   <p className="mt-3 text-[var(--color-fg-muted)] text-sm">
-                    {uploading ? <Loader2 className="inline-block animate-spin" size={14} aria-hidden /> : 'Click to choose files'}
+                    {uploading ? <Loader2 className="inline-block animate-spin" size={14} aria-hidden /> : t('kb:detail.clickToChoose')}
                   </p>
                 </div>
               </TabsContent>

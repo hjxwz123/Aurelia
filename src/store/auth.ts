@@ -163,6 +163,5 @@ export const useAuth = create<AuthState>((set, get) => ({
   async updateProfile(patch) {
     const updated = await authApi.updateProfile(patch)
     set({ user: updated })
-    void get()
   },
 }))

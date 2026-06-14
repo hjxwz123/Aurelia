@@ -296,7 +296,7 @@ export function Composer({
                 />
                 {a.uploading ? (
                   <span className="absolute inset-0 grid place-items-center rounded-[10px] bg-[var(--color-overlay)]">
-                    <Loader2 size={14} className="animate-spin text-white" aria-hidden />
+                    <Loader2 size={14} className="animate-spin text-[var(--color-fg-inverted)]" aria-hidden />
                   </span>
                 ) : null}
                 <button

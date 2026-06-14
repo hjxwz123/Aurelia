@@ -258,8 +258,9 @@ func downloadArtifactHandler(d Deps, w http.ResponseWriter, r *http.Request) {
 	}
 	// Resolve a safe absolute path inside ArtifactDir.
 	cleanName := filepath.Base(a.Filename)
-	full := a.StoragePath
-	if full == "" || !strings.HasPrefix(full, d.Config.ArtifactDir) {
+	full := filepath.Clean(a.StoragePath)
+	artDir := filepath.Clean(d.Config.ArtifactDir) + string(filepath.Separator)
+	if full == "" || !strings.HasPrefix(full, artDir) {
 		// Reject path traversal — only files under the configured artifact dir
 		// can be served.
 		writeError(w, 404, errNotFound)

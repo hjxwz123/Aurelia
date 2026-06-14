@@ -116,3 +116,34 @@ func meUsageHandler(d Deps, w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, 200, map[string]any{"days": days, "messages": count})
 }
+
+// deleteMeHandler permanently deletes the authenticated user's account and all
+// associated data — conversations, messages, memories, tokens, usage logs. The
+// user must confirm by sending their password so accidental calls from JS can't
+// silently wipe an account.
+func deleteMeHandler(d Deps, w http.ResponseWriter, r *http.Request) {
+	u := authUser(r)
+	var req struct {
+		Password string `json:"password"`
+	}
+	if err := decodeJSON(r, &req); err != nil || req.Password == "" {
+		writeError(w, 400, errors.New("password confirmation required"))
+		return
+	}
+	hash, err := store.PasswordFor(r.Context(), d.DB, u.ID)
+	if err != nil {
+		writeError(w, 500, err)
+		return
+	}
+	if !store.CheckPassword(hash, req.Password) {
+		writeError(w, 401, errors.New("incorrect password"))
+		return
+	}
+	if err := store.DeleteUser(r.Context(), d.DB, u.ID); err != nil {
+		writeError(w, 500, err)
+		return
+	}
+	clearCookie(w, "auth_token")
+	clearCookie(w, "refresh_token")
+	writeJSON(w, 200, map[string]bool{"ok": true})
+}

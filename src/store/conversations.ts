@@ -32,6 +32,7 @@ import type {
   ToolCall,
 } from '@/types/chat'
 import { uid } from '@/lib/utils'
+import { toast } from '@/hooks/use-toast'
 
 interface ConversationStore {
   conversations: Conversation[]
@@ -162,8 +163,8 @@ export const useConversations = create<ConversationStore>((set, get) => ({
     set((s) => ({ conversations: s.conversations.filter((c) => c.id !== id) }))
     try {
       await conversationsApi.remove(id)
-    } catch {
-      /* ignore */
+    } catch (e) {
+      toast.error(errorMessage(e, 'Failed to delete conversation'))
     }
   },
 
@@ -175,8 +176,8 @@ export const useConversations = create<ConversationStore>((set, get) => ({
     }))
     try {
       await conversationsApi.update(id, { title })
-    } catch {
-      /* ignore */
+    } catch (e) {
+      toast.error(errorMessage(e, 'Failed to rename conversation'))
     }
   },
 
@@ -188,8 +189,8 @@ export const useConversations = create<ConversationStore>((set, get) => ({
     }))
     try {
       await conversationsApi.update(id, { pinned: next })
-    } catch {
-      /* ignore */
+    } catch (e) {
+      toast.error(errorMessage(e, 'Failed to update pin'))
     }
   },
 
@@ -201,8 +202,8 @@ export const useConversations = create<ConversationStore>((set, get) => ({
     }))
     try {
       await conversationsApi.update(id, { starred: next })
-    } catch {
-      /* ignore */
+    } catch (e) {
+      toast.error(errorMessage(e, 'Failed to update star'))
     }
   },
 
@@ -212,8 +213,8 @@ export const useConversations = create<ConversationStore>((set, get) => ({
     }))
     try {
       await conversationsApi.update(id, { archived: true })
-    } catch {
-      /* ignore */
+    } catch (e) {
+      toast.error(errorMessage(e, 'Failed to archive conversation'))
     }
   },
 
@@ -225,8 +226,8 @@ export const useConversations = create<ConversationStore>((set, get) => ({
       await conversationsApi.update(id, { archived: false })
       // Re-pull the active list so the restored chat reappears in the sidebar.
       await get().load()
-    } catch {
-      /* ignore */
+    } catch (e) {
+      toast.error(errorMessage(e, 'Failed to unarchive conversation'))
     }
   },
 
@@ -245,8 +246,8 @@ export const useConversations = create<ConversationStore>((set, get) => ({
     }))
     try {
       await conversationsApi.update(id, { project_id: projectId ?? '' })
-    } catch {
-      /* ignore */
+    } catch (e) {
+      toast.error(errorMessage(e, 'Failed to update project'))
     }
   },
 
@@ -256,8 +257,8 @@ export const useConversations = create<ConversationStore>((set, get) => ({
       const conv = toLocalConversation(resp.conversation)
       conv.messages = resp.messages.map(toLocalMessage)
       set((s) => ({ conversations: replaceOrPrepend(s.conversations, conv) }))
-    } catch {
-      /* ignore */
+    } catch (e) {
+      toast.error(errorMessage(e, 'Failed to switch branch'))
     }
   },
 
@@ -300,8 +301,8 @@ export const useConversations = create<ConversationStore>((set, get) => ({
     }))
     try {
       await conversationsApi.update(id, { model_id: modelId })
-    } catch {
-      /* ignore */
+    } catch (e) {
+      toast.error(errorMessage(e, 'Failed to update model'))
     }
   },
 
@@ -311,8 +312,8 @@ export const useConversations = create<ConversationStore>((set, get) => ({
     }))
     try {
       await conversationsApi.update(id, { kb_ids: kbIds })
-    } catch {
-      /* ignore */
+    } catch (e) {
+      toast.error(errorMessage(e, 'Failed to update knowledge bases'))
     }
   },
 

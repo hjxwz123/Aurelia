@@ -224,12 +224,12 @@ export function MessageRow({ message, userName, onRegenerate, onEdit, onSaveEdit
                 <span aria-hidden>📚</span>
                 <span>
                   {message.ragInjection.strategy === 'full_text'
-                    ? `Injected full document(s)`
+                    ? t('message.ragFullText')
                     : message.ragInjection.strategy === 'full_doc'
-                      ? `Whole-document context`
+                      ? t('message.ragFullDoc')
                       : message.ragInjection.strategy === 'none'
-                        ? `Skipped retrieval`
-                        : `Retrieved sources`}
+                        ? t('message.ragNone')
+                        : t('message.ragDefault')}
                   {message.ragInjection.summary ? ` — ${message.ragInjection.summary}` : ''}
                 </span>
               </div>
@@ -246,7 +246,7 @@ export function MessageRow({ message, userName, onRegenerate, onEdit, onSaveEdit
               <>
                 {message.refused ? (
                   <div className="mb-2 inline-flex items-center gap-2 rounded-lg border border-[var(--color-warning)] bg-[var(--color-bg-subtle)] px-3 py-1.5 text-sm text-[var(--color-fg-muted)]">
-                    The model declined to answer this request.
+                    {t('message.refused')}
                   </div>
                 ) : null}
                 <Markdown content={message.content} live={Boolean(message.streaming)} blockKeyPrefix={message.id} />

@@ -2,6 +2,8 @@ import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { MessageRow } from './message-row'
 import { useConversations } from '@/store/conversations'
+import { conversationsApi } from '@/api'
+import { toast } from '@/hooks/use-toast'
 import type { Conversation, Message } from '@/types/chat'
 
 interface MessageListProps {
@@ -68,6 +70,16 @@ export function MessageList({ conversation }: MessageListProps) {
     })
   }
 
+  function handleLike(id: string) {
+    void conversationsApi.feedback(conversation.id, id, 'like')
+      .catch(() => toast.error('Failed to save feedback'))
+  }
+
+  function handleDislike(id: string) {
+    void conversationsApi.feedback(conversation.id, id, 'dislike')
+      .catch(() => toast.error('Failed to save feedback'))
+  }
+
   return (
     <div className="flex flex-col gap-8 px-4 sm:px-6 lg:px-8 py-8 mx-auto w-full max-w-[var(--layout-message-max-w)]">
       {conversation.messages.map((m) => (
@@ -77,8 +89,8 @@ export function MessageList({ conversation }: MessageListProps) {
           onRegenerate={handleRegenerate}
           onEdit={handleEdit}
           onSaveEdit={handleSaveEdit}
-          onLike={() => undefined}
-          onDislike={() => undefined}
+          onLike={handleLike}
+          onDislike={handleDislike}
           onBranchSwitch={handleBranchSwitch}
           onFork={handleFork}
         />

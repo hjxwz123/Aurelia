@@ -14,6 +14,8 @@ type Cache interface {
 	Set(key, value string, ttl time.Duration)
 	Delete(key string)
 	Incr(key string, ttl time.Duration) int64
+	// Decr atomically decrements a key, flooring at 0. Returns the new value.
+	Decr(key string) int64
 	Publish(topic string, payload string)
 	Subscribe(topic string) (chan string, func())
 }
@@ -86,6 +88,22 @@ func (m *memory) Incr(key string, ttl time.Duration) int64 {
 	}
 	n := parseInt(e.value)
 	n++
+	e.value = formatInt(n)
+	m.store[key] = e
+	return n
+}
+
+func (m *memory) Decr(key string) int64 {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	e, ok := m.store[key]
+	if !ok || (e.exp > 0 && time.Now().UnixNano() > e.exp) {
+		return 0
+	}
+	n := parseInt(e.value)
+	if n > 0 {
+		n--
+	}
 	e.value = formatInt(n)
 	m.store[key] = e
 	return n
