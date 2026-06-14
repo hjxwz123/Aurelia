@@ -11,6 +11,11 @@
     "saved": "Mot de passe défini.",
     "failed": "Impossible de définir le mot de passe. Veuillez réessayer."
   },
+  "ready": {
+    "title": "Tout est prêt",
+    "body": "Aurelia est réglée selon vos préférences. Lancez votre première conversation quand vous voulez.",
+    "cta": "Commencer"
+  },
   "intro": {
     "eyebrow": "Bienvenue sur Aurelia",
     "title": "Un espace plus serein pour penser.",

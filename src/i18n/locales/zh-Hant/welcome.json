@@ -11,6 +11,11 @@
     "saved": "密碼已設定。",
     "failed": "設定密碼失敗，請重試。"
   },
+  "ready": {
+    "title": "一切就緒",
+    "body": "Aurelia 已按你的喜好調整完成。準備好就開始你的第一次對話吧。",
+    "cta": "開始探索"
+  },
   "intro": {
     "eyebrow": "歡迎來到 Aurelia",
     "title": "更安靜的思考空間。",

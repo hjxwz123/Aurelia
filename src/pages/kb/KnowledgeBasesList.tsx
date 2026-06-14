@@ -13,6 +13,7 @@ import { Field } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { EmptyState } from '@/components/ui/empty-state'
+import { ContentHeader } from '@/components/layout/content-header'
 import {
   Dialog,
   DialogBody,
@@ -71,21 +72,25 @@ export default function KnowledgeBasesList() {
   }
 
   return (
-    <div className="flex-1 min-h-0 overflow-y-auto">
-      <div className="mx-auto w-full max-w-[68rem] px-5 sm:px-10 lg:px-14 pt-10 sm:pt-16 pb-24">
-        <header className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
-          <div className="max-w-[34ch]">
-            <h1 className="font-serif text-[2.5rem] sm:text-[3.25rem] leading-[1.02] tracking-[-0.02em] text-[var(--color-fg)]">
-              {t('kb:title')}
-            </h1>
-            <p className="mt-4 text-[var(--color-fg-muted)] text-[15px] leading-relaxed">{t('kb:lead')}</p>
-          </div>
-          <Button variant="secondary" leadingIcon={<Plus size={15} aria-hidden />} onClick={() => setOpen(true)}>
+    <div className="flex-1 min-h-0 flex flex-col bg-[var(--color-bg)] text-[var(--color-fg)]">
+      <ContentHeader
+        title={t('kb:title')}
+        actions={
+          <Button
+            variant="secondary"
+            size="sm"
+            leadingIcon={<Plus size={15} aria-hidden />}
+            onClick={() => setOpen(true)}
+          >
             {t('kb:new')}
           </Button>
-        </header>
+        }
+      />
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        <div className="mx-auto w-full max-w-[var(--layout-content-max-w)] px-5 sm:px-8 py-8 pb-24">
+          <p className="max-w-[60ch] text-[var(--color-fg-muted)] text-[15px] leading-relaxed">{t('kb:lead')}</p>
 
-        <section className="mt-12">
+        <section className="mt-10">
           {loading ? (
             <div className="text-sm text-[var(--color-fg-subtle)]">{t('common:common.loading')}</div>
           ) : rows.length === 0 ? (
@@ -125,6 +130,7 @@ export default function KnowledgeBasesList() {
             </ul>
           )}
         </section>
+        </div>
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>

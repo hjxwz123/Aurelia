@@ -67,6 +67,9 @@ export function WelcomeCard() {
 
   const [mounted, setMounted] = useState(false)
   const [open, setOpen] = useState(false)
+  // After "Get started" the wizard hands off to a short celebratory welcome
+  // dialog before the user lands in the app.
+  const [welcomeOpen, setWelcomeOpen] = useState(false)
   const [step, setStep] = useState(0)
   const [saving, setSaving] = useState(false)
   const initial = useRef<{
@@ -116,7 +119,16 @@ export function WelcomeCard() {
     // localStorage-backed and already applied live.
     markOnboarded({ memory_enabled: memory })
     setSaving(false)
-    close()
+    // Close the wizard (plays the zoom-out), then hand off to the welcome
+    // dialog once the exit animation finishes.
+    setOpen(false)
+    window.setTimeout(() => setWelcomeOpen(true), 360)
+  }
+
+  // Dismiss the welcome dialog and unmount the whole flow.
+  function finishWelcome() {
+    setWelcomeOpen(false)
+    window.setTimeout(() => setMounted(false), 200)
   }
 
   function handleSkip() {
@@ -207,6 +219,7 @@ export function WelcomeCard() {
   }
 
   return (
+    <>
     <Dialog open={open} onOpenChange={(o) => { if (!o) handleSkip() }}>
       <DialogContent
         size="xl"
@@ -319,6 +332,30 @@ export function WelcomeCard() {
         </div>
       </DialogContent>
     </Dialog>
+
+    {/* Celebratory welcome shown right after the wizard completes. */}
+    <Dialog open={welcomeOpen} onOpenChange={(o) => { if (!o) finishWelcome() }}>
+      <DialogContent size="sm" showClose={false} className="overflow-hidden text-center">
+        <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-28 opacity-[0.18] blur-2xl"
+          style={{ background: 'radial-gradient(60% 80% at 50% 0%, var(--color-accent), transparent 70%)' }}
+        />
+        <div className="relative flex flex-col items-center gap-4 pt-3 pb-1">
+          <Logo size="lg" />
+          <div>
+            <DialogTitle className="font-serif text-2xl tracking-tight text-[var(--color-fg)]">
+              {t('welcome:ready.title')}
+            </DialogTitle>
+            <DialogDescription className="mt-2 text-sm leading-relaxed text-[var(--color-fg-muted)] max-w-[34ch]">
+              {t('welcome:ready.body')}
+            </DialogDescription>
+          </div>
+          <Button className="mt-2 w-full" onClick={finishWelcome}>
+            {t('welcome:ready.cta')}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+    </>
   )
 }
 
