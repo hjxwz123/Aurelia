@@ -3,9 +3,9 @@
  * file), remove. Status shown live via polling while any doc is non-ready.
  */
 import { useEffect, useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { ArrowLeft, Plus, Trash2, Upload, FileText, Loader2, AlertTriangle } from 'lucide-react'
+import { Plus, Trash2, Upload, FileText, Loader2, AlertTriangle } from 'lucide-react'
 import { ApiError, kbsApi } from '@/api'
 import type { ApiDocument, ApiKnowledgeBase } from '@/api/types'
 import { api } from '@/api/client'
@@ -25,6 +25,7 @@ import { Field } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { ContentHeader } from '@/components/layout/content-header'
 import { toast } from '@/hooks/use-toast'
 import { formatRelativeDate, cn } from '@/lib/utils'
 
@@ -137,29 +138,28 @@ export default function KnowledgeBaseDetail() {
   }
 
   return (
-    <div className="flex-1 min-h-0 overflow-y-auto">
-      <div className="mx-auto w-full max-w-[68rem] px-5 sm:px-10 lg:px-14 pt-6 sm:pt-10 pb-24">
-        <nav className="flex items-center gap-1.5 text-[12px] text-[var(--color-fg-subtle)]">
-          <Link to="/kb" className="inline-flex items-center gap-1 hover:text-[var(--color-fg-muted)] interactive">
-            <ArrowLeft size={12} aria-hidden /> {t('kb:title')}
-          </Link>
-        </nav>
-
-        <header className="mt-6 flex items-end justify-between gap-4">
-          <div className="max-w-[60ch]">
-            <h1 className="font-serif text-[2.25rem] sm:text-[3rem] leading-[1.02] tracking-[-0.02em] text-[var(--color-fg)]">
-              {kb?.name ?? '…'}
-            </h1>
-            {kb?.description ? (
-              <p className="mt-3 text-[var(--color-fg-muted)] text-[15px] leading-relaxed">{kb.description}</p>
-            ) : null}
-          </div>
-          <Button leadingIcon={<Plus size={15} aria-hidden />} onClick={() => setOpen(true)}>
+    <div className="flex-1 min-h-0 flex flex-col bg-[var(--color-bg)] text-[var(--color-fg)]">
+      <ContentHeader
+        title={kb?.name ?? '…'}
+        backTo="/kb"
+        backLabel={t('kb:title')}
+        actions={
+          <Button
+            size="sm"
+            leadingIcon={<Plus size={15} aria-hidden />}
+            onClick={() => setOpen(true)}
+          >
             {t('kb:detail.uploadButton')}
           </Button>
-        </header>
+        }
+      />
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        <div className="mx-auto w-full max-w-[var(--layout-content-max-w)] px-5 sm:px-8 py-8 pb-24">
+          {kb?.description ? (
+            <p className="text-[var(--color-fg-muted)] text-[15px] leading-relaxed max-w-[60ch]">{kb.description}</p>
+          ) : null}
 
-        <section className="mt-10">
+        <section className="mt-8">
           {loading ? (
             <div className="text-sm text-[var(--color-fg-subtle)]">{t('common:common.loading')}</div>
           ) : docs.length === 0 ? (
@@ -207,6 +207,7 @@ export default function KnowledgeBaseDetail() {
             </ul>
           )}
         </section>
+        </div>
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>

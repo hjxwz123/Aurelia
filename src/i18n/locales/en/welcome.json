@@ -11,6 +11,11 @@
     "saved": "Password set.",
     "failed": "Couldn't set your password. Please try again."
   },
+  "ready": {
+    "title": "You're all set",
+    "body": "Aurelia is tuned to your taste. Start your first conversation whenever you're ready.",
+    "cta": "Start exploring"
+  },
   "intro": {
     "eyebrow": "Welcome to Aurelia",
     "title": "A calmer place to think.",

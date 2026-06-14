@@ -39,6 +39,8 @@ export default function Subscription() {
   const [upgrade, setUpgrade] = useState<ApiUserGroup | null>(null)
   const [redeemCode, setRedeemCode] = useState('')
   const [redeeming, setRedeeming] = useState(false)
+  // Celebratory modal shown after a successful redemption (§ redeem codes).
+  const [redeemSuccess, setRedeemSuccess] = useState<{ group: string; date: string } | null>(null)
 
   useEffect(() => {
     let active = true
@@ -106,12 +108,8 @@ export default function Subscription() {
       groupsApi.list().then(setGroups).catch(() => undefined)
       setRedeemCode('')
       const date = res.expires_at > 0 ? formatAbsoluteDate(res.expires_at * 1000) : ''
-      toast.success(
-        t('subscription:redeem.success'),
-        res.expires_at > 0
-          ? t('subscription:redeem.successBodyUntil', { group: res.group_name, date })
-          : t('subscription:redeem.successBody', { group: res.group_name }),
-      )
+      // Celebrate with a modal (the toast was easy to miss).
+      setRedeemSuccess({ group: res.group_name, date })
     } catch (e) {
       toast.error(redeemErrorMessage(e))
     } finally {
@@ -268,6 +266,30 @@ export default function Subscription() {
         </section>
         </div>
       </div>
+
+      {/* Redeem success — celebratory confirmation (§ redeem codes). */}
+      <Dialog open={Boolean(redeemSuccess)} onOpenChange={(o) => !o && setRedeemSuccess(null)}>
+        <DialogContent size="sm">
+          <DialogHeader>
+            <div className="mx-auto mb-1 inline-flex size-12 items-center justify-center rounded-full bg-[var(--color-secondary-soft)] text-[var(--color-secondary)]">
+              <Sparkles size={22} aria-hidden />
+            </div>
+            <DialogTitle className="text-center">{t('subscription:redeem.success')}</DialogTitle>
+            <DialogDescription className="text-center">
+              {redeemSuccess
+                ? redeemSuccess.date
+                  ? t('subscription:redeem.successBodyUntil', { group: redeemSuccess.group, date: redeemSuccess.date })
+                  : t('subscription:redeem.successBody', { group: redeemSuccess.group })
+                : ''}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button className="w-full" onClick={() => setRedeemSuccess(null)}>
+              {t('common:actions.gotIt')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Admin-assigned: explain how to switch rather than charging the user. */}
       <Dialog open={Boolean(upgrade)} onOpenChange={(o) => !o && setUpgrade(null)}>
