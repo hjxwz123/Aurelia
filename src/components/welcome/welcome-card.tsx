@@ -17,6 +17,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { cn } from '@/lib/utils'
 
 type ReplyStyle = 'concise' | 'balanced' | 'detailed'
+type StepKey = 'language' | 'theme' | 'accent' | 'style' | 'memory'
+const STEPS: StepKey[] = ['language', 'theme', 'accent', 'style', 'memory']
 
 // Static hue per accent preset, mirrored from the Appearance picker so the
 // swatches read as the same colors regardless of the document's data-accent.
@@ -32,12 +34,13 @@ const THEME_OPTS: ThemePref[] = ['light', 'dark', 'system']
 const STYLE_OPTS: ReplyStyle[] = ['concise', 'balanced', 'detailed']
 
 /**
- * First-login welcome card. Shows once per account (gated on a server-side
- * `onboarded` flag stored in user settings): an editorial intro on the left and
- * a quick-config panel on the right. Choices apply live for instant preview;
- * "Skip" restores whatever was set before the card opened so it's truly
- * non-committal, while "Get started" persists and dismisses. Either path marks
- * the account onboarded so the card never returns.
+ * First-login welcome — a small wizard (one choice per page). Shows once per
+ * account (gated on a server-side `onboarded` flag in user settings). The left
+ * panel is an editorial intro with a slow accent-tinted aurora that re-tints
+ * live as the user picks an accent; the right steps through language → theme →
+ * accent → reply style → memory. Choices apply live for instant preview; "Skip"
+ * restores whatever was set before so it's truly non-committal, while the final
+ * "Get started" persists. Either path marks the account onboarded.
  */
 export function WelcomeCard() {
   const { t } = useTranslation(['welcome', 'settings', 'common'])
@@ -60,6 +63,7 @@ export function WelcomeCard() {
   const eligible = status === 'authenticated' && Boolean(user) && !onboarded
 
   const [open, setOpen] = useState(false)
+  const [step, setStep] = useState(0)
   const [saving, setSaving] = useState(false)
   const initial = useRef<{
     lang: LanguageCode
@@ -80,6 +84,9 @@ export function WelcomeCard() {
   }, [eligible])
 
   if (!open) return null
+
+  const last = STEPS.length - 1
+  const current = STEPS[step]
 
   function markOnboarded(extra: Record<string, unknown>) {
     const patch = { onboarded: true, ...extra }
@@ -111,14 +118,103 @@ export function WelcomeCard() {
     setOpen(false)
   }
 
+  function renderControl(key: StepKey) {
+    switch (key) {
+      case 'language':
+        return (
+          <Select value={lang} onValueChange={(v) => setLang(v as LanguageCode)}>
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {SUPPORTED_LANGUAGES.map((l) => (
+                <SelectItem key={l.code} value={l.code}>
+                  {l.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )
+      case 'theme':
+        return (
+          <div className="flex items-center gap-2">
+            {THEME_OPTS.map((opt) => (
+              <Seg key={opt} active={themePref === opt} onClick={() => setPref(opt)}>
+                {t(`welcome:theme.${opt}`)}
+              </Seg>
+            ))}
+          </div>
+        )
+      case 'accent':
+        return (
+          <div className="flex items-center gap-3 flex-wrap">
+            {ACCENT_PRESETS.map((p) => (
+              <button
+                key={p}
+                type="button"
+                aria-label={t(`settings:appearance.accent.${p}`)}
+                aria-pressed={accent === p}
+                onClick={() => setAccent(p)}
+                className={cn(
+                  'relative size-9 rounded-full transition-transform interactive',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]',
+                  accent === p
+                    ? 'ring-2 ring-offset-2 ring-offset-[var(--color-surface)] ring-[var(--color-fg)] scale-105'
+                    : 'hover:scale-105',
+                )}
+                style={{ background: ACCENT_PREVIEW[p] }}
+              >
+                {accent === p ? (
+                  <Check size={16} aria-hidden className="absolute inset-0 m-auto text-white" />
+                ) : null}
+              </button>
+            ))}
+          </div>
+        )
+      case 'style':
+        return (
+          <div className="flex items-center gap-2">
+            {STYLE_OPTS.map((opt) => (
+              <Seg key={opt} active={replyStyle === opt} onClick={() => setModels({ responseLength: opt })}>
+                {t(`welcome:chatStyle.${opt}`)}
+              </Seg>
+            ))}
+          </div>
+        )
+      case 'memory':
+        return (
+          <label className="flex items-center justify-between gap-4 rounded-[12px] border border-[var(--color-border)] bg-[var(--color-bg-muted)] px-4 py-3.5">
+            <span className="text-sm text-[var(--color-fg)]">{t('welcome:fields.memory')}</span>
+            <Switch checked={memory} onCheckedChange={(v) => setPrivacy({ memoriesEnabled: v })} />
+          </label>
+        )
+    }
+  }
+
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) handleSkip() }}>
       <DialogContent size="xl" showClose={false} className="p-0 overflow-hidden">
+        {/* a11y: one stable title/description for the dialog as a whole. */}
+        <DialogTitle className="sr-only">{t('welcome:config.title')}</DialogTitle>
+        <DialogDescription className="sr-only">{t('welcome:config.subtitle')}</DialogDescription>
+
         <div className="flex flex-col md:flex-row min-h-0 flex-1">
-          {/* Editorial intro */}
-          <aside className="hidden md:flex md:w-[44%] flex-col justify-between gap-10 p-8 bg-[var(--color-bg-muted)] border-r border-[var(--color-divider)]">
-            <Logo size="lg" />
-            <div>
+          {/* Editorial intro with a live, accent-tinted aurora. */}
+          <aside className="relative hidden md:flex md:w-[42%] flex-col justify-between gap-10 overflow-hidden p-8 bg-[var(--color-bg-muted)] border-r border-[var(--color-divider)]">
+            <div aria-hidden className="pointer-events-none absolute inset-0">
+              <div
+                className="absolute -inset-[25%] blur-2xl opacity-[0.16] animate-[welcome-aurora_20s_var(--ease-out)_infinite]"
+                style={{
+                  background:
+                    'radial-gradient(38% 38% at 28% 30%, var(--color-accent), transparent 72%), radial-gradient(42% 42% at 72% 70%, var(--color-accent), transparent 72%)',
+                }}
+              />
+            </div>
+
+            <div className="relative z-10">
+              <Logo size="lg" />
+            </div>
+            <div className="relative z-10">
               <div className="text-[12px] uppercase tracking-[0.1em] text-[var(--color-fg-subtle)]">
                 {t('welcome:intro.eyebrow')}
               </div>
@@ -129,7 +225,7 @@ export function WelcomeCard() {
                 {t('welcome:intro.subtitle')}
               </p>
             </div>
-            <ul className="flex flex-col gap-3.5">
+            <ul className="relative z-10 flex flex-col gap-3.5">
               {[
                 { icon: Pencil, key: 'write' },
                 { icon: BookOpen, key: 'research' },
@@ -145,113 +241,65 @@ export function WelcomeCard() {
             </ul>
           </aside>
 
-          {/* Quick config */}
+          {/* Step panel */}
           <div className="flex-1 min-w-0 flex flex-col min-h-0">
-            <div className="flex-1 overflow-y-auto px-6 sm:px-7 pt-6 sm:pt-7 pb-2">
-              <DialogTitle>{t('welcome:config.title')}</DialogTitle>
-              <DialogDescription>{t('welcome:config.subtitle')}</DialogDescription>
+            <div className="flex-1 overflow-y-auto px-6 sm:px-8 pt-7 pb-2">
+              {/* Progress */}
+              <div className="flex items-center gap-1.5">
+                {STEPS.map((_, i) => (
+                  <span
+                    key={i}
+                    className={cn(
+                      'h-1.5 rounded-full transition-all duration-300',
+                      i === step
+                        ? 'w-6 bg-[var(--color-accent)]'
+                        : i < step
+                          ? 'w-1.5 bg-[var(--color-fg-muted)]'
+                          : 'w-1.5 bg-[var(--color-border)]',
+                    )}
+                  />
+                ))}
+                <span className="ml-auto text-[12px] tabular-nums text-[var(--color-fg-subtle)]">
+                  {step + 1} / {STEPS.length}
+                </span>
+              </div>
 
-              <div className="mt-6 flex flex-col gap-6">
-                {/* Language */}
-                <Field label={t('welcome:fields.language')}>
-                  <Select value={lang} onValueChange={(v) => setLang(v as LanguageCode)}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {SUPPORTED_LANGUAGES.map((l) => (
-                        <SelectItem key={l.code} value={l.code}>
-                          {l.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </Field>
-
-                {/* Appearance / theme */}
-                <Field label={t('welcome:fields.theme')}>
-                  <div className="flex items-center gap-2">
-                    {THEME_OPTS.map((opt) => (
-                      <Seg key={opt} active={themePref === opt} onClick={() => setPref(opt)}>
-                        {t(`welcome:theme.${opt}`)}
-                      </Seg>
-                    ))}
-                  </div>
-                </Field>
-
-                {/* Accent color */}
-                <Field label={t('welcome:fields.accent')}>
-                  <div className="flex items-center gap-2.5">
-                    {ACCENT_PRESETS.map((p) => (
-                      <button
-                        key={p}
-                        type="button"
-                        aria-label={t(`settings:appearance.accent.${p}`)}
-                        aria-pressed={accent === p}
-                        onClick={() => setAccent(p)}
-                        className={cn(
-                          'relative size-8 rounded-full transition-transform interactive',
-                          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]',
-                          accent === p
-                            ? 'ring-2 ring-offset-2 ring-offset-[var(--color-surface)] ring-[var(--color-fg)] scale-105'
-                            : 'hover:scale-105',
-                        )}
-                        style={{ background: ACCENT_PREVIEW[p] }}
-                      >
-                        {accent === p ? (
-                          <Check size={15} aria-hidden className="absolute inset-0 m-auto text-white" />
-                        ) : null}
-                      </button>
-                    ))}
-                  </div>
-                </Field>
-
-                {/* Reply style */}
-                <Field label={t('welcome:fields.chatStyle')} body={t('welcome:fields.chatStyleBody')}>
-                  <div className="flex items-center gap-2">
-                    {STYLE_OPTS.map((opt) => (
-                      <Seg key={opt} active={replyStyle === opt} onClick={() => setModels({ responseLength: opt })}>
-                        {t(`welcome:chatStyle.${opt}`)}
-                      </Seg>
-                    ))}
-                  </div>
-                </Field>
-
-                {/* Memory */}
-                <label className="flex items-center justify-between gap-4 rounded-[12px] border border-[var(--color-border)] bg-[var(--color-bg-muted)] px-4 py-3">
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium text-[var(--color-fg)]">{t('welcome:fields.memory')}</div>
-                    <p className="mt-0.5 text-[12px] text-[var(--color-fg-muted)] leading-relaxed">
-                      {t('welcome:fields.memoryBody')}
-                    </p>
-                  </div>
-                  <Switch checked={memory} onCheckedChange={(v) => setPrivacy({ memoriesEnabled: v })} />
-                </label>
+              {/* Step content — re-keyed so it animates in on each change. */}
+              <div key={step} className="mt-7 animate-[welcome-step_300ms_var(--ease-out)]">
+                <h3 className="font-serif text-2xl tracking-tight text-[var(--color-fg)]">
+                  {t(`welcome:fields.${current === 'style' ? 'chatStyle' : current}`)}
+                </h3>
+                <p className="mt-1.5 text-sm text-[var(--color-fg-muted)] leading-relaxed">
+                  {t(`welcome:stepHints.${current}`)}
+                </p>
+                <div className="mt-6">{renderControl(current)}</div>
               </div>
             </div>
 
-            <div className="shrink-0 border-t border-[var(--color-divider)] px-6 sm:px-7 py-4 flex items-center justify-between gap-3">
+            {/* Footer nav */}
+            <div className="shrink-0 border-t border-[var(--color-divider)] px-6 sm:px-8 py-4 flex items-center justify-between gap-3">
               <Button variant="ghost" onClick={handleSkip}>
                 {t('welcome:actions.skip')}
               </Button>
-              <Button onClick={handleStart} loading={saving}>
-                {t('welcome:actions.start')}
-              </Button>
+              <div className="flex items-center gap-2">
+                {step > 0 ? (
+                  <Button variant="ghost" onClick={() => setStep((s) => s - 1)}>
+                    {t('welcome:actions.back')}
+                  </Button>
+                ) : null}
+                {step < last ? (
+                  <Button onClick={() => setStep((s) => s + 1)}>{t('welcome:actions.next')}</Button>
+                ) : (
+                  <Button onClick={handleStart} loading={saving}>
+                    {t('welcome:actions.start')}
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
         </div>
       </DialogContent>
     </Dialog>
-  )
-}
-
-function Field({ label, body, children }: { label: string; body?: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <div className="text-sm font-medium text-[var(--color-fg)]">{label}</div>
-      {body ? <p className="mt-0.5 text-[12px] text-[var(--color-fg-muted)] leading-relaxed">{body}</p> : null}
-      <div className="mt-2">{children}</div>
-    </div>
   )
 }
 

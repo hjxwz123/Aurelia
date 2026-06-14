@@ -35,17 +35,7 @@
     "memorySubtitle": "The assistant can remember durable facts about you across chats.",
     "memoryToggle": "Enable memory",
     "memoryToggleBody": "When off, no conversation uses or saves memory.",
-    "memoryDisabled": "Memory is off. Turn it on to view and manage saved memories.",
-    "font": {
-      "title": "Typeface",
-      "subtitle": "Choose the font used across the app.",
-      "options": {
-        "default": "Geist (default)",
-        "inter": "Inter",
-        "system": "System",
-        "serif": "Fraunces (serif)"
-      }
-    }
+    "memoryDisabled": "Memory is off. Turn it on to view and manage saved memories."
   },
   "account": {
     "title": "Account",
@@ -74,7 +64,7 @@
       "delete": "Delete account",
       "deleteBody": "Removes your conversations, memories, and account. Irreversible.",
       "dialogTitle": "Delete your account?",
-      "dialogBody": "This will permanently remove all your conversations, memories, and account data. In this build the action is mocked, but the flow is real.",
+      "dialogBody": "This permanently deletes all your conversations, memories, and account data. This cannot be undone.",
       "confirm": "Delete forever",
       "queued": "We've queued your account for deletion (mock).",
       "passwordConfirm": "Enter your password to confirm",
@@ -154,7 +144,17 @@
     "fontSize": "Font size",
     "fontSizeBody": "Affects message body and prose.",
     "language": "Language",
-    "languageBody": "Switch the interface language. Affects all surfaces."
+    "languageBody": "Switch the interface language. Affects all surfaces.",
+    "font": {
+      "title": "Typeface",
+      "subtitle": "Choose the font used across the app.",
+      "options": {
+        "default": "Geist (default)",
+        "inter": "Inter",
+        "system": "System",
+        "serif": "Fraunces (serif)"
+      }
+    }
   },
   "models": {
     "title": "Models",

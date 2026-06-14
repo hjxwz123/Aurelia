@@ -34,6 +34,15 @@
   },
   "actions": {
     "skip": "暂时跳过",
-    "start": "开始使用"
+    "start": "开始使用",
+    "back": "上一步",
+    "next": "下一步"
+  },
+  "stepHints": {
+    "language": "选择界面语言。",
+    "theme": "浅色、深色，或跟随系统。",
+    "accent": "选择应用的强调色。",
+    "style": "默认回复的详细程度。",
+    "memory": "让 Aurelia 跨对话记住有用的信息。"
   }
 }

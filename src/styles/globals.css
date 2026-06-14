@@ -285,6 +285,19 @@
 @keyframes sheet-in-b { from { transform: translateY(100%); } to { transform: translateY(0); } }
 @keyframes sheet-out-b { from { transform: translateY(0); } to { transform: translateY(100%); } }
 
+/* Welcome wizard: a slow accent-tinted aurora on the intro panel, and a soft
+   per-step content enter. Both are disabled by the prefers-reduced-motion rule
+   below (which forces all animations to ~0ms). */
+@keyframes welcome-aurora {
+  0%   { transform: translate3d(-3%, -2%, 0) scale(1.05); opacity: 0.85; }
+  50%  { transform: translate3d(3%, 2%, 0) scale(1.18); opacity: 1; }
+  100% { transform: translate3d(-3%, -2%, 0) scale(1.05); opacity: 0.85; }
+}
+@keyframes welcome-step {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
 /* ============================================================================
  * Utilities
  * ============================================================================ */

@@ -6,7 +6,7 @@ import { useTheme } from '@/store/theme'
 import { useAccent } from '@/store/accent'
 import { useLanguage } from '@/store/language'
 import { SUPPORTED_LANGUAGES } from '@/i18n'
-import { type AccentPref, ACCENT_PRESETS } from '@/types/settings'
+import { type AccentPref, ACCENT_PRESETS, type FontPref, FONT_PRESETS } from '@/types/settings'
 import {
   Select,
   SelectContent,
@@ -32,6 +32,15 @@ const ACCENT_PREVIEW: Record<AccentPref, string> = {
   rose:   'oklch(60% 0.180 5)',
 }
 
+// CSS family per typeface preset so each card previews in its own font,
+// regardless of which font is currently applied to the document.
+const FONT_PREVIEW: Record<FontPref, string> = {
+  default: "'Geist Variable', 'Geist', ui-sans-serif, sans-serif",
+  inter: "'Inter Variable', 'Inter', ui-sans-serif, sans-serif",
+  system: 'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
+  serif: "'Fraunces Variable', 'Fraunces', ui-serif, Georgia, serif",
+}
+
 export default function Appearance() {
   const pref = useTheme((s) => s.pref)
   const setPref = useTheme((s) => s.setPref)
@@ -45,6 +54,11 @@ export default function Appearance() {
   const { t } = useTranslation('settings')
 
   useEffect(() => syncSystem(), [syncSystem])
+  // Eager-load Inter so its preview renders in the real face before selection
+  // (it's otherwise lazy-loaded only when chosen).
+  useEffect(() => {
+    void import('@fontsource-variable/inter')
+  }, [])
 
   return (
     <div className="max-w-[44rem]">
@@ -117,6 +131,34 @@ export default function Appearance() {
             <Segment current={appearance.fontSize} value="lg" onClick={() => setAppearance({ fontSize: 'lg' })}>
               L
             </Segment>
+          </div>
+        </SettingsRow>
+        <SettingsRow label={t('appearance.font.title')} description={t('appearance.font.subtitle')}>
+          <div className="flex flex-wrap gap-2 sm:justify-end">
+            {FONT_PRESETS.map((opt) => {
+              const active = appearance.font === opt
+              return (
+                <button
+                  key={opt}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => setAppearance({ font: opt })}
+                  style={{ fontFamily: FONT_PREVIEW[opt] }}
+                  className={cn(
+                    'flex flex-col items-start gap-0.5 rounded-[10px] border px-3 py-2 text-left interactive min-w-[6.5rem]',
+                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]',
+                    active
+                      ? 'border-[var(--color-accent)] bg-[var(--color-accent-soft)]'
+                      : 'border-[var(--color-border)] hover:border-[var(--color-border-strong)]',
+                  )}
+                >
+                  <span className="text-[16px] leading-tight text-[var(--color-fg)]">Ag 字</span>
+                  <span className="text-[11px] text-[var(--color-fg-muted)]">
+                    {t(`appearance.font.options.${opt}`)}
+                  </span>
+                </button>
+              )
+            })}
           </div>
         </SettingsRow>
       </SettingsSection>
