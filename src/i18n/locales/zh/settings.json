@@ -35,17 +35,7 @@
     "memorySubtitle": "助手可以跨对话记住关于你的长期信息。",
     "memoryToggle": "启用记忆",
     "memoryToggleBody": "关闭后,所有对话都不会使用或保存记忆。",
-    "memoryDisabled": "记忆已关闭。开启后可查看和管理已保存的记忆。",
-    "font": {
-      "title": "字体",
-      "subtitle": "选择全站使用的字体。",
-      "options": {
-        "default": "Geist（默认）",
-        "inter": "Inter",
-        "system": "系统字体",
-        "serif": "Fraunces（衬线）"
-      }
-    }
+    "memoryDisabled": "记忆已关闭。开启后可查看和管理已保存的记忆。"
   },
   "account": {
     "title": "账号",
@@ -74,7 +64,7 @@
       "delete": "删除账号",
       "deleteBody": "会同时删除你的会话、记忆与账号，不可恢复。",
       "dialogTitle": "确定删除你的账号？",
-      "dialogBody": "将永久删除全部会话、记忆与账号数据。本版本仅为模拟流程，但交互是真实的。",
+      "dialogBody": "将永久删除你的全部会话、记忆与账号数据，且不可恢复。",
       "confirm": "永久删除",
       "queued": "已加入删除队列（模拟）。",
       "passwordConfirm": "输入密码以确认",
@@ -154,7 +144,17 @@
     "fontSize": "字号",
     "fontSizeBody": "影响消息正文与长文。",
     "language": "语言",
-    "languageBody": "切换界面语言，全局生效。"
+    "languageBody": "切换界面语言，全局生效。",
+    "font": {
+      "title": "字体",
+      "subtitle": "选择全站使用的字体。",
+      "options": {
+        "default": "Geist（默认）",
+        "inter": "Inter",
+        "system": "系统字体",
+        "serif": "Fraunces（衬线）"
+      }
+    }
   },
   "models": {
     "title": "模型",

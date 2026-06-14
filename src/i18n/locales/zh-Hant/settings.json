@@ -35,17 +35,7 @@
     "memorySubtitle": "助手可以跨對話記住關於你的長期資訊。",
     "memoryToggle": "啟用記憶",
     "memoryToggleBody": "關閉後,所有對話都不會使用或儲存記憶。",
-    "memoryDisabled": "記憶已關閉。開啟後可檢視和管理已儲存的記憶。",
-    "font": {
-      "title": "字型",
-      "subtitle": "選擇全站使用的字型。",
-      "options": {
-        "default": "Geist（預設）",
-        "inter": "Inter",
-        "system": "系統字型",
-        "serif": "Fraunces（襯線）"
-      }
-    }
+    "memoryDisabled": "記憶已關閉。開啟後可檢視和管理已儲存的記憶。"
   },
   "account": {
     "title": "賬號",
@@ -74,7 +64,7 @@
       "delete": "刪除賬號",
       "deleteBody": "會同時刪除你的會話、記憶與賬號，不可恢復。",
       "dialogTitle": "確定刪除你的賬號？",
-      "dialogBody": "將永久刪除全部會話、記憶與賬號資料。本版本僅為模擬流程，但互動是真實的。",
+      "dialogBody": "將永久刪除你的全部對話、記憶與帳號資料，且無法復原。",
       "confirm": "永久刪除",
       "queued": "已加入刪除佇列（模擬）。",
       "passwordConfirm": "輸入密碼以確認",
@@ -154,7 +144,17 @@
     "fontSize": "字號",
     "fontSizeBody": "影響訊息正文與長文。",
     "language": "語言",
-    "languageBody": "切換介面語言，全域性生效。"
+    "languageBody": "切換介面語言，全域性生效。",
+    "font": {
+      "title": "字型",
+      "subtitle": "選擇全站使用的字型。",
+      "options": {
+        "default": "Geist（預設）",
+        "inter": "Inter",
+        "system": "系統字型",
+        "serif": "Fraunces（襯線）"
+      }
+    }
   },
   "models": {
     "title": "模型",

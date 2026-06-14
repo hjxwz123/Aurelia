@@ -34,6 +34,15 @@
   },
   "actions": {
     "skip": "Passer pour l'instant",
-    "start": "Commencer"
+    "start": "Commencer",
+    "back": "Précédent",
+    "next": "Suivant"
+  },
+  "stepHints": {
+    "language": "Choisissez la langue de l'interface.",
+    "theme": "Clair, sombre, ou selon le système.",
+    "accent": "Choisissez une couleur d'accent.",
+    "style": "Niveau de détail des réponses par défaut.",
+    "memory": "Laissez Aurelia mémoriser des détails utiles entre les conversations."
   }
 }

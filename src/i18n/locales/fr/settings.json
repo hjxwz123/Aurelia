@@ -35,17 +35,7 @@
     "memorySubtitle": "L'assistant peut retenir des faits durables vous concernant d'une discussion à l'autre.",
     "memoryToggle": "Activer la mémoire",
     "memoryToggleBody": "Lorsqu'elle est désactivée, aucune conversation n'utilise ni n'enregistre la mémoire.",
-    "memoryDisabled": "La mémoire est désactivée. Activez-la pour consulter et gérer les mémoires enregistrées.",
-    "font": {
-      "title": "Police",
-      "subtitle": "Choisissez la police utilisée dans toute l'application.",
-      "options": {
-        "default": "Geist (par défaut)",
-        "inter": "Inter",
-        "system": "Système",
-        "serif": "Fraunces (serif)"
-      }
-    }
+    "memoryDisabled": "La mémoire est désactivée. Activez-la pour consulter et gérer les mémoires enregistrées."
   },
   "account": {
     "title": "Compte",
@@ -74,7 +64,7 @@
       "delete": "Supprimer le compte",
       "deleteBody": "Supprime vos conversations, vos mémoires et votre compte. Irréversible.",
       "dialogTitle": "Supprimer votre compte ?",
-      "dialogBody": "Cela supprimera définitivement toutes vos conversations, vos mémoires et les données de votre compte. Dans cette version, l'action est simulée, mais le déroulement est réel.",
+      "dialogBody": "Cela supprime définitivement toutes vos conversations, mémoires et données de compte. Cette action est irréversible.",
       "confirm": "Supprimer définitivement",
       "queued": "Nous avons mis votre compte en file d'attente pour suppression (simulation).",
       "passwordConfirm": "Saisissez votre mot de passe pour confirmer",
@@ -154,7 +144,17 @@
     "fontSize": "Taille de police",
     "fontSizeBody": "Affecte le corps des messages et le texte.",
     "language": "Langue",
-    "languageBody": "Changez la langue de l'interface. Affecte toutes les surfaces."
+    "languageBody": "Changez la langue de l'interface. Affecte toutes les surfaces.",
+    "font": {
+      "title": "Police",
+      "subtitle": "Choisissez la police utilisée dans toute l'application.",
+      "options": {
+        "default": "Geist (par défaut)",
+        "inter": "Inter",
+        "system": "Système",
+        "serif": "Fraunces (serif)"
+      }
+    }
   },
   "models": {
     "title": "Modèles",

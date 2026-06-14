@@ -34,6 +34,15 @@
   },
   "actions": {
     "skip": "Skip for now",
-    "start": "Get started"
+    "start": "Get started",
+    "back": "Back",
+    "next": "Next"
+  },
+  "stepHints": {
+    "language": "Choose your interface language.",
+    "theme": "Light, dark, or follow your system.",
+    "accent": "Pick an accent color for the app.",
+    "style": "How detailed should replies be by default?",
+    "memory": "Let Aurelia remember useful details across your chats."
   }
 }

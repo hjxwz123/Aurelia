@@ -35,17 +35,7 @@
     "memorySubtitle": "アシスタントはチャットをまたいであなたに関する永続的な事実を記憶できます。",
     "memoryToggle": "メモリーを有効にする",
     "memoryToggleBody": "オフにすると、どの会話もメモリーを使用・保存しません。",
-    "memoryDisabled": "メモリーはオフです。保存されたメモリーを表示・管理するにはオンにしてください。",
-    "font": {
-      "title": "フォント",
-      "subtitle": "アプリ全体で使用するフォントを選択します。",
-      "options": {
-        "default": "Geist（デフォルト）",
-        "inter": "Inter",
-        "system": "システム",
-        "serif": "Fraunces（セリフ）"
-      }
-    }
+    "memoryDisabled": "メモリーはオフです。保存されたメモリーを表示・管理するにはオンにしてください。"
   },
   "account": {
     "title": "アカウント",
@@ -74,7 +64,7 @@
       "delete": "アカウントを削除",
       "deleteBody": "会話、メモリー、アカウントが削除されます。取り消せません。",
       "dialogTitle": "アカウントを削除しますか？",
-      "dialogBody": "すべての会話、メモリー、アカウントデータが完全に削除されます。このビルドでは操作はモックですが、フローは本物です。",
+      "dialogBody": "すべての会話・メモリー・アカウントデータを完全に削除します。元に戻せません。",
       "confirm": "完全に削除",
       "queued": "アカウントの削除を予約しました（モック）。",
       "passwordConfirm": "確認のためパスワードを入力してください",
@@ -154,7 +144,17 @@
     "fontSize": "フォントサイズ",
     "fontSizeBody": "メッセージ本文と文章に影響します。",
     "language": "言語",
-    "languageBody": "インターフェースの言語を切り替えます。すべての画面に影響します。"
+    "languageBody": "インターフェースの言語を切り替えます。すべての画面に影響します。",
+    "font": {
+      "title": "フォント",
+      "subtitle": "アプリ全体で使用するフォントを選択します。",
+      "options": {
+        "default": "Geist（デフォルト）",
+        "inter": "Inter",
+        "system": "システム",
+        "serif": "Fraunces（セリフ）"
+      }
+    }
   },
   "models": {
     "title": "モデル",
