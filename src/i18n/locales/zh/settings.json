@@ -66,9 +66,17 @@
       "dialogTitle": "确定删除你的账号？",
       "dialogBody": "将永久删除全部会话、记忆与账号数据。本版本仅为模拟流程，但交互是真实的。",
       "confirm": "永久删除",
-      "queued": "已加入删除队列（模拟）。"
+      "queued": "已加入删除队列（模拟）。",
+      "passwordConfirm": "输入密码以确认",
+      "deleted": "账号已删除"
     },
     "saved": "资料已保存。",
+    "passwordMinLength": "密码至少 8 个字符",
+    "passwordUpdated": "密码已更新 —— 请重新登录",
+    "signOutOnSuccess": "修改成功后将自动退出登录。",
+    "currentPassword": "当前密码",
+    "newPassword": "新密码",
+    "newPasswordHint": "至少 8 个字符",
     "passwordMocked": "修改密码为模拟。",
     "twoFactorMocked": "本版本中两步验证为模拟。",
     "sessionsMocked": "登录设备列表为模拟。",

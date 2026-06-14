@@ -74,6 +74,22 @@ func (c *redisCache) Incr(key string, ttl time.Duration) int64 {
 	return n
 }
 
+// Decr atomically decrements key, flooring at 0.
+func (c *redisCache) Decr(key string) int64 {
+	ctx, cancel := context.WithTimeout(c.ctx, 3*time.Second)
+	defer cancel()
+	n, err := c.rdb.Decr(ctx, key).Result()
+	if err != nil {
+		return 0
+	}
+	// Floor at zero — avoid negative counter on race.
+	if n < 0 {
+		_ = c.rdb.Set(ctx, key, "0", redis.KeepTTL).Err()
+		return 0
+	}
+	return n
+}
+
 func (c *redisCache) Publish(topic, payload string) {
 	ctx, cancel := context.WithTimeout(c.ctx, 3*time.Second)
 	defer cancel()

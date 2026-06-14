@@ -66,9 +66,17 @@
       "dialogTitle": "Delete your account?",
       "dialogBody": "This will permanently remove all your conversations, memories, and account data. In this build the action is mocked, but the flow is real.",
       "confirm": "Delete forever",
-      "queued": "We've queued your account for deletion (mock)."
+      "queued": "We've queued your account for deletion (mock).",
+      "passwordConfirm": "Enter your password to confirm",
+      "deleted": "Account deleted"
     },
     "saved": "Profile saved.",
+    "passwordMinLength": "Password must be at least 8 characters",
+    "passwordUpdated": "Password updated — please sign in again",
+    "signOutOnSuccess": "You'll be signed out on success.",
+    "currentPassword": "Current password",
+    "newPassword": "New password",
+    "newPasswordHint": "Minimum 8 characters",
     "passwordMocked": "Password change is mocked.",
     "twoFactorMocked": "2FA is mocked in this build.",
     "sessionsMocked": "Session list is mocked.",

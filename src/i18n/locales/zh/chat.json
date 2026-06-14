@@ -58,7 +58,16 @@
     "shareCopied": "分享链接已复制",
     "branch": "切换分支",
     "prevBranch": "上一个分支",
-    "nextBranch": "下一个分支"
+    "nextBranch": "下一个分支",
+    "fork": "分支为新对话",
+    "forked": "已分支为新对话"
+  },
+  "message": {
+    "refused": "模型拒绝回答此请求。",
+    "ragFullText": "已注入完整文档",
+    "ragFullDoc": "全文档上下文",
+    "ragNone": "跳过检索",
+    "ragDefault": "已检索来源"
   },
   "tools": {
     "web_search": "网页搜索",

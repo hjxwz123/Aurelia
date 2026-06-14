@@ -76,18 +76,18 @@
 | 前端 | **React 19 + TypeScript + Vite + Zustand + React Router** | 项目既定方向；Zustand 轻量 store 适合复杂流式状态管理，React 19 并发特性适配增量流式渲染 |
 | UI | Tailwind CSS（+ 少量自定义组件） | 快速实现 ChatGPT 风格界面 |
 | Markdown | `marked` + `katex`（公式）+ 代码高亮 | 渲染质量高，支持流式增量渲染 |
-| 后端 | **Go + Gin**（或 chi） | 单二进制部署、高并发 SSE 天然适配（每连接一个 goroutine）、RAG 文档处理流水线适合 Go 并发模型 |
-| 模型 SDK | 各家**官方 Go SDK**：`anthropic-sdk-go`、`openai-go`、`google.golang.org/genai`，上层自研 Provider 适配层（见 §2.3） | 完整使用 function calling，按渠道格式调工具 |
+| 后端 | **Go 1.24 + 自定义轻量路由**（`api/mux.go`，纯标准库实现，`:param` 路径捕获） | 单二进制部署、高并发 SSE 天然适配（每连接一个 goroutine）、RAG 文档处理流水线适合 Go 并发模型 |
+| 模型 SDK | **不使用任何官方 SDK**——各家 Provider 直接使用 `net/http` + JSON 编解码 手写 HTTP 调用，上层自研 Provider 适配层（见 §2.3） | 完整使用 function calling，按渠道格式调工具；零 SDK 依赖简化维护 |
 | 模型配置 | **渠道（base_url+key+类型）→ 模型（request_id/能力/system_prompt）**，全后台 DB 配置（§2.3-B） | 管理员建多渠道多模型；用户切换对话模型 |
 | 嵌入模型 | **OpenAI 嵌入格式**，模型/维度/base_url/key 后台配（§4.11-D）：OpenAI / Voyage / 自部署 BGE-M3(兼容端点) | 整库统一一个嵌入模型（强约束） |
-| 代码沙箱 | **OpenTerminal 自部署**（纯 Python 运行时 + 文档生成依赖，§4.5），`SandboxService` 接口适配 | 不自研沙箱本体；所有模型共用同一沙箱，会话文件状态保持 |
+| 代码沙箱 | **自建沙箱 sidecar**（`sandbox-service/`，FastAPI + Docker 容器管理：`--network none, --memory 2g, --cpus 1`，30 分钟闲置回收，S3/OSS 归档），`SandboxService` 接口适配 | 所有模型共用同一沙箱，会话文件状态保持 |
 | 网页搜索 | SearXNG（自部署）或 Serper / Brave / Bing API，`Searcher` 接口抽象 | 见 §4.4；自建工具，跨模型一致、带引用 |
-| 图片生成 | `ImageGenerator` 接口，双后端：GPT（Images API）/ Gemini Nano Banana（generateContent inlineData），经统一网关 | 见 §4.12；支持图生图/编辑 |
+| 图片生成 | `imageGenerateTool` 内联在 `builtins.go` 中实现，Gemini（`generateContent` + `responseModalities:["IMAGE"]`）/ OpenAI（Images API）双通道，支持图生图/编辑，每日限额，prompt 审核 | 见 §4.12；支持图生图/编辑 |
 | 文档解析 | 纯文字→本地 Go 解析；含图片/扫描件→**MinerU API**（官方云服务，含 OCR/版式/表格/公式/抽图）+ 图片 VLM 描述 | 见 §4.11-C；按文档复杂度路由，省成本又保质量 |
 | 向量数据库 | **Qdrant**（独立集群，HNSW + 标量过滤 + 多租户） | 见 §4.11-E；`VectorStore` 接口；按 kb/conversation 过滤 |
-| 数据库 | PostgreSQL（业务/元数据），`pgx` + `sqlc`（或 GORM） | 强 JSONB + 全文检索；向量交给 Qdrant |
-| **Redis** | **核心基础设施**（非可选）：缓存 + 队列 + 限流 + 协调 + 流，详见 §2.4 | 给 PG 与模型/嵌入 API 全面卸压 |
-| 任务队列 | **asynq**（基于 Redis）：文档解析/嵌入/标题等异步任务，内置重试/退避/定时/面板 | Redis 反正要用，零额外组件 |
+| 数据库 | **SQLite**（开发/单机，WAL 单写者）+ **PostgreSQL**（生产），`database/sql` + `go-sqlite3` + `pgx`（驱动切换）| 轻量起步，生产可切换 PG；向量交给 Qdrant |
+| **Redis** | 缓存 + 限流 + Pub/Sub（停止生成信号、封号广播）+ 验证码存储 + OAuth state + 并发控制。开发环境使用内存实现（`cache.NewMemory()`），生产切 Redis | 给 DB 与模型 API 卸压 |
+| 任务队列 | **内存 goroutine 池**（`queue.Queue`）：文档解析/嵌入/标题等异步任务，轻量级调度 | 单实例部署足够，无额外依赖 |
 | 认证 | JWT（httpOnly cookie）+ Redis 撤销名单 | 简单可靠 |
 | 部署 | Docker Compose（web + api + postgres + qdrant + redis + minio） | 一键部署 |
 
@@ -125,17 +125,17 @@ type ChatProvider interface {
     // 输出：统一 SSE 事件流（onEvent 回调）+ 最终结果
     // 适配器内部自行处理各家的工具循环、续传、容器复用、引用解析；
     // ctx 取消即"停止生成"
-    Stream(ctx context.Context, req UnifiedChatRequest, onEvent func(SseEvent)) (*UnifiedResult, error)
+    Stream(ctx context.Context, req UnifiedChatRequest, tools ToolRunner, onEvent func(SseEvent)) (*UnifiedResult, error)
 }
 ```
 
-每家一个适配器，各自基于官方 Go SDK 实现：
+每家一个适配器，直接使用 `net/http` + JSON 手写 HTTP 调用（不依赖官方 SDK）：
 
-| 适配器 | SDK | 底层 API | 备注 |
+| 适配器 | 底层实现 | 底层 API | 备注 |
 |---|---|---|---|
-| `AnthropicProvider` | `github.com/anthropics/anthropic-sdk-go` | Messages API（stream） | §4.3 的编排器就是它的实现 |
-| `OpenAIProvider` | `github.com/openai/openai-go` | **Responses API**（推荐；function calling 与 reasoning 事件模型更好） | 自建工具经 function calling 暴露 |
-| `GoogleProvider` | `google.golang.org/genai` | GenerateContentStream | 自建工具经 functionDeclarations 暴露 |
+| `AnthropicProvider` | 直接 HTTP（`net/http` + JSON） | Messages API（stream） | thinking 块签名追踪、缓存断点（`cache_control`）、12 轮工具循环 |
+| `OpenAIProvider` | 直接 HTTP（`net/http` + JSON） | **Chat Completions + Responses API**（按渠道 `api_format` 选择） | 支持 reasoning（o-series/DeepSeek-R1）、hosted tools（`web_search`/`code_interpreter`/`image_generation`）、`store:false` 强制 |
+| `GoogleProvider` | 直接 HTTP（`net/http` + JSON） | `streamGenerateContent?alt=sse` | thought/thought_summary、functionCall/functionResponse 循环 |
 
 > **接入点 = 渠道的 base_url**：每个渠道（§2.3-B）自带 base_url + key，适配器按渠道把 SDK 的 base URL 指过去——`anthropic-sdk-go`/`openai-go` 用 `option.WithBaseURL(...)`，`genai` 用 `ClientConfig.HTTPOptions.BaseURL`。base_url 可指向**官方端点**、**自有统一网关**（若用网关做 Key 池/配额/计费），或任意兼容端点——完全由管理员配，本设计不绑定单一网关。
 >
@@ -602,11 +602,11 @@ type Searcher interface {
 - 模型自主决定是否联网；希望更积极时在 system prompt 加"搜索优先"指令（§4.8）。
 - **SearXNG SSRF 注意**：`search_base_url` 是管理员可控的，可指向 `169.254.169.254` 这类内网元数据地址；这一栏由管理员的运维责任承担，框架不做地址级拒绝（自部署聚合引擎本来就常落内网域名）。生产环境务必把 SearXNG 跑在隔离的网段、限制可访问的下游 engines。
 
-### 4.5 工具②：Python 沙箱（OpenTerminal + 接口适配）
+### 4.5 工具②：Python 沙箱（自建 sandbox-service + 接口适配）
 
-**沙箱选用 [OpenTerminal](https://github.com/) 自部署**（现成开源方案，不自研沙箱本体），本项目只写一层 `SandboxService` 适配器。运行环境**纯 Python**（不引入 Node.js），所有能力靠 Python 库 + 少量系统二进制实现（见下方镜像清单与 §4.5.1 文档生成）。
+**沙箱为自建 FastAPI sidecar**（`sandbox-service/app.py`），管理 Docker 容器（`--network none, --memory 2g, --cpus 1`）实现隔离执行。本项目写了 `SandboxService` 适配器对接。运行环境**纯 Python**（不引入 Node.js），所有能力靠 Python 库 + 少量系统二进制实现（见下方镜像清单与 §4.5.1 文档生成）。
 
-**接入 OpenTerminal 时必须确认的能力清单**（缺哪项需外挂补齐）：
+**自建沙箱 sidecar 的核心能力**：
 1. **会话制 + 文件持久**：能按会话创建/复用实例，/workspace 文件在多次执行间保留（对标 ChatGPT Code Interpreter 的关键体验）；
 2. **可自定义镜像**：能装下方的系统级依赖（playwright/chromium、weasyprint 的 pango/cairo、LibreOffice、CJK 字体）——**这是文档生成能否做出优质效果的前提，选型第一优先级核对项**；
 3. 文件 API：上传用户数据集进沙箱、取回生成的图/文件；
@@ -615,7 +615,7 @@ type Searcher interface {
 6. 网络管控：默认断网，pip 可走内网镜像白名单；
 7. 并发容量与冷启动：支持 warm pool 或秒级创建（§11 规模下需 1–1.5K 并发实例）+ 多节点水平扩容。
 
-> 若 OpenTerminal 某项不满足（尤其②自定义镜像、①会话文件持久），`SandboxService` 是唯一耦合点，换其它方案（E2B、Daytona 等）只改这层实现，不动业务。
+> 沙箱为自建 sidecar，`SandboxService` 是唯一耦合点，换其它方案（E2B、Daytona 等）只改这层实现，不动业务。
 
 **会话级状态约定**（无论选哪家，适配器保证同一行为）
 - 首次执行代码时创建沙箱实例，`sandbox_id` 存 `conversations.provider_state.sandbox`；同会话复用。
@@ -1357,6 +1357,27 @@ system = [全局 system] + [项目指令(若在项目内)]
 
 **与工具的区别**：工具（§4.2）= 能"做"某事的执行单元（搜索/跑码/绘图）；技能 = "怎么做好"某类任务的说明书 + 资产。技能常常**指挥工具**（如"文档生成"技能教模型用 python_execute + 模板做出优质 PPT）。
 
+### 4.18 深度研究（Deep Research）
+
+用户可选 `mode=deep-research` 发送消息，触发 4 阶段管道（`deep_research.go`，671 行）：
+
+1. **PLAN**：TaskLLM 将用户问题分解为 3-6 个不重叠的子问题，每个附带 1-3 条搜索查询。
+2. **RESEARCH**：并发执行多轮搜索+阅读（`drMaxRounds=4`, `drQueriesPerRound=6`），域名多样化排序，去重已访问 URL。
+3. **VERIFY**：TaskLLM 审计覆盖率，标记弱证据/未覆盖子问题，补充搜索查询。
+4. **WRITE**：使用主 Provider 流式生成带引用的综合报告（`citation-aware` 提示词），5 分钟硬超时。
+
+前端通过 `research_plan` / `research_task` / `research_source` 三类 SSE 事件实时更新研究面板（`research-panel.tsx`），展示子问题进度、源可信度、最终报告。
+
+### 4.19 用户个性化（Persona）
+
+用户可配置（`Personalization.tsx` → `user.settings`）：
+
+- **语气风格**（tone）：formal / casual / friendly / professional
+- **昵称**（nickname）：模型回复中使用
+- **自定义指令**（custom_instructions）：额外的全局指令，上限 2000 字符
+
+编排器（`orchestrator.go` `readUserPersona`）将上述配置拼入系统提示词的第⑤段，优先级低于项目指令和记忆。支持记忆系统开关（全局+用户级）。
+
 ---
 
 ## 5. 数据库设计
@@ -1861,7 +1882,7 @@ EMBEDDING_API_KEY=...
 SEARCH_PROVIDER=serper            # §4.4 web search 后端 boot-time 兜底
 SEARCH_API_KEY=...                # 优先读 admin settings (search_provider / search_api_key / search_base_url)
 SEARCH_BASE_URL=...               # 改 settings 即生效;清空 settings 字段 = 显式禁用
-SANDBOX_BASE_URL=...              # 现成沙箱方案（E2B/OpenTerminal 等）的服务地址
+SANDBOX_BASE_URL=...              # 自建沙箱 sidecar 的服务地址
 SANDBOX_API_KEY=...
 # §4.5 /workspace 归档桶——优先读 admin settings (storage_provider/storage_*)；
 # 下面这组只是 sidecar 启动时的兜底（无 settings 时仍能跑通 dev）。
@@ -1908,7 +1929,7 @@ DAILY_MESSAGE_LIMIT=100           # 每用户每日条数限额
 
 ### M2 — 统一工具层（约 2.5 周，先在 Claude 适配器上打通）
 - [ ] Tool 接口 + Registry + 多轮工具循环（§4.2/§4.3），实时 SSE 工具事件
-- [ ] 接入 OpenTerminal（按 §4.5 清单核对，重点：自定义镜像 + 会话文件持久）+ `SandboxService` 适配 + `python_execute`（会话状态、产物收集）
+- [ ] 对接自建沙箱 sidecar（按 §4.5 清单核对，重点：Docker 容器隔离 + 会话文件持久 + 30 分钟 reaper）+ `SandboxService` 适配 + `python_execute`（会话状态、产物收集）
 - [ ] 沙箱镜像：数据科学栈 + python-pptx/docx/weasyprint/playwright(chromium) + CJK 字体
 - [ ] 文档生成（§4.5.1）：HTML→PDF(weasyprint) / HTML 截图→PPT(playwright+python-pptx) + 视觉 QA 循环 + 下载
 - [ ] **技能系统**（§4.17）：skills/model_skills 表 + use_skill 工具(渐进式加载+拷资产入沙箱) + 索引注入 system + AdminSkillsView + 模型页勾选
@@ -1957,6 +1978,8 @@ DAILY_MESSAGE_LIMIT=100           # 每用户每日条数限额
 ---
 
 ## 11. 分布式与高并发架构（容量目标：10W+ 同时在线）
+
+> **⚠️ 实现状态**：本节为**未来规划**，当前代码为**单实例部署**（SQLite/PostgreSQL 单机 + 内存队列 + Docker Compose 5 服务），尚未实现分布式改造（MQ 解耦、Generation Worker 分离、Redis 分布式锁等）。§11.7 演进路线中处于阶段 0（单机 Docker Compose）。
 
 ### 11.0 容量估算 —— 先算账，再设计
 

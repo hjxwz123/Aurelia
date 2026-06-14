@@ -183,7 +183,11 @@ export const useProjects = create<ProjectStore>((set, get) => ({
           : p,
       ),
     }))
-    // Rename is not yet a backend endpoint; keep local-only for now.
+    try {
+      await projectsApi.renameDoc(id, fileId, trimmed)
+    } catch {
+      /* best-effort — local state already updated */
+    }
   },
 
   getProject(id) {

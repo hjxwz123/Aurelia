@@ -445,6 +445,13 @@ func UpdateMessageContent(ctx context.Context, db *sql.DB, id string, blocks jso
 	return err
 }
 
+// SetMessageFeedback stores a like/dislike on an assistant message.
+// Valid values: "like", "dislike", "" (clear).
+func SetMessageFeedback(ctx context.Context, db *sql.DB, id, feedback string) error {
+	_, err := db.ExecContext(ctx, `UPDATE messages SET feedback=? WHERE id=?`, feedback, id)
+	return err
+}
+
 // SiblingsOf returns ids of messages sharing the same parent and role (or the
 // same nil parent for roots), used by the frontend to render the < n/m >
 // branch picker.

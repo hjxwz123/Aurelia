@@ -59,7 +59,16 @@
     "shareCopied": "Share link copied",
     "branch": "Switch branch",
     "prevBranch": "Previous branch",
-    "nextBranch": "Next branch"
+    "nextBranch": "Next branch",
+    "fork": "Fork to new conversation",
+    "forked": "Forked to a new conversation"
+  },
+  "message": {
+    "refused": "The model declined to answer this request.",
+    "ragFullText": "Injected full document(s)",
+    "ragFullDoc": "Whole-document context",
+    "ragNone": "Skipped retrieval",
+    "ragDefault": "Retrieved sources"
   },
   "tools": {
     "web_search": "Web search",

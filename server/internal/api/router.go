@@ -70,6 +70,7 @@ func NewRouter(d Deps) http.Handler {
 	// Authenticated endpoints.
 	mux.handle("GET", "/api/me", requireAuth(d, meHandler))
 	mux.handle("PATCH", "/api/me", requireAuth(d, updateMeHandler))
+	mux.handle("DELETE", "/api/me", requireAuth(d, deleteMeHandler))
 	mux.handle("PATCH", "/api/me/password", requireAuth(d, changePasswordHandler))
 	mux.handle("GET", "/api/me/usage", requireAuth(d, meUsageHandler))
 	mux.handle("GET", "/api/me/settings", requireAuth(d, meSettingsHandler))
@@ -98,6 +99,7 @@ func NewRouter(d Deps) http.Handler {
 	mux.handle("GET", "/api/projects/:id/documents", requireAuth(d, listProjectDocsHandler))
 	mux.handle("POST", "/api/projects/:id/documents", requireAuth(d, uploadProjectDocHandler))
 	mux.handle("DELETE", "/api/projects/:id/documents/:docId", requireAuth(d, deleteProjectDocHandler))
+	mux.handle("PATCH", "/api/projects/:id/documents/:docId", requireAuth(d, renameProjectDocHandler))
 
 	mux.handle("GET", "/api/conversations", requireAuth(d, listConversationsHandler))
 	mux.handle("POST", "/api/conversations", requireAuth(d, createConversationHandler))
@@ -107,6 +109,7 @@ func NewRouter(d Deps) http.Handler {
 	mux.handle("GET", "/api/conversations/:id/messages", requireAuth(d, listMessagesHandler))
 	mux.handle("POST", "/api/conversations/:id/messages", requireAuth(d, postMessageHandler))
 	mux.handle("PATCH", "/api/conversations/:id/messages/:msgId", requireAuth(d, editMessageHandler))
+	mux.handle("POST", "/api/conversations/:id/messages/:msgId/feedback", requireAuth(d, feedbackMessageHandler))
 	mux.handle("POST", "/api/conversations/:id/stop", requireAuth(d, stopHandler))
 	mux.handle("POST", "/api/conversations/:id/regenerate", requireAuth(d, regenerateHandler))
 	mux.handle("PATCH", "/api/conversations/:id/active-leaf", requireAuth(d, setActiveLeafHandler))

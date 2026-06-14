@@ -44,6 +44,10 @@
       "added": "Added"
     },
     "removeDocConfirm": "Remove \"{{name}}\" from this library?",
-    "removed": "Document removed"
+    "removed": "Document removed",
+    "tabPaste": "Paste text",
+    "tabUpload": "Upload file",
+    "contentLabel": "Content",
+    "clickToChoose": "Click to choose files"
   }
 }

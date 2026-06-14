@@ -381,6 +381,7 @@ func setCookie(w http.ResponseWriter, name, value string, expires time.Time, res
 		Name:     name,
 		Value:    value,
 		HttpOnly: true,
+		Secure:   true,
 		Path:     "/",
 		SameSite: http.SameSiteLaxMode,
 		Expires:  expires,
@@ -399,11 +400,12 @@ func clearCookie(w http.ResponseWriter, name string) {
 }
 
 // genCode6 generates a cryptographically random 6-digit code ("000000"–"999999").
+// Panics if the OS entropy source is broken — a predictable fallback would be a
+// security hole (every account would share the same code).
 func genCode6() string {
 	n, err := rand.Int(rand.Reader, big.NewInt(1000000))
 	if err != nil {
-		// Fallback — should never happen with a working OS entropy source.
-		return "123456"
+		panic("genCode6: crypto/rand unavailable — refusing to use a predictable code: " + err.Error())
 	}
 	return fmt.Sprintf("%06d", n.Int64())
 }

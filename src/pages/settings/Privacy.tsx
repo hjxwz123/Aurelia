@@ -14,7 +14,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { toast } from '@/hooks/use-toast'
-import { conversationsApi, memoriesApi } from '@/api'
+import { conversationsApi, memoriesApi, authApi } from '@/api'
 import { useConversations } from '@/store/conversations'
 
 export default function Privacy() {
@@ -22,8 +22,58 @@ export default function Privacy() {
   const set = useSettings((s) => s.setPrivacy)
   const [confirmClear, setConfirmClear] = useState(false)
   const [clearing, setClearing] = useState(false)
+  const [exporting, setExporting] = useState(false)
   const { t } = useTranslation(['settings', 'common'])
   const reloadConvs = useConversations((s) => s.load)
+
+  /** Persist privacy toggles to both localStorage (via store) and backend. */
+  function setPrivacyPersisted(patch: Partial<typeof p>) {
+    set(patch)
+    void authApi.updateSettings(patch).catch(() => {
+      /* best-effort — client store is the source of truth */
+    })
+  }
+
+  /** Export user data: fetch all conversations + messages + memories and
+   *  download as a JSON file. */
+  async function performExport() {
+    if (exporting) return
+    setExporting(true)
+    try {
+      const [convs, mems] = await Promise.all([
+        conversationsApi.list(),
+        memoriesApi.list(),
+      ])
+      // Fetch full messages for each conversation.
+      const detailed = await Promise.all(
+        convs.map(async (c) => {
+          try {
+            const detail = await conversationsApi.get(c.id)
+            return { ...c, messages: detail.messages }
+          } catch {
+            return { ...c, messages: [] }
+          }
+        }),
+      )
+      const blob = new Blob(
+        [JSON.stringify({ conversations: detailed, memories: mems, exported_at: new Date().toISOString() }, null, 2)],
+        { type: 'application/json' },
+      )
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `aurelia-export-${new Date().toISOString().slice(0, 10)}.json`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+      toast.success(t('settings:privacy.exportDone', { defaultValue: 'Export downloaded' }))
+    } catch (e) {
+      toast.error(t('common:actions.failed', { defaultValue: 'Export failed' }), e instanceof Error ? e.message : undefined)
+    } finally {
+      setExporting(false)
+    }
+  }
 
   /** Permanent clear: deletes every conversation + every memory of the
    *  logged-in user. Each row goes through the existing ownership-checked
@@ -65,13 +115,13 @@ export default function Privacy() {
           label={t('settings:privacy.improve')}
           description={t('settings:privacy.improveBody')}
         >
-          <Switch checked={!p.trainingOptOut} onCheckedChange={(v) => set({ trainingOptOut: !v })} />
+          <Switch checked={!p.trainingOptOut} onCheckedChange={(v) => setPrivacyPersisted({ trainingOptOut: !v })} />
         </SettingsRow>
         <SettingsRow
           label={t('settings:privacy.keep')}
           description={t('settings:privacy.keepBody')}
         >
-          <Switch checked={p.retainHistory} onCheckedChange={(v) => set({ retainHistory: Boolean(v) })} />
+          <Switch checked={p.retainHistory} onCheckedChange={(v) => setPrivacyPersisted({ retainHistory: Boolean(v) })} />
         </SettingsRow>
       </SettingsSection>
 
@@ -83,7 +133,8 @@ export default function Privacy() {
           <Button
             variant="secondary"
             leadingIcon={<Download size={13} aria-hidden />}
-            onClick={() => toast.info(t('settings:privacy.exportQueued'))}
+            loading={exporting}
+            onClick={() => void performExport()}
           >
             {t('common:actions.export')}
           </Button>

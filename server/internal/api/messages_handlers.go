@@ -289,3 +289,35 @@ func editMessageHandler(d Deps, w http.ResponseWriter, r *http.Request) {
 	updated, _ := store.GetMessage(r.Context(), d.DB, msgID)
 	writeJSON(w, 200, updated)
 }
+
+// feedbackMessageHandler stores a like/dislike on an assistant message.
+func feedbackMessageHandler(d Deps, w http.ResponseWriter, r *http.Request) {
+	u := authUser(r)
+	convID := pathParam(r, "id")
+	msgID := pathParam(r, "msgId")
+	if _, err := store.GetConversation(r.Context(), d.DB, convID, u.ID); err != nil {
+		writeError(w, 404, errNotFound)
+		return
+	}
+	var body struct {
+		Feedback string `json:"feedback"`
+	}
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, 400, errInvalidInput)
+		return
+	}
+	if body.Feedback != "" && body.Feedback != "like" && body.Feedback != "dislike" {
+		writeError(w, 400, errors.New("feedback must be 'like', 'dislike', or empty"))
+		return
+	}
+	msg, err := store.GetMessage(r.Context(), d.DB, msgID)
+	if err != nil || msg.ConversationID != convID || msg.Role != "assistant" {
+		writeError(w, 404, errNotFound)
+		return
+	}
+	if err := store.SetMessageFeedback(r.Context(), d.DB, msgID, body.Feedback); err != nil {
+		writeError(w, 500, err)
+		return
+	}
+	writeJSON(w, 200, map[string]bool{"ok": true})
+}

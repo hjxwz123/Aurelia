@@ -230,8 +230,24 @@ func DisableUserTotp(ctx context.Context, db *sql.DB, userID string) error {
 
 // ListUsers returns every user (admin only). Paged in memory.
 func ListUsers(ctx context.Context, db *sql.DB) ([]User, error) {
+	return ListUsersPaged(ctx, db, 200, 0)
+}
+
+// ListUsersPaged returns users with pagination support. Limit defaults to 200
+// and is capped at 500 to prevent unbounded queries at scale.
+func ListUsersPaged(ctx context.Context, db *sql.DB, limit, offset int) ([]User, error) {
+	if limit <= 0 {
+		limit = 200
+	}
+	if limit > 500 {
+		limit = 500
+	}
+	if offset < 0 {
+		offset = 0
+	}
 	rows, err := db.QueryContext(ctx,
-		`SELECT id, email, name, role, status, token_ver, settings, group_id, totp_secret, totp_enabled, created_at FROM users ORDER BY created_at DESC`)
+		`SELECT id, email, name, role, status, token_ver, settings, group_id, totp_secret, totp_enabled, created_at FROM users ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+		limit, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -274,3 +290,25 @@ func touch(ctx context.Context, db *sql.DB, table, id string) error {
 }
 
 var _ = touch
+
+// DeleteUser permanently removes a user and all related data (conversations,
+// messages, memories, refresh tokens, usage logs). Called by the self-service
+// "delete my account" endpoint — the user is already authenticated so the
+// ownership check is implicit.
+func DeleteUser(ctx context.Context, db *sql.DB, userID string) error {
+	// Order matters: messages → conversations → memories → tokens → usage → user.
+	stmts := []string{
+		`DELETE FROM messages WHERE conversation_id IN (SELECT id FROM conversations WHERE user_id=?)`,
+		`DELETE FROM conversations WHERE user_id=?`,
+		`DELETE FROM memories WHERE user_id=?`,
+		`DELETE FROM refresh_tokens WHERE user_id=?`,
+		`DELETE FROM usage_logs WHERE user_id=?`,
+		`DELETE FROM users WHERE id=?`,
+	}
+	for _, q := range stmts {
+		if _, err := db.ExecContext(ctx, q, userID); err != nil {
+			return fmt.Errorf("delete user: %w", err)
+		}
+	}
+	return nil
+}

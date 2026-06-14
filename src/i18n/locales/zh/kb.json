@@ -44,6 +44,10 @@
       "added": "添加时间"
     },
     "removeDocConfirm": "从这个知识库移除\"{{name}}\"?",
-    "removed": "已移除文档"
+    "removed": "已移除文档",
+    "tabPaste": "粘贴文本",
+    "tabUpload": "上传文件",
+    "contentLabel": "内容",
+    "clickToChoose": "点击选择文件"
   }
 }

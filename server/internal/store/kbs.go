@@ -165,6 +165,13 @@ func UpdateDocumentStatus(ctx context.Context, db *sql.DB, id, status, errMsg st
 	return err
 }
 
+// RenameDocument updates just the filename of a document.
+func RenameDocument(ctx context.Context, db *sql.DB, id, filename string) error {
+	_, err := db.ExecContext(ctx,
+		`UPDATE documents SET filename=? WHERE id=?`, filename, id)
+	return err
+}
+
 // DeleteDocument removes the row.
 func DeleteDocument(ctx context.Context, db *sql.DB, id string) error {
 	_, err := db.ExecContext(ctx, "DELETE FROM documents WHERE id=?", id)

@@ -621,10 +621,22 @@ type imageBytes struct {
 }
 
 // moderateImagePrompt is the §4.12-E pre-generation prompt screen. The word
-// list is intentionally minimal — production deployments should call a real
-// moderation API here (the single hook point is this function).
+// list covers the most critical safety categories — production deployments
+// should additionally call a real moderation API here (the single hook point
+// is this function).
 var imagePromptBlocklist = []string{
-	"child sexual", "csam", "幼女", "儿童色情", "炸弹制作", "如何制造炸药",
+	// Child safety
+	"child sexual", "csam", "幼女", "儿童色情", "child abuse", "child porn",
+	"minor sexual", "underage sexual", "child exploitation",
+	// Violence / weapons
+	"炸弹制作", "如何制造炸药", "how to make a bomb", "how to make explosives",
+	"mass shooting", "terrorist attack",
+	// Self-harm
+	"suicide method", "how to kill yourself", "自杀方法",
+	// Non-consensual
+	"non-consensual", "rape", "sexual assault",
+	// Deepfake
+	"deepfake nude", "deepfake porn",
 }
 
 func moderateImagePrompt(prompt string) error {

@@ -88,24 +88,59 @@ func readAccessToken(r *http.Request) string {
 	return ""
 }
 
-// clientIP extracts the request's source address from X-Forwarded-For (first
-// hop), X-Real-IP, or RemoteAddr. Used by the IP-scoped rate limits.
+// clientIP extracts the request's source address. X-Forwarded-For and
+// X-Real-IP are only trusted when the direct peer is a loopback or
+// private-network address (i.e. we are behind a reverse proxy). When the
+// direct peer is a public IP, those headers could be spoofed by any client,
+// so we fall back to RemoteAddr to prevent rate-limit bypass.
 func clientIP(r *http.Request) string {
-	if h := r.Header.Get("X-Forwarded-For"); h != "" {
-		// First IP is the originator; subsequent are proxies.
-		if i := strings.Index(h, ","); i > 0 {
-			return strings.TrimSpace(h[:i])
-		}
-		return strings.TrimSpace(h)
-	}
-	if h := r.Header.Get("X-Real-IP"); h != "" {
-		return strings.TrimSpace(h)
-	}
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	remoteHost, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
-		return r.RemoteAddr
+		remoteHost = r.RemoteAddr
 	}
-	return host
+	// Only trust forwarding headers from private/loopback peers.
+	if isTrustedPeer(remoteHost) {
+		if h := r.Header.Get("X-Forwarded-For"); h != "" {
+			// First IP is the originator; subsequent are proxies.
+			if i := strings.Index(h, ","); i > 0 {
+				return strings.TrimSpace(h[:i])
+			}
+			return strings.TrimSpace(h)
+		}
+		if h := r.Header.Get("X-Real-IP"); h != "" {
+			return strings.TrimSpace(h)
+		}
+	}
+	return remoteHost
+}
+
+// isTrustedPeer returns true if the address is loopback or RFC-1918 private,
+// meaning the request came through our own reverse proxy.
+func isTrustedPeer(host string) bool {
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return false
+	}
+	if ip.IsLoopback() {
+		return true
+	}
+	// RFC-1918 / RFC-4193 private ranges.
+	privateRanges := []string{
+		"10.0.0.0/8",
+		"172.16.0.0/12",
+		"192.168.0.0/16",
+		"fc00::/7",
+	}
+	for _, cidr := range privateRanges {
+		_, network, err := net.ParseCIDR(cidr)
+		if err != nil {
+			continue
+		}
+		if network.Contains(ip) {
+			return true
+		}
+	}
+	return false
 }
 
 // rateLimitIP applies a fixed-window per-IP request budget — used to block
@@ -154,10 +189,8 @@ func reserveConcurrentGen(d Deps, userID string) (release func(), ok bool) {
 	// Incr first; if we're over the cap, decrement immediately and refuse.
 	n := d.Cache.Incr(key, 30*time.Minute) // safety TTL so dead slots clear themselves
 	if int(n) > cap {
-		// Decrement by re-Incr-ing the negative; we don't have Decr so we
-		// emulate it by SET-ing to the lower value when possible. The 30-min
-		// TTL above means the slot self-clears even if we miss the release.
-		d.Cache.Set(key, intToString(int(n)-1), 30*time.Minute)
+		// Over budget — atomically undo the increment.
+		d.Cache.Decr(key)
 		return func() {}, false
 	}
 	released := false
@@ -166,19 +199,7 @@ func reserveConcurrentGen(d Deps, userID string) (release func(), ok bool) {
 			return
 		}
 		released = true
-		if v, hit := d.Cache.Get(key); hit {
-			cur := 0
-			for _, c := range v {
-				if c < '0' || c > '9' {
-					cur = 0
-					break
-				}
-				cur = cur*10 + int(c-'0')
-			}
-			if cur > 0 {
-				d.Cache.Set(key, intToString(cur-1), 30*time.Minute)
-			}
-		}
+		d.Cache.Decr(key)
 	}, true
 }
 
