@@ -227,8 +227,41 @@ func redactCost(ems []enrichedMessage) []enrichedMessage {
 	for i := range ems {
 		ems[i].Cost = 0
 		ems[i].Currency = ""
+		ems[i].Attachments = backfillAttachmentURLs(ems[i].Attachments)
 	}
 	return ems
+}
+
+// backfillAttachmentURLs walks the attachments JSON blob and, for any item
+// missing a `url`, inserts "/api/files/<id>". Older messages persisted before
+// the upload endpoint started emitting URLs (or messages whose client never
+// populated url) need this so the user-bubble image preview can render through
+// the persistent download endpoint instead of a revoked blob: URL.
+func backfillAttachmentURLs(raw json.RawMessage) json.RawMessage {
+	if len(raw) < 2 {
+		return raw
+	}
+	var atts []map[string]any
+	if err := json.Unmarshal(raw, &atts); err != nil {
+		return raw
+	}
+	changed := false
+	for i := range atts {
+		if url, _ := atts[i]["url"].(string); url == "" {
+			if id, _ := atts[i]["id"].(string); id != "" {
+				atts[i]["url"] = "/api/files/" + id
+				changed = true
+			}
+		}
+	}
+	if !changed {
+		return raw
+	}
+	out, err := json.Marshal(atts)
+	if err != nil {
+		return raw
+	}
+	return out
 }
 
 type setActiveLeafReq struct {

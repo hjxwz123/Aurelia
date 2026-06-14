@@ -278,7 +278,10 @@ type File struct {
 	SizeBytes      int64           `json:"size_bytes"`
 	Kind           string          `json:"kind"`
 	StoragePath    string          `json:"-"`
-	CreatedAt      int64           `json:"created_at"`
+	// URL is filled by the handler (not the DB) so the frontend can render
+	// thumbnails / download links without keeping the blob URL alive.
+	URL       string `json:"url,omitempty"`
+	CreatedAt int64  `json:"created_at"`
 }
 
 // Helper: read settings value as JSON. Backed by a short-TTL process-local
