@@ -364,13 +364,18 @@ func RedeemCodeForUser(ctx context.Context, db *sql.DB, userID, raw string) (*Re
 	var u User
 	var settings string
 	var totpEnabled int
+	var passwordSet int
 	err = tx.QueryRowContext(ctx,
-		`SELECT id, email, name, role, status, token_ver, settings, group_id, group_expires_at, previous_group_id, totp_secret, totp_enabled, created_at FROM users WHERE id=?`, userID,
-	).Scan(&u.ID, &u.Email, &u.Name, &u.Role, &u.Status, &u.TokenVer, &settings, &u.GroupID, &u.GroupExpiresAt, &u.PreviousGroupID, &u.TotpSecret, &totpEnabled, &u.CreatedAt)
+		`SELECT id, email, name, role, status, token_ver, settings, group_id, group_expires_at, previous_group_id, totp_secret, totp_enabled, password_set, created_at FROM users WHERE id=?`, userID,
+	).Scan(&u.ID, &u.Email, &u.Name, &u.Role, &u.Status, &u.TokenVer, &settings, &u.GroupID, &u.GroupExpiresAt, &u.PreviousGroupID, &u.TotpSecret, &totpEnabled, &passwordSet, &u.CreatedAt)
 	if err != nil {
 		return nil, nil, err
 	}
 	u.TotpEnabled = totpEnabled != 0
+	// Without this the returned user serialises has_password=false, which would
+	// wrongly pop the set-password gate after redeeming a code (§ chat uploads /
+	// third-party login). Carry the real flag.
+	u.HasPassword = passwordSet != 0
 	u.Settings = json.RawMessage(settings)
 
 	// Prevent the same user from redeeming the same code twice (matches the

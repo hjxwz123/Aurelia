@@ -100,6 +100,14 @@ func main() {
 		logger.Printf("vector: disabled (brute-force over %s)", driverName(cfg.DatabaseURL))
 	}
 	toolRegistry := tools.NewRegistry(db, ragSvc, cfg, logger)
+	// Surface the sandbox wiring at boot — the #1 reason python_execute silently
+	// falls back to "safe-mode" (and the model says it can't run code / host
+	// downloads) is an empty SANDBOX_BASE_URL in the API container.
+	if cfg.SandboxBaseURL != "" {
+		logger.Printf("sandbox: %s", redactURL(cfg.SandboxBaseURL))
+	} else {
+		logger.Printf("sandbox: disabled (set SANDBOX_BASE_URL; python_execute runs in safe-mode)")
+	}
 
 	// Re-enqueue any document ingest left half-done by a previous shutdown — the
 	// queue is in-memory, so without this a doc can be stuck "indexing…" forever.

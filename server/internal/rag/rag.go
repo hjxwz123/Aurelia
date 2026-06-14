@@ -265,7 +265,12 @@ func (s *Service) runPipeline(ctx context.Context, docID string) error {
 		// ingest just works regardless of misconfiguration.
 		if len(vecs) > 0 && len(vecs[0]) > 0 && len(vecs[0]) != dim {
 			actual := len(vecs[0])
-			s.logger.Printf("rag: embedding model returned dim %d but KB/config expected %d — using %d (doc %s)", actual, dim, actual, docID)
+			// Not an error: the model's native width differs from the configured
+			// one (e.g. DashScope text-embedding-v3 only emits 1024, can't do
+			// 1536). We already asked for the configured width via `dimensions`;
+			// the model ignored/capped it, so we adapt the collection to the real
+			// width and move on. To get 1536 you need a model that supports it.
+			s.logger.Printf("rag: embedding model emits %d-dim vectors (config requested %d, unsupported) — adapting to %d (doc %s)", actual, dim, actual, docID)
 			dim = actual
 			if d.KBID != "" {
 				if err := store.SetKBEmbeddingDim(ctx, s.db, d.KBID, actual); err != nil {

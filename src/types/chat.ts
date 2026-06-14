@@ -127,6 +127,9 @@ export interface Message {
   artifacts?: ArtifactRef[]
   /** Set when the model declined to answer (content filter). */
   refused?: boolean
+  /** Set when the turn failed (API/provider/stream error). Drives a red
+   *  "reply failed — retry" banner + a retry (regenerate) button. */
+  error?: string
   /** Set when the prompt was blocked by content moderation (§ moderation) —
    *  rendered as a prominent red notice asking the user to re-edit. */
   moderation?: boolean

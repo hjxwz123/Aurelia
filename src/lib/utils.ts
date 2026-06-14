@@ -67,6 +67,16 @@ export function formatRelativeDate(date: Date | string | number): string {
 }
 
 /**
+ * Absolute calendar date (localized, e.g. "June 21, 2026" / "2026年6月21日").
+ * Use this for FUTURE dates like a subscription expiry — formatRelativeDate is
+ * built for past timestamps and collapses any future date to a weekday ("Tue").
+ */
+export function formatAbsoluteDate(date: Date | string | number): string {
+  const d = typeof date === 'number' || typeof date === 'string' ? new Date(date) : date
+  return d.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })
+}
+
+/**
  * Group conversations by relative date bucket.
  */
 export type DateBucket = 'today' | 'yesterday' | 'last_7' | 'last_30' | 'older'
