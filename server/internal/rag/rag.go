@@ -138,6 +138,16 @@ func (s *Service) Ingest(docID string) {
 	})
 }
 
+// sanitizeIngestText removes NUL bytes and invalid UTF-8 from parsed document
+// text. Postgres TEXT columns reject these (SQLSTATE 22021 "invalid byte
+// sequence for encoding UTF8: 0x00"), which otherwise fails the whole ingest.
+func sanitizeIngestText(s string) string {
+	if strings.IndexByte(s, 0) >= 0 {
+		s = strings.ReplaceAll(s, "\x00", "")
+	}
+	return strings.ToValidUTF8(s, "")
+}
+
 func (s *Service) runPipeline(ctx context.Context, docID string) error {
 	d, err := store.GetDocument(ctx, s.db, docID)
 	if err != nil {
@@ -181,6 +191,10 @@ func (s *Service) runPipeline(ctx context.Context, docID string) error {
 	if err != nil {
 		return err
 	}
+	// Strip NUL / invalid UTF-8 at the source: parsed binary docs (docx/pdf/ppt)
+	// carry bytes Postgres TEXT columns reject (SQLSTATE 22021). This guarantees
+	// every downstream write (chunks, parents) is clean regardless of insert path.
+	content = sanitizeIngestText(content)
 
 	// Chunk hierarchically (§4.11-C-2 small-to-big): parents carry section
 	// context (not embedded), children carry the vectors. The new chunker also
