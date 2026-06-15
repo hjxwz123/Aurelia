@@ -248,7 +248,10 @@ export function Composer({
       // §4.11.2 session-scoped temp docs: ingest doc-like uploads (or anything
       // when a KB is bound) as conversation-scoped RAG so the user can ask over
       // what they just shared, without polluting any project KB.
-      const isDocLike = local.kind === 'pdf' || local.kind === 'doc' || local.kind === 'sheet' || /\.txt$|\.md$|\.markdown$/i.test(local.name)
+      // Anything that isn't an image is treated as a readable document so the
+      // model can use it (the backend reads unknown types as plain text and
+      // routes spreadsheets to the sandbox). Images don't need RAG.
+      const isDocLike = local.kind !== 'image'
       const ragFlag = (kbIds && kbIds.length > 0) || isDocLike
       const url = `/files${scopeId ? `?conversation_id=${encodeURIComponent(scopeId)}${ragFlag ? '&rag=1' : ''}` : ''}`
       const res = await api<ApiAttachment & { id: string; url?: string; document_id?: string }>(url, { method: 'POST', body: form })
