@@ -461,13 +461,6 @@ export function Composer({
         </div>
       )}
 
-      {/* Param controls (above the textarea) */}
-      {paramControls ? (
-        <div className="flex flex-wrap items-center gap-2 px-3.5 pt-2">
-          <ParamControls controls={paramControls} values={paramValues} onChange={setParamValues} />
-        </div>
-      ) : null}
-
       {/* Textarea */}
       <Textarea
         ref={ref}
@@ -511,7 +504,7 @@ export function Composer({
       />
 
       {/* Toolbar row */}
-      <div className="flex items-center gap-1 px-2.5 pb-2.5 pt-1">
+      <div className="flex flex-wrap items-center gap-1 px-2.5 pb-2.5 pt-1">
         <input
           type="file"
           ref={fileRef}
@@ -594,6 +587,14 @@ export function Composer({
             <span className="max-sm:hidden">{t('composer.research')}</span>
           </button>
         </Tooltip>
+
+        {/* Per-model param_controls — below the input, to the left of the KB
+            selector (§2.3-G). The picked values flow up via onSubmit(). */}
+        {paramControls ? (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <ParamControls controls={paramControls} values={paramValues} onChange={setParamValues} />
+          </div>
+        ) : null}
 
         {/* §7.2-7 📚 知识库选择器 — 绑定 kb_ids 到当前会话 */}
         {onKBChange ? (

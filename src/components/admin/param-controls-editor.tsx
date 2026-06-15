@@ -12,6 +12,7 @@ import { Plus, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import { IconPicker } from '@/components/admin/icon-picker'
 
 interface EditorOption {
   value: string
@@ -178,7 +179,7 @@ export function ParamControlsEditor({ value, onChange }: Props) {
           <div className="grid grid-cols-2 gap-2.5">
             <LabeledInput label={tt('key', '键名 key')} value={c.key} onChange={(v) => setAt(i, { key: v })} placeholder="thinking" cls={inputCls} mono />
             <LabeledInput label={tt('label', '显示文字')} value={c.label} onChange={(v) => setAt(i, { label: v })} placeholder="深度思考" cls={inputCls} />
-            <LabeledInput label={tt('icon', '图标(lucide)')} value={c.icon} onChange={(v) => setAt(i, { icon: v })} placeholder="brain" cls={inputCls} mono />
+            <LabeledIcon label={tt('icon', '图标')} value={c.icon} onChange={(v) => setAt(i, { icon: v })} />
             <LabeledInput label={tt('default', '默认值')} value={c.def} onChange={(v) => setAt(i, { def: v })} placeholder={c.type === 'toggle' ? 'true / false' : 'medium'} cls={inputCls} mono />
           </div>
 
@@ -195,7 +196,7 @@ export function ParamControlsEditor({ value, onChange }: Props) {
                   <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 items-end">
                     <LabeledInput label={tt('optValue', '值')} value={op.value} onChange={(v) => setAt(i, { options: c.options.map((x, k) => (k === j ? { ...x, value: v } : x)) })} placeholder="high" cls={inputCls} mono />
                     <LabeledInput label={tt('optLabel', '文字')} value={op.label} onChange={(v) => setAt(i, { options: c.options.map((x, k) => (k === j ? { ...x, label: v } : x)) })} placeholder="高" cls={inputCls} />
-                    <LabeledInput label={tt('icon', '图标')} value={op.icon} onChange={(v) => setAt(i, { options: c.options.map((x, k) => (k === j ? { ...x, icon: v } : x)) })} placeholder="gauge" cls={inputCls} mono />
+                    <LabeledIcon label={tt('icon', '图标')} value={op.icon} onChange={(v) => setAt(i, { options: c.options.map((x, k) => (k === j ? { ...x, icon: v } : x)) })} />
                     <Button variant="ghost" size="sm" className="text-[var(--color-danger)] h-8" onClick={() => setAt(i, { options: c.options.filter((_, k) => k !== j) })}>
                       <Trash2 size={13} aria-hidden />
                     </Button>
@@ -247,6 +248,15 @@ function LabeledInput({ label, value, onChange, placeholder, cls, mono }: { labe
     <label className="flex flex-col gap-1">
       <span className="text-[11.5px] text-[var(--color-fg-subtle)]">{label}</span>
       <Input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className={(cls ?? '') + (mono ? ' font-mono' : '')} />
+    </label>
+  )
+}
+
+function LabeledIcon({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <label className="flex flex-col gap-1">
+      <span className="text-[11.5px] text-[var(--color-fg-subtle)]">{label}</span>
+      <IconPicker value={value} onChange={onChange} />
     </label>
   )
 }
