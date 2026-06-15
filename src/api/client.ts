@@ -85,9 +85,27 @@ export async function api<T = unknown>(path: string, opts: ApiOptions = {}): Pro
   if (!res.ok) {
     const errBody = parsed as ApiErrorShape | undefined
     const message = errBody?.error ?? `Request failed with status ${res.status}`
+    // A banned account (any in-flight request after an admin ban) → notify the
+    // app once so it can sign the user out with a clear "suspended" message,
+    // instead of a silent logout or a generic error.
+    if (message === 'account_suspended') notifyBanned()
     throw new ApiError(res.status, message, parsed)
   }
   return parsed as T
+}
+
+// Banned-account hook. The auth store registers a handler that clears the
+// session and shows the suspended notice. Kept as a callback so client.ts stays
+// free of a circular import on the store.
+let bannedHandler: (() => void) | null = null
+let bannedFired = false
+export function setBannedHandler(cb: () => void): void {
+  bannedHandler = cb
+}
+function notifyBanned(): void {
+  if (bannedFired) return // a ban floods every in-flight request; act once
+  bannedFired = true
+  bannedHandler?.()
 }
 
 /** Open a streaming POST request that yields SSE events as parsed JSON. */

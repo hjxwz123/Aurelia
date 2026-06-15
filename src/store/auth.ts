@@ -8,12 +8,16 @@
  */
 import { create } from 'zustand'
 import { authApi, ApiError, setAccessToken } from '@/api'
+import { setBannedHandler } from '@/api/client'
 import type { ApiUser } from '@/api/types'
 
 interface AuthState {
   user: ApiUser | null
   status: 'idle' | 'authenticating' | 'authenticated' | 'unauthenticated'
   error: string | null
+  /** True after the account was suspended (live ban or a banned login attempt).
+   *  Drives the suspended notice on the login screen. */
+  banned: boolean
   signupOpen: boolean
   /** Set when registration returns verification_required — drives the code UI. */
   pendingVerification: string | null
@@ -38,6 +42,7 @@ export const useAuth = create<AuthState>((set, get) => ({
   user: null,
   status: 'idle',
   error: null,
+  banned: false,
   signupOpen: true,
   pendingVerification: null,
   pendingTwoFactor: null,
@@ -96,10 +101,16 @@ export const useAuth = create<AuthState>((set, get) => ({
         return '2fa'
       }
       setAccessToken(resp.access_token)
-      set({ user: resp.user, status: 'authenticated', pendingTwoFactor: null })
+      set({ user: resp.user, status: 'authenticated', pendingTwoFactor: null, banned: false })
       return true
     } catch (e) {
       const msg = e instanceof ApiError ? e.message : 'Login failed'
+      // A banned account trying to log in → show the suspended notice, not the
+      // raw code.
+      if (msg === 'account_suspended') {
+        set({ banned: true, error: null, status: 'unauthenticated' })
+        return false
+      }
       // If the backend says "email not verified", flip to verification flow
       if (e instanceof ApiError && msg.toLowerCase().includes('not verified')) {
         set({ error: msg, status: 'unauthenticated', pendingVerification: email })
@@ -165,3 +176,11 @@ export const useAuth = create<AuthState>((set, get) => ({
     set({ user: updated })
   },
 }))
+
+// Live ban: an admin banning a signed-in user makes their very next request
+// 403 with `account_suspended`. The api client calls this once — sign the user
+// out and flip `banned` so the login screen shows the suspended notice.
+setBannedHandler(() => {
+  setAccessToken(null)
+  useAuth.setState({ user: null, status: 'unauthenticated', banned: true, pendingTwoFactor: null })
+})
