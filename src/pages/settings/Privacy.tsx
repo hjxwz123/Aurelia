@@ -102,7 +102,7 @@ export default function Privacy() {
   }
 
   return (
-    <div className="max-w-[44rem]">
+    <div className="mx-auto max-w-[60rem]">
       <header className="mb-8">
         <h1 className="font-serif tracking-tight text-3xl text-[var(--color-fg)]">{t('settings:privacy.title')}</h1>
         <p className="mt-2.5 text-sm text-[var(--color-fg-muted)]">

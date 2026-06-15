@@ -10,7 +10,7 @@ export default function Shortcuts() {
   for (const s of all) grouped[s.scope].push(s)
 
   return (
-    <div className="max-w-[44rem]">
+    <div className="mx-auto max-w-[60rem]">
       <header className="mb-8">
         <h1 className="font-serif tracking-tight text-3xl text-[var(--color-fg)]">{t('shortcuts.title')}</h1>
         <p className="mt-2.5 text-sm text-[var(--color-fg-muted)]">{t('shortcuts.subtitle')}</p>

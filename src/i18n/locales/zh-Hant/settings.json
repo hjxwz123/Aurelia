@@ -50,6 +50,7 @@
       "emailBody": "用於登入和重要通知。",
       "emailLocked": "用於登入，如需修改請聯絡管理員。"
     },
+    "avatar": { "upload": "上傳", "change": "更換", "remove": "移除", "updated": "頭像已更新", "failed": "頭像更新失敗" },
     "security": "安全",
     "securityRows": {
       "password": "密碼",

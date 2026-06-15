@@ -21,7 +21,7 @@ import {
   Languages,
 } from 'lucide-react'
 import { Logo, LogoMark } from '@/components/brand/logo'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { initials } from '@/components/ui/avatar.utils'
 import { Tooltip } from '@/components/ui/tooltip'
 import { Badge } from '@/components/ui/badge'
@@ -499,6 +499,7 @@ function UserMenu({ collapsed }: { collapsed: boolean }) {
   const user = useAuth((s) => s.user)
   const logout = useAuth((s) => s.logout)
   const displayName = user?.name || user?.email?.split('@')[0] || 'Aurelia'
+  const avatarUrl = (user?.settings as Record<string, unknown> | undefined)?.avatar_url as string | undefined
   const isAdmin = user?.role === 'admin'
   const lang = useLanguage((s) => s.lang)
   const setLang = useLanguage((s) => s.setLang)
@@ -517,6 +518,7 @@ function UserMenu({ collapsed }: { collapsed: boolean }) {
           )}
         >
           <Avatar size="md" tone="clay">
+            {avatarUrl ? <AvatarImage src={avatarUrl} alt={displayName} /> : null}
             <AvatarFallback>{initials(displayName)}</AvatarFallback>
           </Avatar>
           {!collapsed && (
