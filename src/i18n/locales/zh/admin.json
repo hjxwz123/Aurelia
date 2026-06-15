@@ -515,6 +515,7 @@
     "copied": "已复制",
     "copyAll": "复制全部未使用",
     "export": "导出 CSV",
+    "exported": "已导出 {{count}} 个兑换码",
     "filters": {
       "all": "全部",
       "unused": "未使用",

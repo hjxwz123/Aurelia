@@ -515,6 +515,7 @@
     "copied": "コピーしました",
     "copyAll": "未使用をすべてコピー",
     "export": "CSV をエクスポート",
+    "exported": "{{count}} 件のコードをエクスポートしました",
     "filters": {
       "all": "すべて",
       "unused": "未使用",

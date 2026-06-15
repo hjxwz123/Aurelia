@@ -515,6 +515,7 @@
     "copied": "Copié",
     "copyAll": "Copier tous les inutilisés",
     "export": "Exporter en CSV",
+    "exported": "{{count}} codes exportés",
     "filters": {
       "all": "Tous",
       "unused": "Inutilisés",
