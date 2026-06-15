@@ -34,6 +34,7 @@
     "language": "語言",
     "theme": "外觀",
     "accent": "強調色",
+    "layout": "聊天寬度",
     "chatStyle": "回覆風格",
     "chatStyleBody": "預設回答的詳細程度。",
     "memory": "記憶",
@@ -59,6 +60,7 @@
     "language": "選擇介面語言。",
     "theme": "淺色、深色，或跟隨系統。",
     "accent": "選擇應用的強調色。",
+    "layout": "聊天內容置中，或佔滿整個寬度。",
     "style": "預設回覆的詳細程度。",
     "memory": "讓 Aurelia 跨對話記住有用的資訊。"
   }

@@ -8,7 +8,7 @@ import { useAccent } from '@/store/accent'
 import { useTheme } from '@/store/theme'
 import { useSettings } from '@/store/settings'
 import { SUPPORTED_LANGUAGES, type LanguageCode } from '@/i18n'
-import { ACCENT_PRESETS, type AccentPref, type ThemePref } from '@/types/settings'
+import { ACCENT_PRESETS, type AccentPref, type ChatWidthPref, type ThemePref } from '@/types/settings'
 import { Logo } from '@/components/brand/logo'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
@@ -17,8 +17,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { cn } from '@/lib/utils'
 
 type ReplyStyle = 'concise' | 'balanced' | 'detailed'
-type StepKey = 'language' | 'theme' | 'accent' | 'style' | 'memory'
-const STEPS: StepKey[] = ['language', 'theme', 'accent', 'style', 'memory']
+type StepKey = 'language' | 'theme' | 'accent' | 'layout' | 'style' | 'memory'
+const STEPS: StepKey[] = ['language', 'theme', 'accent', 'layout', 'style', 'memory']
+const CHAT_WIDTH_OPTS: ChatWidthPref[] = ['comfortable', 'full']
 
 // Static hue per accent preset, mirrored from the Appearance picker so the
 // swatches read as the same colors regardless of the document's data-accent.
@@ -58,6 +59,8 @@ export function WelcomeCard() {
   const setModels = useSettings((s) => s.setModels)
   const memory = useSettings((s) => s.privacy.memoriesEnabled)
   const setPrivacy = useSettings((s) => s.setPrivacy)
+  const chatWidth = useSettings((s) => s.appearance.chatWidth)
+  const setAppearance = useSettings((s) => s.setAppearance)
 
   const onboarded = Boolean((user?.settings as Record<string, unknown> | undefined)?.onboarded)
   // OAuth accounts must set a password first (SetPasswordGate); hold the wizard
@@ -76,6 +79,7 @@ export function WelcomeCard() {
     lang: LanguageCode
     accent: AccentPref
     theme: ThemePref
+    chatWidth: ChatWidthPref
     replyStyle: ReplyStyle
     memory: boolean
   } | null>(null)
@@ -85,7 +89,7 @@ export function WelcomeCard() {
   // through its exit animation even after `open` flips false.
   useEffect(() => {
     if (eligible && !mounted && initial.current === null) {
-      initial.current = { lang, accent, theme: themePref, replyStyle, memory }
+      initial.current = { lang, accent, theme: themePref, chatWidth, replyStyle, memory }
       setMounted(true)
       setOpen(true)
     }
@@ -138,6 +142,7 @@ export function WelcomeCard() {
       if (lang !== init.lang) setLang(init.lang)
       if (accent !== init.accent) setAccent(init.accent)
       if (themePref !== init.theme) setPref(init.theme)
+      if (chatWidth !== init.chatWidth) setAppearance({ chatWidth: init.chatWidth })
       if (replyStyle !== init.replyStyle) setModels({ responseLength: init.replyStyle })
       if (memory !== init.memory) setPrivacy({ memoriesEnabled: init.memory })
     }
@@ -195,6 +200,16 @@ export function WelcomeCard() {
                   <Check size={16} aria-hidden className="absolute inset-0 m-auto text-white" />
                 ) : null}
               </button>
+            ))}
+          </div>
+        )
+      case 'layout':
+        return (
+          <div className="flex items-center gap-2">
+            {CHAT_WIDTH_OPTS.map((opt) => (
+              <Seg key={opt} active={chatWidth === opt} onClick={() => setAppearance({ chatWidth: opt })}>
+                {t(`settings:appearance.chatWidth.${opt}`)}
+              </Seg>
             ))}
           </div>
         )
