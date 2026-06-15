@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"aurelia/server/internal/auth"
@@ -127,29 +128,43 @@ func login2faHandler(d Deps, w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, errInvalidInput)
 		return
 	}
-	clear2faCookie(w)
+	// NOTE: do NOT clear the OAuth handoff cookie here. It used to be cleared
+	// unconditionally on every call, which meant a single wrong/premature code
+	// destroyed the cookie and ALL subsequent attempts failed with "expired" —
+	// even a correct one. (The password flow keeps its ticket in the request
+	// body, so it tolerated retries; the OAuth flow got exactly one shot.) We
+	// only clear the cookie once the ticket is actually consumed or burned.
 	uid, ok := d.Cache.Get("2fa:" + ticket)
 	if !ok {
+		clear2faCookie(w) // dead ticket → the handoff cookie is useless now
+		d.Logger.Printf("[2fa] verify: ticket not found/expired (must redo sign-in)")
 		writeError(w, 401, errors.New("login session expired, please sign in again"))
 		return
 	}
 	user, err := store.FindUserByID(r.Context(), d.DB, uid)
 	if err != nil || user.Status != "active" {
+		clear2faCookie(w)
 		writeError(w, 401, errors.New("invalid login session"))
 		return
 	}
 	if !auth.VerifyTotp(user.TotpSecret, req.Code) {
 		// §A5: burn the ticket after 5 wrong codes so a captured ticket can't be
 		// brute-forced for its full TTL — the user must redo the password step.
-		if d.Cache.Incr("2fa:fail:"+ticket, 5*time.Minute) >= 5 {
+		// Until then KEEP the cookie so the user can retry (mirrors the
+		// body-ticket password flow).
+		burned := d.Cache.Incr("2fa:fail:"+ticket, 5*time.Minute) >= 5
+		if burned {
 			d.Cache.Delete("2fa:" + ticket)
 			d.Cache.Delete("2fa:fail:" + ticket)
+			clear2faCookie(w)
 		}
+		d.Logger.Printf("[2fa] verify: code rejected for user=%s (secretLen=%d, codeLen=%d, burned=%v)", uid, len(user.TotpSecret), len(strings.TrimSpace(req.Code)), burned)
 		writeError(w, 401, errors.New("invalid code"))
 		return
 	}
 	d.Cache.Delete("2fa:" + ticket)
 	d.Cache.Delete("2fa:fail:" + ticket)
+	clear2faCookie(w)
 	finaliseSession(d, w, r, user, 0)
 }
 
