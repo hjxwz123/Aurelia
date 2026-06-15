@@ -62,6 +62,11 @@
     "mostPopular": "一番人気",
     "perMonth": "/ 月"
   },
+  "pagination": {
+    "prev": "前へ",
+    "next": "次へ",
+    "page": "{{page}} / {{total}}"
+  },
   "aria": {
     "close": "閉じる",
     "dismiss": "閉じる",

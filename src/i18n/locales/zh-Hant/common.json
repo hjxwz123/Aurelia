@@ -62,6 +62,11 @@
     "mostPopular": "最受歡迎",
     "perMonth": "/ 月"
   },
+  "pagination": {
+    "prev": "上一頁",
+    "next": "下一頁",
+    "page": "{{page}} / {{total}}"
+  },
   "aria": {
     "close": "關閉",
     "dismiss": "關閉",

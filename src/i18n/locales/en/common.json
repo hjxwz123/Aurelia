@@ -62,6 +62,11 @@
     "mostPopular": "Most popular",
     "perMonth": "/ month"
   },
+  "pagination": {
+    "prev": "Previous",
+    "next": "Next",
+    "page": "{{page}} / {{total}}"
+  },
   "aria": {
     "close": "Close",
     "dismiss": "Dismiss",

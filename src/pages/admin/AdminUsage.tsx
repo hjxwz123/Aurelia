@@ -10,6 +10,7 @@ import { useTranslation } from 'react-i18next'
 import { adminApi, ApiError } from '@/api'
 import type { ApiUsageReportRow } from '@/api/types'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Pagination } from '@/components/ui/pagination'
 import { toast } from '@/hooks/use-toast'
 
 const RANGE_IDS = ['1', '7', '30', '90'] as const
@@ -20,6 +21,8 @@ export default function AdminUsage() {
   const [rows, setRows] = useState<ApiUsageReportRow[]>([])
   const [modelMap, setModelMap] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
+  const [page, setPage] = useState(1)
+  const PAGE_SIZE = 25
 
   async function load() {
     setLoading(true)
@@ -48,6 +51,11 @@ export default function AdminUsage() {
 
   const totalCost = rows.reduce((a, b) => a + b.cost, 0)
   const totalCalls = rows.reduce((a, b) => a + b.calls, 0)
+  const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE))
+  const pageRows = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  useEffect(() => {
+    setPage(1)
+  }, [days, rows.length])
 
   function modelLabel(id: string): string {
     return modelMap[id] || id
@@ -112,7 +120,7 @@ export default function AdminUsage() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r, i) => (
+                {pageRows.map((r, i) => (
                   <tr key={i} className="border-t border-[var(--color-divider)]">
                     <td className="py-2 px-4 truncate max-w-[12rem]">{r.user_email || r.user_id}</td>
                     <td className="py-2 px-4 text-[12px]">{modelLabel(r.model_id)}</td>
@@ -127,6 +135,7 @@ export default function AdminUsage() {
             </table>
           </div>
         )}
+        {!loading && rows.length > 0 ? <Pagination page={page} pageCount={pageCount} onPage={setPage} /> : null}
       </section>
     </div>
   )

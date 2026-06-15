@@ -16,11 +16,12 @@
  */
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Copy, Plus, Trash2, RotateCcw, Ticket, Check } from 'lucide-react'
+import { Copy, Plus, Trash2, RotateCcw, Ticket, Check, Download } from 'lucide-react'
 import { adminApi, ApiError } from '@/api'
 import type { ApiRedeemCode, ApiUserGroup } from '@/api/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Pagination } from '@/components/ui/pagination'
 import { Field } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
@@ -73,6 +74,13 @@ export default function AdminRedeemCodes() {
   const [submitting, setSubmitting] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState<ApiRedeemCode | null>(null)
   const [generated, setGenerated] = useState<ApiRedeemCode[] | null>(null)
+  const [page, setPage] = useState(1)
+  const PAGE_SIZE = 20
+  const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE))
+  const pageRows = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  useEffect(() => {
+    setPage(1)
+  }, [status, batchFilter, rows.length])
 
   async function load() {
     setLoading(true)
@@ -168,6 +176,51 @@ export default function AdminRedeemCodes() {
     return m
   }, [groups])
 
+  function exportCsv() {
+    if (rows.length === 0) return
+    const esc = (v: string | number) => {
+      const s = String(v ?? '')
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+    }
+    const header = ['code', 'group', 'status', 'duration_days', 'used_count', 'max_uses', 'batch_name', 'note', 'expires_at', 'created_at']
+    const now = Math.floor(Date.now() / 1000)
+    const statusOf = (r: ApiRedeemCode) => {
+      if (!r.enabled) return 'disabled'
+      if (r.expires_at > 0 && r.expires_at < now) return 'expired'
+      if (r.used_count >= r.max_uses) return 'redeemed'
+      if (r.used_count > 0) return 'partial'
+      return 'unused'
+    }
+    const iso = (unix: number) => (unix > 0 ? new Date(unix * 1000).toISOString() : '')
+    const lines = [header.join(',')]
+    for (const r of rows) {
+      lines.push(
+        [
+          esc(r.code),
+          esc(groupByID.get(r.group_id)?.name ?? r.group_id),
+          esc(statusOf(r)),
+          esc(r.duration_days),
+          esc(r.used_count),
+          esc(r.max_uses),
+          esc(r.batch_name ?? ''),
+          esc(r.note ?? ''),
+          esc(iso(r.expires_at)),
+          esc(iso(r.created_at)),
+        ].join(','),
+      )
+    }
+    const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `redeem-codes-${new Date().toISOString().slice(0, 10)}.csv`
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
+    toast.success(t('admin:redeemCodes.exported', { count: rows.length, defaultValue: 'Exported {{count}} codes' }))
+  }
+
   return (
     <div>
       <header className="flex items-end justify-between gap-4 flex-wrap">
@@ -175,9 +228,19 @@ export default function AdminRedeemCodes() {
           <h1 className="font-serif text-3xl tracking-tight text-[var(--color-fg)]">{t('admin:redeemCodes.title')}</h1>
           <p className="mt-2 text-[var(--color-fg-muted)] text-sm max-w-2xl">{t('admin:redeemCodes.lead')}</p>
         </div>
-        <Button leadingIcon={<Plus size={15} aria-hidden />} onClick={openNew}>
-          {t('admin:redeemCodes.new')}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="secondary"
+            leadingIcon={<Download size={15} aria-hidden />}
+            disabled={rows.length === 0}
+            onClick={exportCsv}
+          >
+            {t('admin:redeemCodes.export', { defaultValue: 'Export CSV' })}
+          </Button>
+          <Button leadingIcon={<Plus size={15} aria-hidden />} onClick={openNew}>
+            {t('admin:redeemCodes.new')}
+          </Button>
+        </div>
       </header>
 
       {/* Filters */}
@@ -215,17 +278,20 @@ export default function AdminRedeemCodes() {
             <p className="mt-4 text-sm text-[var(--color-fg-muted)]">{t('admin:redeemCodes.empty')}</p>
           </div>
         ) : (
-          <ul className="flex flex-col divide-y divide-[var(--color-divider)] rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)]">
-            {rows.map((rc) => (
-              <CodeRow
-                key={rc.id}
-                row={rc}
-                group={groupByID.get(rc.group_id)}
-                onToggleEnabled={() => void toggleEnabled(rc)}
-                onDelete={() => setConfirmDelete(rc)}
-              />
-            ))}
-          </ul>
+          <>
+            <ul className="flex flex-col divide-y divide-[var(--color-divider)] rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)]">
+              {pageRows.map((rc) => (
+                <CodeRow
+                  key={rc.id}
+                  row={rc}
+                  group={groupByID.get(rc.group_id)}
+                  onToggleEnabled={() => void toggleEnabled(rc)}
+                  onDelete={() => setConfirmDelete(rc)}
+                />
+              ))}
+            </ul>
+            <Pagination page={page} pageCount={pageCount} onPage={setPage} />
+          </>
         )}
       </section>
 

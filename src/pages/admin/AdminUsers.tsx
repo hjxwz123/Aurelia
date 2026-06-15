@@ -12,6 +12,7 @@ import type { ApiUser, ApiUserGroup } from '@/api/types'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
+import { Pagination } from '@/components/ui/pagination'
 import { Field } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
@@ -60,6 +61,18 @@ export default function AdminUsers() {
   const [deleteRow, setDeleteRow] = useState<ApiUser | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [query, setQuery] = useState('')
+  const [page, setPage] = useState(1)
+  const PAGE_SIZE = 20
+  const filtered = rows.filter((u) => {
+    const q = query.trim().toLowerCase()
+    if (!q) return true
+    return (u.name ?? '').toLowerCase().includes(q) || (u.email ?? '').toLowerCase().includes(q)
+  })
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const pageRows = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  useEffect(() => {
+    setPage(1)
+  }, [query])
 
   async function load() {
     setLoading(true)
@@ -219,13 +232,7 @@ export default function AdminUsers() {
           <div className="text-sm text-[var(--color-fg-subtle)]">{t('admin:common.loading')}</div>
         ) : (
           <ul className="flex flex-col divide-y divide-[var(--color-divider)] rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)]">
-            {rows
-              .filter((u) => {
-                const q = query.trim().toLowerCase()
-                if (!q) return true
-                return (u.name ?? '').toLowerCase().includes(q) || (u.email ?? '').toLowerCase().includes(q)
-              })
-              .map((u) => {
+            {pageRows.map((u) => {
               const isMe = me?.id === u.id
               const group = groups.find((g) => g.id === u.group_id)
               const lastSeen = u.last_seen_at ?? 0
@@ -294,6 +301,7 @@ export default function AdminUsers() {
             })}
           </ul>
         )}
+        {!loading ? <Pagination page={page} pageCount={pageCount} onPage={setPage} /> : null}
       </section>
 
       {/* New user */}
