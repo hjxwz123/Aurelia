@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { MoreHorizontal, Pencil, Share2, Star, Trash2, Archive, ArrowDown, FolderKanban, Copy, Check, Globe, Loader2, Menu } from 'lucide-react'
 import { Composer } from '@/components/chat/composer'
 import { MessageList } from '@/components/chat/message-list'
+import { InlineThreadLayer } from '@/components/chat/inline-thread-layer'
 import { ModelPicker } from '@/components/chat/model-picker'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Button } from '@/components/ui/button'
@@ -44,6 +45,7 @@ export default function ChatThread() {
   const { t } = useTranslation(['chat', 'common', 'projects'])
   const conversation = useConversations((s) => s.conversations.find((c) => c.id === id))
   const loadOne = useConversations((s) => s.loadOne)
+  const loadInlineThreads = useConversations((s) => s.loadInlineThreads)
   const setModel = useConversations((s) => s.setModel)
   const setKBs = useConversations((s) => s.setKBs)
   const rename = useConversations((s) => s.renameConversation)
@@ -130,7 +132,8 @@ export default function ChatThread() {
   useEffect(() => {
     if (!id) return
     void loadOne(id)
-  }, [id, loadOne])
+    void loadInlineThreads(id)
+  }, [id, loadOne, loadInlineThreads])
 
   useEffect(() => {
     setAutoFollow(true)
@@ -297,6 +300,7 @@ export default function ChatThread() {
       >
         <MessageList conversation={conversation} />
       </div>
+      <InlineThreadLayer conversationId={conversation.id} scrollRef={scrollRef} />
 
       {/* Composer */}
       <div className="relative">

@@ -181,6 +181,13 @@ type Conversation struct {
 	Starred       bool            `json:"starred"`
 	CreatedAt     int64           `json:"created_at"`
 	UpdatedAt     int64           `json:"updated_at"`
+	// Inline-thread linkage (§ text-selection sub-conversations). When set, this
+	// conversation is a sub-conversation anchored to a quoted excerpt of a
+	// message in another conversation; it is hidden from the normal list and its
+	// quote is injected as system context. Empty for ordinary conversations.
+	InlineSourceConv string `json:"inline_source_conv"`
+	InlineParentID   string `json:"inline_parent_id"`
+	InlineQuote      string `json:"inline_quote"`
 }
 
 // Message — flat record over §5 messages. blocks/raw/attachments/citations are

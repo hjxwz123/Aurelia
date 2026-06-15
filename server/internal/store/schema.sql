@@ -203,10 +203,16 @@ CREATE TABLE IF NOT EXISTS conversations (
   pinned          INTEGER NOT NULL DEFAULT 0,
   archived        INTEGER NOT NULL DEFAULT 0,
   starred         INTEGER NOT NULL DEFAULT 0,
+  -- Inline-thread linkage (§ text-selection sub-conversations). Non-empty
+  -- inline_source_conv marks this row as a sub-conversation hidden from the list.
+  inline_source_conv TEXT NOT NULL DEFAULT '',
+  inline_parent_id   TEXT NOT NULL DEFAULT '',
+  inline_quote       TEXT NOT NULL DEFAULT '',
   created_at      INTEGER NOT NULL DEFAULT (strftime('%s','now')),
   updated_at      INTEGER NOT NULL DEFAULT (strftime('%s','now'))
 );
 CREATE INDEX IF NOT EXISTS idx_conv_user ON conversations(user_id);
+CREATE INDEX IF NOT EXISTS idx_conv_inline ON conversations(inline_source_conv);
 CREATE INDEX IF NOT EXISTS idx_conv_project ON conversations(project_id);
 
 CREATE TABLE IF NOT EXISTS messages (

@@ -86,7 +86,7 @@ export function Sidebar({ variant = 'desktop', onClose }: SidebarProps) {
     // Sort by last-updated so a conversation jumps to the top the moment the
     // user sends/continues a message in it (sendMessage bumps updatedAt). The
     // date buckets below preserve this order within each group.
-    () => allConversations.filter((c) => !c.archived).slice().sort((a, b) => b.updatedAt - a.updatedAt),
+    () => allConversations.filter((c) => !c.archived && !c.inline).slice().sort((a, b) => b.updatedAt - a.updatedAt),
     [allConversations],
   )
   const projects = useProjects((s) => s.projects)

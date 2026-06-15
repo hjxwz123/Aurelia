@@ -41,7 +41,7 @@ func SetConvProviderStateKey(ctx context.Context, db *sql.DB, convID, key, value
 // ListConversations returns conversations for a user, optionally filtered by
 // project. archivedFilter "any" returns all; "active" hides archived.
 func ListConversations(ctx context.Context, db *sql.DB, userID, projectID, archivedFilter string) ([]Conversation, error) {
-	q := `SELECT id, user_id, COALESCE(project_id, ''), title, provider, model_id, kb_ids, rag_mode, summary_blocks, COALESCE(active_leaf_id, ''), provider_state, pinned, archived, starred, created_at, updated_at FROM conversations WHERE user_id=?`
+	q := `SELECT id, user_id, COALESCE(project_id, ''), title, provider, model_id, kb_ids, rag_mode, summary_blocks, COALESCE(active_leaf_id, ''), provider_state, pinned, archived, starred, created_at, updated_at, COALESCE(inline_source_conv, ''), COALESCE(inline_parent_id, ''), COALESCE(inline_quote, '') FROM conversations WHERE user_id=? AND COALESCE(inline_source_conv,'')=''`
 	args := []any{userID}
 	if projectID == "_none_" {
 		q += " AND project_id IS NULL"
@@ -71,10 +71,32 @@ func ListConversations(ctx context.Context, db *sql.DB, userID, projectID, archi
 	return out, rows.Err()
 }
 
+// ListInlineThreads returns the sub-conversations anchored to messages of the
+// given source conversation, owned by userID, oldest first. Used to render the
+// inline-thread markers on a conversation's messages (§ text-selection threads).
+func ListInlineThreads(ctx context.Context, db *sql.DB, sourceConvID, userID string) ([]Conversation, error) {
+	rows, err := db.QueryContext(ctx,
+		`SELECT id, user_id, COALESCE(project_id, ''), title, provider, model_id, kb_ids, rag_mode, summary_blocks, COALESCE(active_leaf_id, ''), provider_state, pinned, archived, starred, created_at, updated_at, COALESCE(inline_source_conv, ''), COALESCE(inline_parent_id, ''), COALESCE(inline_quote, '')
+		 FROM conversations WHERE inline_source_conv=? AND user_id=? ORDER BY created_at ASC`, sourceConvID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []Conversation{}
+	for rows.Next() {
+		c, err := scanConversation(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, c)
+	}
+	return out, rows.Err()
+}
+
 // GetConversation returns one row checked against userID.
 func GetConversation(ctx context.Context, db *sql.DB, id, userID string) (*Conversation, error) {
 	row := db.QueryRowContext(ctx,
-		`SELECT id, user_id, COALESCE(project_id, ''), title, provider, model_id, kb_ids, rag_mode, summary_blocks, COALESCE(active_leaf_id, ''), provider_state, pinned, archived, starred, created_at, updated_at
+		`SELECT id, user_id, COALESCE(project_id, ''), title, provider, model_id, kb_ids, rag_mode, summary_blocks, COALESCE(active_leaf_id, ''), provider_state, pinned, archived, starred, created_at, updated_at, COALESCE(inline_source_conv, ''), COALESCE(inline_parent_id, ''), COALESCE(inline_quote, '')
 		 FROM conversations WHERE id=? AND user_id=?`, id, userID)
 	c, err := scanConversation(row)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -91,7 +113,7 @@ func GetConversation(ctx context.Context, db *sql.DB, id, userID string) (*Conve
 // per-user surfaces must go through GetConversation.
 func GetConversationByID(ctx context.Context, db *sql.DB, id string) (*Conversation, error) {
 	row := db.QueryRowContext(ctx,
-		`SELECT id, user_id, COALESCE(project_id, ''), title, provider, model_id, kb_ids, rag_mode, summary_blocks, COALESCE(active_leaf_id, ''), provider_state, pinned, archived, starred, created_at, updated_at
+		`SELECT id, user_id, COALESCE(project_id, ''), title, provider, model_id, kb_ids, rag_mode, summary_blocks, COALESCE(active_leaf_id, ''), provider_state, pinned, archived, starred, created_at, updated_at, COALESCE(inline_source_conv, ''), COALESCE(inline_parent_id, ''), COALESCE(inline_quote, '')
 		 FROM conversations WHERE id=?`, id)
 	c, err := scanConversation(row)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -107,7 +129,7 @@ func scanConversation(s scanner) (Conversation, error) {
 	var c Conversation
 	var pinned, archived, starred int
 	var kbIDs, sumBlocks, provState string
-	if err := s.Scan(&c.ID, &c.UserID, &c.ProjectID, &c.Title, &c.Provider, &c.ModelID, &kbIDs, &c.RAGMode, &sumBlocks, &c.ActiveLeafID, &provState, &pinned, &archived, &starred, &c.CreatedAt, &c.UpdatedAt); err != nil {
+	if err := s.Scan(&c.ID, &c.UserID, &c.ProjectID, &c.Title, &c.Provider, &c.ModelID, &kbIDs, &c.RAGMode, &sumBlocks, &c.ActiveLeafID, &provState, &pinned, &archived, &starred, &c.CreatedAt, &c.UpdatedAt, &c.InlineSourceConv, &c.InlineParentID, &c.InlineQuote); err != nil {
 		return c, err
 	}
 	c.Pinned = pinned == 1
@@ -154,11 +176,12 @@ func CreateConversation(ctx context.Context, db *sql.DB, c Conversation) (*Conve
 		projectID = c.ProjectID
 	}
 	_, err := db.ExecContext(ctx, `INSERT INTO conversations(
-		id, user_id, project_id, title, provider, model_id, kb_ids, rag_mode, summary_blocks, active_leaf_id, provider_state, pinned, archived, starred, created_at, updated_at
-	) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?)`,
+		id, user_id, project_id, title, provider, model_id, kb_ids, rag_mode, summary_blocks, active_leaf_id, provider_state, pinned, archived, starred, created_at, updated_at, inline_source_conv, inline_parent_id, inline_quote
+	) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		c.ID, c.UserID, projectID, c.Title, c.Provider, c.ModelID,
 		string(c.KBIDs), c.RAGMode, string(c.SummaryBlocks), string(c.ProviderState),
-		boolInt(c.Pinned), boolInt(c.Archived), boolInt(c.Starred), now, now)
+		boolInt(c.Pinned), boolInt(c.Archived), boolInt(c.Starred), now, now,
+		c.InlineSourceConv, c.InlineParentID, c.InlineQuote)
 	if err != nil {
 		return nil, err
 	}
@@ -256,6 +279,9 @@ func DeleteConversation(ctx context.Context, db *sql.DB, id, userID string) erro
 	if n == 0 {
 		return ErrNotFound
 	}
+	// Also remove any inline sub-conversations anchored to this one so they
+	// don't become orphaned, unreachable rows (§ text-selection threads).
+	_, _ = db.ExecContext(ctx, "DELETE FROM conversations WHERE inline_source_conv=? AND user_id=?", id, userID)
 	return nil
 }
 

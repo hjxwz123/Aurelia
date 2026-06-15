@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { useInlineThreadDrawer } from './inline-thread'
 
 /**
  * html-preview — drives the live HTML preview drawer on the right side of the
@@ -22,6 +23,8 @@ export const useHtmlPreview = create<HtmlPreviewStore>((set, get) => ({
   sourceKey: null,
   html: '',
   openPreview(key, html) {
+    // Mutual exclusion: only one right-edge drawer at a time.
+    useInlineThreadDrawer.getState().close()
     set({ open: true, sourceKey: key, html })
   },
   syncHtml(key, html) {

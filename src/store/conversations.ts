@@ -55,6 +55,13 @@ interface ConversationStore {
   setProject: (id: string, projectId: string | undefined) => Promise<void>
   setActiveLeaf: (id: string, leafId: string) => Promise<void>
   fork: (id: string, leafId?: string, title?: string) => Promise<Conversation | null>
+  /** Fetch the inline (text-selection) sub-conversations anchored to a source
+   *  conversation and merge them into the cache (flagged `inline`, hidden from
+   *  the sidebar). Drives the inline-thread markers on messages. */
+  loadInlineThreads: (sourceConvId: string) => Promise<void>
+  /** Create a new inline sub-conversation anchored to a quoted excerpt of a
+   *  message, returning the child conversation (already in the cache). */
+  createInlineThread: (sourceConvId: string, messageId: string, quote: string) => Promise<Conversation | undefined>
   /** Re-fetch the canonical active-path (enriched with sibling metadata) and
    *  swap it into the cache. Called after a stream completes so branch pickers
    *  appear and optimistic flat-append siblings collapse into the tree (§4.15). */
@@ -271,6 +278,40 @@ export const useConversations = create<ConversationStore>((set, get) => ({
       return conv
     } catch {
       return null
+    }
+  },
+
+  async loadInlineThreads(sourceConvId) {
+    try {
+      const rows = await conversationsApi.inlineThreads(sourceConvId)
+      const threads = rows.map(toLocalConversation)
+      set((s) => {
+        let list = s.conversations
+        for (const th of threads) {
+          // Preserve already-loaded messages if we have them (drawer may be open).
+          const existing = list.find((c) => c.id === th.id)
+          const merged = existing ? { ...th, messages: existing.messages } : th
+          list = replaceOrPrepend(list, merged)
+        }
+        return { conversations: list }
+      })
+    } catch {
+      // Non-fatal: markers just won't show.
+    }
+  },
+
+  async createInlineThread(sourceConvId, messageId, quote) {
+    try {
+      const created = await conversationsApi.createInlineThread(sourceConvId, {
+        message_id: messageId,
+        quote,
+      })
+      const conv = toLocalConversation(created)
+      set((s) => ({ conversations: [conv, ...s.conversations] }))
+      return conv
+    } catch (e) {
+      toast.error(errorMessage(e, 'Failed to start sub-conversation'))
+      return undefined
     }
   },
 
@@ -855,6 +896,13 @@ function toLocalConversation(c: ApiConversation): Conversation {
     pinned: c.pinned,
     starred: c.starred,
     archived: c.archived,
+    inline: c.inline_source_conv
+      ? {
+          sourceConvId: c.inline_source_conv,
+          messageId: c.inline_parent_id ?? '',
+          quote: c.inline_quote ?? '',
+        }
+      : undefined,
     messages: [],
   }
 }

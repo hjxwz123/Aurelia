@@ -192,10 +192,14 @@ CREATE TABLE IF NOT EXISTS conversations (
   pinned          INTEGER NOT NULL DEFAULT 0,
   archived        INTEGER NOT NULL DEFAULT 0,
   starred         INTEGER NOT NULL DEFAULT 0,
+  inline_source_conv TEXT NOT NULL DEFAULT '',
+  inline_parent_id   TEXT NOT NULL DEFAULT '',
+  inline_quote       TEXT NOT NULL DEFAULT '',
   created_at      BIGINT NOT NULL DEFAULT (extract(epoch from now())::bigint),
   updated_at      BIGINT NOT NULL DEFAULT (extract(epoch from now())::bigint)
 );
 CREATE INDEX IF NOT EXISTS idx_conv_user ON conversations(user_id);
+CREATE INDEX IF NOT EXISTS idx_conv_inline ON conversations(inline_source_conv);
 CREATE INDEX IF NOT EXISTS idx_conv_project ON conversations(project_id);
 
 CREATE TABLE IF NOT EXISTS messages (
