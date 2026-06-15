@@ -176,6 +176,10 @@ export interface Conversation {
   lastParams?: Record<string, unknown>
   /** Knowledge bases bound to this conversation (§7.2-7 composer 📚 selector). */
   kbIds?: string[]
+  /** Set when this is a text-selection sub-conversation anchored to a quoted
+   *  excerpt of a message in another conversation. Such conversations are hidden
+   *  from the sidebar / search and rendered in the inline-thread drawer. */
+  inline?: { sourceConvId: string; messageId: string; quote: string }
   messages: Message[]
 }
 

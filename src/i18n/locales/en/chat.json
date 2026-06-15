@@ -176,6 +176,13 @@
   "topbar": {
     "shareTooltip": "Share"
   },
+  "inline": {
+    "ask": "Ask",
+    "placeholder": "Ask about this…",
+    "send": "Send",
+    "title": "Sub-conversation",
+    "empty": "Ask anything about the highlighted passage."
+  },
   "thread": {
     "loadingEarlier": "Loading earlier messages…",
     "modelSwitched": "Model switched",

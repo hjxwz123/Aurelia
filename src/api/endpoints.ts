@@ -212,6 +212,12 @@ export const conversationsApi = {
     ),
   fork: (id: string, body: { leaf_id?: string; title?: string }) =>
     api<ApiConversation>(`/conversations/${encodeURIComponent(id)}/fork`, { method: 'POST', body }),
+  // Inline (text-selection) sub-conversations anchored to a quoted excerpt of a
+  // message. The list drives the inline-thread markers; create opens a new one.
+  inlineThreads: (id: string) =>
+    api<ApiConversation[]>(`/conversations/${encodeURIComponent(id)}/inline-threads`),
+  createInlineThread: (id: string, body: { message_id: string; quote: string }) =>
+    api<ApiConversation>(`/conversations/${encodeURIComponent(id)}/inline-threads`, { method: 'POST', body }),
   promoteDoc: (id: string, docId: string) =>
     api<{ ok: true }>(`/conversations/${encodeURIComponent(id)}/documents/${encodeURIComponent(docId)}/promote`, {
       method: 'POST',

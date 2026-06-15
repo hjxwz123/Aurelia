@@ -315,6 +315,11 @@ export interface ApiConversation {
   starred: boolean
   created_at: number
   updated_at: number
+  // Inline (text-selection) sub-conversation linkage. Non-empty
+  // inline_source_conv marks this as a sub-conversation anchored to an excerpt.
+  inline_source_conv?: string
+  inline_parent_id?: string
+  inline_quote?: string
 }
 
 export type ApiBlockKind =

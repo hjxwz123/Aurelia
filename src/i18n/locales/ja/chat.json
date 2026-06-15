@@ -176,6 +176,13 @@
   "topbar": {
     "shareTooltip": "共有"
   },
+  "inline": {
+    "ask": "質問",
+    "placeholder": "この箇所について質問…",
+    "send": "送信",
+    "title": "サブ会話",
+    "empty": "ハイライトした箇所について自由に質問できます。"
+  },
   "thread": {
     "loadingEarlier": "以前のメッセージを読み込み中…",
     "modelSwitched": "モデルを切り替えました",

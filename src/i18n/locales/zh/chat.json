@@ -175,6 +175,13 @@
   "topbar": {
     "shareTooltip": "分享"
   },
+  "inline": {
+    "ask": "提问",
+    "placeholder": "针对这段内容提问…",
+    "send": "发送",
+    "title": "子对话",
+    "empty": "针对高亮的内容提出任何问题。"
+  },
   "thread": {
     "loadingEarlier": "正在加载更早的消息…",
     "modelSwitched": "已切换模型",

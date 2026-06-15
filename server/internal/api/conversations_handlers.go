@@ -69,6 +69,81 @@ func createConversationHandler(d Deps, w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 201, conv)
 }
 
+type createInlineThreadReq struct {
+	MessageID string `json:"message_id"`
+	Quote     string `json:"quote"`
+}
+
+// createInlineThreadHandler opens a sub-conversation anchored to a quoted
+// excerpt of a message in the given source conversation (§ text-selection
+// sub-conversations). It inherits the source's model and is hidden from the
+// normal conversation list; the quote is injected as system context so the
+// assistant stays scoped to the highlighted passage.
+func createInlineThreadHandler(d Deps, w http.ResponseWriter, r *http.Request) {
+	u := authUser(r)
+	srcID := pathParam(r, "id")
+	src, err := store.GetConversation(r.Context(), d.DB, srcID, u.ID)
+	if err != nil {
+		writeError(w, 404, errNotFound)
+		return
+	}
+	var req createInlineThreadReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, 400, errInvalidInput)
+		return
+	}
+	quote := strings.TrimSpace(req.Quote)
+	if quote == "" || req.MessageID == "" {
+		writeError(w, 400, errInvalidInput)
+		return
+	}
+	// Cap the quote so a runaway selection can't bloat the system prompt.
+	if rs := []rune(quote); len(rs) > 4000 {
+		quote = string(rs[:4000])
+	}
+	// The anchored message must belong to the source conversation.
+	msg, err := store.GetMessage(r.Context(), d.DB, req.MessageID)
+	if err != nil || msg.ConversationID != srcID {
+		writeError(w, 404, errNotFound)
+		return
+	}
+	title := quote
+	if rs := []rune(title); len(rs) > 40 {
+		title = strings.TrimSpace(string(rs[:40])) + "…"
+	}
+	conv, err := store.CreateConversation(r.Context(), d.DB, store.Conversation{
+		UserID:           u.ID,
+		ModelID:          src.ModelID,
+		Provider:         src.Provider,
+		Title:            title,
+		InlineSourceConv: srcID,
+		InlineParentID:   req.MessageID,
+		InlineQuote:      quote,
+	})
+	if err != nil {
+		writeError(w, 500, err)
+		return
+	}
+	writeJSON(w, 201, conv)
+}
+
+// listInlineThreadsHandler returns the sub-conversations anchored to a source
+// conversation so the UI can render inline-thread markers on its messages.
+func listInlineThreadsHandler(d Deps, w http.ResponseWriter, r *http.Request) {
+	u := authUser(r)
+	srcID := pathParam(r, "id")
+	if _, err := store.GetConversation(r.Context(), d.DB, srcID, u.ID); err != nil {
+		writeError(w, 404, errNotFound)
+		return
+	}
+	rows, err := store.ListInlineThreads(r.Context(), d.DB, srcID, u.ID)
+	if err != nil {
+		writeError(w, 500, err)
+		return
+	}
+	writeJSON(w, 200, rows)
+}
+
 // getConversationHandler reads one conversation + path messages.
 func getConversationHandler(d Deps, w http.ResponseWriter, r *http.Request) {
 	u := authUser(r)

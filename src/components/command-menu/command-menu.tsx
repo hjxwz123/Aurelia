@@ -44,7 +44,7 @@ export function CommandMenu() {
   const { t } = useTranslation(['chat', 'projects'])
   const allConversations = useConversations((s) => s.conversations)
   const conversations = useMemo(
-    () => allConversations.filter((c) => !c.archived),
+    () => allConversations.filter((c) => !c.archived && !c.inline),
     [allConversations],
   )
   const projects = useProjects((s) => s.projects)

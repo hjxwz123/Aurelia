@@ -176,6 +176,13 @@
   "topbar": {
     "shareTooltip": "分享"
   },
+  "inline": {
+    "ask": "提問",
+    "placeholder": "針對這段內容提問…",
+    "send": "傳送",
+    "title": "子對話",
+    "empty": "針對標示的內容提出任何問題。"
+  },
   "thread": {
     "loadingEarlier": "正在載入較早的訊息…",
     "modelSwitched": "已切換模型",

@@ -176,6 +176,13 @@
   "topbar": {
     "shareTooltip": "Partager"
   },
+  "inline": {
+    "ask": "Demander",
+    "placeholder": "Poser une question à ce sujet…",
+    "send": "Envoyer",
+    "title": "Sous-conversation",
+    "empty": "Posez n'importe quelle question sur le passage surligné."
+  },
   "thread": {
     "loadingEarlier": "Chargement des messages précédents…",
     "modelSwitched": "Modèle changé",

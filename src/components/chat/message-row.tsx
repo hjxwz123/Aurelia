@@ -347,7 +347,9 @@ export function MessageRow({ message, userName, onRegenerate, onEdit, onSaveEdit
                     {t('message.refused')}
                   </div>
                 ) : null}
-                <Markdown content={message.content} live={Boolean(message.streaming)} blockKeyPrefix={message.id} />
+                <div data-inline-msg={message.id} data-inline-role={message.role}>
+                  <Markdown content={message.content} live={Boolean(message.streaming)} blockKeyPrefix={message.id} />
+                </div>
                 {message.streaming ? (
                   <span
                     aria-hidden
