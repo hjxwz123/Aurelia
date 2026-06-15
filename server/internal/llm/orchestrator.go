@@ -586,6 +586,10 @@ func (o *Orchestrator) Run(ctx context.Context, req RunRequest, onEvent func(Sse
 		// provider streamed so far (artifacts + text + tool rounds it managed to
 		// finish before cancel) rather than blanking the message.
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			// The turn context is dead, so DB writes on it would be rejected and
+			// the partial reply would be LOST. Persist on a detached context so a
+			// stop / kill / timeout still saves what the model produced.
+			ctx := context.WithoutCancel(ctx)
 			partialBlocks := []UnifiedBlock{}
 			if result != nil {
 				partialBlocks = append(partialBlocks, result.Blocks...)

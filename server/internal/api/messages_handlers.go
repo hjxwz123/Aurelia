@@ -13,6 +13,12 @@ import (
 	"aurelia/server/internal/store"
 )
 
+// maxGenDuration caps a detached generation. Generation is deliberately NOT
+// tied to the HTTP request anymore (so closing the page doesn't lose the reply),
+// so this is the backstop that prevents a stuck turn from running forever and
+// holding a concurrency slot.
+const maxGenDuration = 10 * time.Minute
+
 type postMessageReq struct {
 	Text           string           `json:"text"`
 	ModelID        string           `json:"model_id"`
@@ -69,7 +75,12 @@ func postMessageHandler(d Deps, w http.ResponseWriter, r *http.Request) {
 
 	// Build the cancellable context: HTTP disconnect + per-conversation stop +
 	// per-user kill (real-time ban, §8.1 — banUserAdmin publishes user:{id}:kill).
-	ctx, cancel := context.WithCancel(r.Context())
+	// The reply must survive the user closing the page mid-stream: detach the
+	// generation from the HTTP request so a browser disconnect no longer aborts
+	// (and loses) the answer — it finishes server-side and is persisted, ready
+	// when the user returns. Only an explicit stop/kill or the hard time cap can
+	// cancel it now.
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), maxGenDuration)
 	defer cancel()
 	stopCh, unsub := d.Cache.Subscribe("conv:" + id + ":stop")
 	defer unsub()
@@ -202,7 +213,12 @@ func regenerateHandler(d Deps, w http.ResponseWriter, r *http.Request) {
 		writeError(w, 500, errors.New("streaming not supported"))
 		return
 	}
-	ctx, cancel := context.WithCancel(r.Context())
+	// The reply must survive the user closing the page mid-stream: detach the
+	// generation from the HTTP request so a browser disconnect no longer aborts
+	// (and loses) the answer — it finishes server-side and is persisted, ready
+	// when the user returns. Only an explicit stop/kill or the hard time cap can
+	// cancel it now.
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), maxGenDuration)
 	defer cancel()
 	stopCh, unsub := d.Cache.Subscribe("conv:" + id + ":stop")
 	defer unsub()
