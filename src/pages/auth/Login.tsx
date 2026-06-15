@@ -33,6 +33,7 @@ export default function Login() {
   const location = useLocation()
   const { t } = useTranslation('auth')
   const login = useAuth((s) => s.login)
+  const banned = useAuth((s) => s.banned)
   const loginTwoFactor = useAuth((s) => s.loginTwoFactor)
   const pendingTwoFactor = useAuth((s) => s.pendingTwoFactor)
   const clearPendingTwoFactor = useAuth((s) => s.clearPendingTwoFactor)
@@ -86,6 +87,12 @@ export default function Login() {
     }
     if (!ok) {
       const err = useAuth.getState().error
+      // Suspended account → the banned banner already explains it; don't also
+      // show a generic error.
+      if (useAuth.getState().banned) {
+        setErrors({})
+        return
+      }
       // If account is pending verification, redirect to register page
       // where the verification code UI will show
       if (useAuth.getState().pendingVerification) {
@@ -222,6 +229,16 @@ export default function Login() {
         className="flex flex-col gap-4"
         onSubmit={(e) => void submit(e)}
       >
+        {banned ? (
+          <motion.div
+            variants={fadeUp}
+            role="alert"
+            className="rounded-[10px] border border-[var(--color-danger)] bg-[var(--color-danger-soft)] text-[var(--color-danger)] px-3.5 py-3 text-sm"
+          >
+            <div className="font-medium">{t('login.suspended.title')}</div>
+            <p className="mt-0.5 text-[13px] text-[var(--color-fg-muted)]">{t('login.suspended.body')}</p>
+          </motion.div>
+        ) : null}
         {errors.general ? (
           <motion.div
             variants={fadeUp}
