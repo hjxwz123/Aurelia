@@ -673,46 +673,38 @@ func isSpreadsheetData(filename, mime string) bool {
 	return strings.Contains(m, "spreadsheet") || strings.Contains(m, "ms-excel")
 }
 
-// isProbablyText narrows on mime types AND known text-friendly extensions.
-// MinerU rejects raw text formats — and there's no parse work to do anyway —
-// so we keep them on the local read path. `p` may be a temp path without the
-// original extension, so `filename` (the upload name) is also consulted.
+// isProbablyText decides whether to read a file directly as text. Policy:
+// ANYTHING unrecognized is treated as plain text (so an uploaded .v / .ini / any
+// source file is read instead of dropped) — we only bail out for formats that
+// have a real binary parser (office, pdf) or are clearly non-text (images,
+// audio/video, archives, executables), which would yield garbage as text.
+// `p` may be a temp path without the original extension, so `filename` is
+// consulted too.
 func isProbablyText(mime, p, filename string) bool {
 	mime = strings.ToLower(mime)
-	// Office Open XML containers (docx/pptx/xlsx) are ZIP archives whose mime
-	// type literally contains "xml" — "application/vnd.openxmlformats-…". They
-	// must NEVER be read as text (that returns the raw zip bytes), so bail on
-	// the binary container extensions and office mimes first.
-	switch strings.ToLower(filepath.Ext(filename)) {
-	case ".docx", ".pptx", ".xlsx", ".doc", ".ppt", ".xls", ".pdf", ".zip":
+	ext := strings.ToLower(filepath.Ext(filename))
+	if ext == "" {
+		ext = strings.ToLower(filepath.Ext(p))
+	}
+	// Formats with dedicated extraction (office/pdf) or that are inherently
+	// binary → not plain text.
+	switch ext {
+	case ".docx", ".pptx", ".xlsx", ".xlsm", ".doc", ".ppt", ".xls", ".pdf",
+		".zip", ".gz", ".tgz", ".tar", ".rar", ".7z", ".bz2",
+		".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".ico", ".tif", ".tiff", ".heic",
+		".mp3", ".wav", ".flac", ".ogg", ".m4a", ".mp4", ".mov", ".avi", ".mkv", ".webm",
+		".exe", ".dll", ".so", ".dylib", ".bin", ".o", ".a", ".class", ".wasm":
 		return false
 	}
-	switch strings.ToLower(filepath.Ext(p)) {
-	case ".docx", ".pptx", ".xlsx", ".doc", ".ppt", ".xls", ".pdf", ".zip":
+	if strings.HasPrefix(mime, "image/") || strings.HasPrefix(mime, "audio/") ||
+		strings.HasPrefix(mime, "video/") || mime == "application/pdf" ||
+		strings.Contains(mime, "officedocument") || strings.Contains(mime, "msword") ||
+		strings.Contains(mime, "ms-excel") || strings.Contains(mime, "ms-powerpoint") ||
+		strings.Contains(mime, "zip") || strings.Contains(mime, "octet-stream") && ext == "" {
 		return false
 	}
-	if strings.Contains(mime, "officedocument") || strings.Contains(mime, "ms-office") ||
-		strings.Contains(mime, "msword") || strings.Contains(mime, "ms-excel") ||
-		strings.Contains(mime, "ms-powerpoint") {
-		return false
-	}
-	if strings.HasPrefix(mime, "text/") || strings.Contains(mime, "json") ||
-		strings.Contains(mime, "csv") || strings.Contains(mime, "markdown") {
-		return true
-	}
-	// Real XML mime types only — not the OOXML container types excluded above.
-	if mime == "application/xml" || mime == "text/xml" || strings.HasSuffix(mime, "+xml") {
-		return true
-	}
-	switch strings.ToLower(filepath.Ext(filename)) {
-	case ".txt", ".md", ".markdown", ".csv", ".log", ".json", ".yaml", ".yml", ".xml":
-		return true
-	}
-	switch strings.ToLower(filepath.Ext(p)) {
-	case ".txt", ".md", ".markdown", ".csv", ".log", ".json", ".yaml", ".yml", ".xml":
-		return true
-	}
-	return false
+	// Everything else → read as plain text.
+	return true
 }
 
 func formatBytes(n int64) string {

@@ -242,12 +242,33 @@ func uploadFileHandler(d Deps, w http.ResponseWriter, r *http.Request) {
 // isDocKind reports whether a file kind should be RAG-ingested as a document.
 // Spreadsheets ("sheet") are deliberately excluded: CSV/XLS(X) are data files
 // analysed in the code sandbox (python_execute), never parsed or embedded.
+// "code" IS ingested so the model can read & explain uploaded source files.
 func isDocKind(kind string) bool {
 	switch kind {
-	case "pdf", "text", "doc":
+	case "pdf", "text", "doc", "code":
 		return true
 	}
 	return false
+}
+
+// codeExts is the set of source-code / plain-text extensions we treat as "code"
+// — readable text the model can explain. Kept broad so an uploaded .v (Verilog)
+// or any common source file is recognized instead of falling through to "other"
+// (which is neither ingested nor staged, so the model never sees it).
+var codeExts = map[string]bool{
+	".v": true, ".sv": true, ".svh": true, ".vh": true, ".vhd": true, ".vhdl": true,
+	".c": true, ".h": true, ".cpp": true, ".cxx": true, ".cc": true, ".hpp": true, ".hh": true,
+	".cs": true, ".java": true, ".kt": true, ".kts": true, ".swift": true, ".go": true, ".rs": true,
+	".rb": true, ".php": true, ".py": true, ".pyw": true, ".js": true, ".jsx": true, ".ts": true,
+	".tsx": true, ".mjs": true, ".cjs": true, ".vue": true, ".svelte": true,
+	".sh": true, ".bash": true, ".zsh": true, ".ps1": true, ".bat": true, ".sql": true,
+	".scala": true, ".r": true, ".jl": true, ".lua": true, ".pl": true, ".pm": true, ".dart": true,
+	".ex": true, ".exs": true, ".erl": true, ".hrl": true, ".clj": true, ".hs": true,
+	".ml": true, ".mli": true, ".fs": true, ".f90": true, ".asm": true, ".s": true,
+	".proto": true, ".graphql": true, ".gql": true, ".tcl": true, ".groovy": true, ".gradle": true,
+	".json": true, ".yaml": true, ".yml": true, ".toml": true, ".ini": true, ".cfg": true,
+	".conf": true, ".env": true, ".properties": true, ".xml": true, ".html": true, ".htm": true,
+	".css": true, ".scss": true, ".sass": true, ".less": true, ".rst": true,
 }
 
 // kindOf maps mime + filename to one of the kind buckets the frontend uses.
@@ -269,12 +290,17 @@ func kindOf(mime, name string) string {
 		return "sheet"
 	case ".docx", ".doc", ".pptx", ".ppt":
 		return "doc"
-	case ".go", ".ts", ".tsx", ".js", ".jsx", ".py", ".rs":
-		return "code"
-	case ".txt", ".md", ".markdown":
+	case ".txt", ".md", ".markdown", ".log":
 		return "text"
+	default:
+		if codeExts[ext] {
+			return "code"
+		}
 	}
-	return "other"
+	// Unknown extension → treat as plain text so it's still ingested and the
+	// model can read it. Genuinely-binary uploads are caught at parse time
+	// (isProbablyText) and degrade to a placeholder rather than garbage.
+	return "text"
 }
 
 // downloadArtifactHandler streams an artifact to the user with ownership
