@@ -34,6 +34,7 @@
     "language": "Language",
     "theme": "Appearance",
     "accent": "Accent color",
+    "layout": "Chat width",
     "chatStyle": "Reply style",
     "chatStyleBody": "How detailed should answers be by default?",
     "memory": "Memory",
@@ -59,6 +60,7 @@
     "language": "Choose your interface language.",
     "theme": "Light, dark, or follow your system.",
     "accent": "Pick an accent color for the app.",
+    "layout": "Center the chat or use the full width.",
     "style": "How detailed should replies be by default?",
     "memory": "Let Aurelia remember useful details across your chats."
   }
