@@ -145,6 +145,10 @@ func Migrate(db *sql.DB) error {
 	} {
 		_, _ = db.Exec(ddl)
 	}
+	// Indexes that depend on additively-added columns must run AFTER the ALTERs
+	// above (on an existing DB the CREATE TABLE is a no-op, so the column only
+	// exists once the ALTER has run). Kept out of the schema file for that reason.
+	_, _ = db.Exec(`CREATE INDEX IF NOT EXISTS idx_conv_inline ON conversations(inline_source_conv)`)
 	// One-time backfill: accounts that exist only because of an OAuth login were
 	// created with a random password they never chose, so mark them as
 	// password-unset to force them through the set-password gate. Guarded by a

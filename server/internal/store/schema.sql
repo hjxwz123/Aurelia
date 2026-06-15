@@ -212,7 +212,6 @@ CREATE TABLE IF NOT EXISTS conversations (
   updated_at      INTEGER NOT NULL DEFAULT (strftime('%s','now'))
 );
 CREATE INDEX IF NOT EXISTS idx_conv_user ON conversations(user_id);
-CREATE INDEX IF NOT EXISTS idx_conv_inline ON conversations(inline_source_conv);
 CREATE INDEX IF NOT EXISTS idx_conv_project ON conversations(project_id);
 
 CREATE TABLE IF NOT EXISTS messages (
