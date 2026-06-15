@@ -8,7 +8,7 @@
  */
 import { create } from 'zustand'
 import { authApi, ApiError, setAccessToken } from '@/api'
-import { setBannedHandler } from '@/api/client'
+import { setBannedHandler, setRefreshHandler } from '@/api/client'
 import type { ApiUser } from '@/api/types'
 
 interface AuthState {
@@ -183,4 +183,21 @@ export const useAuth = create<AuthState>((set, get) => ({
 setBannedHandler(() => {
   setAccessToken(null)
   useAuth.setState({ user: null, status: 'unauthenticated', banned: true, pendingTwoFactor: null })
+})
+
+// Refresh-on-401: the access token is short-lived (2h); rather than letting an
+// open tab fall over with "auth required", mint a fresh one from the refresh
+// cookie and let the api client retry. Returns false (→ the original 401 stands,
+// surfacing as logged-out) when the refresh token is gone/expired/revoked.
+setRefreshHandler(async () => {
+  try {
+    const resp = await authApi.refresh()
+    setAccessToken(resp.access_token)
+    useAuth.setState({ user: resp.user, status: 'authenticated' })
+    return true
+  } catch {
+    setAccessToken(null)
+    useAuth.setState({ user: null, status: 'unauthenticated' })
+    return false
+  }
 })

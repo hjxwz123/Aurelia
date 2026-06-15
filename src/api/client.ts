@@ -59,6 +59,16 @@ interface ApiOptions {
 
 /** Core fetch wrapper. */
 export async function api<T = unknown>(path: string, opts: ApiOptions = {}): Promise<T> {
+  return apiRequest<T>(path, opts, false)
+}
+
+// isAuthPath: the auth endpoints (login / refresh / register / logout) must NEVER
+// trigger the refresh-on-401 retry, or a failed refresh would loop.
+function isAuthPath(path: string): boolean {
+  return path.startsWith('/auth/')
+}
+
+async function apiRequest<T>(path: string, opts: ApiOptions, retried: boolean): Promise<T> {
   const isForm = opts.body instanceof FormData
   const headers: Record<string, string> = {
     accept: 'application/json',
@@ -73,6 +83,12 @@ export async function api<T = unknown>(path: string, opts: ApiOptions = {}): Pro
     body: isForm ? (opts.body as FormData) : opts.body ? JSON.stringify(opts.body) : undefined,
     signal: opts.signal,
   })
+  // The access token is short-lived (2h). When it expires an open tab would
+  // start 401-ing "auth required" out of nowhere — silently refresh once via the
+  // long-lived refresh cookie and retry, so the session keeps working.
+  if (res.status === 401 && !retried && !isAuthPath(path)) {
+    if (await tryRefresh()) return apiRequest<T>(path, opts, true)
+  }
   let parsed: unknown = undefined
   const text = await res.text()
   if (text.length > 0) {
@@ -108,23 +124,49 @@ function notifyBanned(): void {
   bannedHandler?.()
 }
 
+// Refresh-on-401 hook. The auth store registers a handler that mints a fresh
+// access token from the refresh cookie. Single-flight: many requests can 401 at
+// once (token just expired) — they all await one refresh.
+let refreshHandler: (() => Promise<boolean>) | null = null
+let refreshInFlight: Promise<boolean> | null = null
+export function setRefreshHandler(cb: () => Promise<boolean>): void {
+  refreshHandler = cb
+}
+function tryRefresh(): Promise<boolean> {
+  if (!refreshHandler) return Promise.resolve(false)
+  if (!refreshInFlight) {
+    refreshInFlight = refreshHandler()
+      .catch(() => false)
+      .finally(() => {
+        refreshInFlight = null
+      })
+  }
+  return refreshInFlight
+}
+
 /** Open a streaming POST request that yields SSE events as parsed JSON. */
 export async function* streamSSE(
   path: string,
   body: unknown,
   signal?: AbortSignal,
 ): AsyncGenerator<{ event: string; data: unknown }> {
-  const res = await fetch(API_BASE + path, {
-    method: 'POST',
-    credentials: 'include',
-    headers: {
-      accept: 'text/event-stream',
-      'content-type': 'application/json',
-      ...(memoryToken ? { authorization: `Bearer ${memoryToken}` } : {}),
-    },
-    body: JSON.stringify(body),
-    signal,
-  })
+  const open = () =>
+    fetch(API_BASE + path, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        accept: 'text/event-stream',
+        'content-type': 'application/json',
+        ...(memoryToken ? { authorization: `Bearer ${memoryToken}` } : {}),
+      },
+      body: JSON.stringify(body),
+      signal,
+    })
+  let res = await open()
+  // Same refresh-on-401 as api(): an expired access token shouldn't fail a send.
+  if (res.status === 401 && !isAuthPath(path) && (await tryRefresh())) {
+    res = await open()
+  }
   if (!res.ok || !res.body) {
     let text = ''
     try {
