@@ -59,6 +59,13 @@ export const authApi = {
    *  password required; the session stays valid). */
   setPassword: (new_password: string) =>
     api<{ ok: true }>('/me/password/set', { method: 'POST', body: { new_password } }),
+  /** Upload a profile avatar (PNG/JPG). Returns the served URL to store in
+   *  the user's settings (avatar_url). */
+  uploadAvatar: (file: File) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    return api<{ url: string; filename: string }>('/me/avatar', { method: 'POST', body: fd })
+  },
   getSettings: () => api<Record<string, unknown>>('/me/settings'),
   updateSettings: (patch: Record<string, unknown>) =>
     api<Record<string, unknown>>('/me/settings', { method: 'PATCH', body: patch }),

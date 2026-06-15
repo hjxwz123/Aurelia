@@ -50,6 +50,7 @@
       "emailBody": "ログインと重要な通知に使用されます。",
       "emailLocked": "ログインに使用します。変更は管理者にご連絡ください。"
     },
+    "avatar": { "upload": "アップロード", "change": "変更", "remove": "削除", "updated": "アバターを更新しました", "failed": "アバターを更新できませんでした" },
     "security": "セキュリティ",
     "securityRows": {
       "password": "パスワード",

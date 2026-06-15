@@ -1,12 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { Mail, User, Lock, AlertTriangle, ShieldCheck, Copy } from 'lucide-react'
+import { Mail, User, Lock, AlertTriangle, ShieldCheck, Copy, Upload } from 'lucide-react'
 import { SettingsRow, SettingsSection } from './SettingsLayout'
 import { ActiveSessions } from '@/components/settings/active-sessions'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { initials } from '@/components/ui/avatar.utils'
 import { useAuth } from '@/store/auth'
 import { authApi, ApiError } from '@/api'
@@ -34,6 +34,9 @@ export default function Account() {
   const [name, setName] = useState(user?.name ?? '')
   const [email, setEmail] = useState(user?.email ?? '')
   const [saving, setSaving] = useState(false)
+  const [avatarBusy, setAvatarBusy] = useState(false)
+  const avatarRef = useRef<HTMLInputElement>(null)
+  const avatarUrl = (user?.settings as Record<string, unknown> | undefined)?.avatar_url as string | undefined
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deletePassword, setDeletePassword] = useState('')
   const [deleting, setDeleting] = useState(false)
@@ -125,6 +128,36 @@ export default function Account() {
     }
   }
 
+  async function setAvatar(url: string) {
+    // Persist into user settings (returned with /me) so it shows everywhere.
+    await authApi.updateSettings({ avatar_url: url })
+    if (user) setUser({ ...user, settings: { ...(user.settings ?? {}), avatar_url: url } })
+  }
+  async function onPickAvatar(file: File | undefined) {
+    if (!file) return
+    setAvatarBusy(true)
+    try {
+      const res = await authApi.uploadAvatar(file)
+      await setAvatar(res.url)
+      toast.success(t('settings:account.avatar.updated'))
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : t('settings:account.avatar.failed'))
+    } finally {
+      setAvatarBusy(false)
+      if (avatarRef.current) avatarRef.current.value = ''
+    }
+  }
+  async function removeAvatar() {
+    setAvatarBusy(true)
+    try {
+      await setAvatar('')
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : t('settings:account.avatar.failed'))
+    } finally {
+      setAvatarBusy(false)
+    }
+  }
+
   async function changePassword() {
     if (pw.next.length < 8) {
       toast.error(t('settings:account.passwordMinLength'))
@@ -143,7 +176,7 @@ export default function Account() {
   }
 
   return (
-    <div className="max-w-[44rem]">
+    <div className="mx-auto max-w-[60rem]">
       <header className="mb-8">
         <h1 className="font-serif tracking-tight text-3xl text-[var(--color-fg)]">{t('settings:account.title')}</h1>
         <p className="mt-2.5 text-sm text-[var(--color-fg-muted)]">{t('settings:account.subtitle')}</p>
@@ -151,9 +184,33 @@ export default function Account() {
 
       <SettingsSection title={t('settings:account.profile')}>
         <SettingsRow label={t('settings:account.rows.avatar')} description={t('settings:account.rows.avatarBody')}>
-          <Avatar size="xl" tone="clay">
-            <AvatarFallback>{initials(name || email || '?')}</AvatarFallback>
-          </Avatar>
+          <div className="flex items-center gap-3">
+            <Avatar size="xl" tone="clay">
+              {avatarUrl ? <AvatarImage src={avatarUrl} alt={name} /> : null}
+              <AvatarFallback>{initials(name || email || '?')}</AvatarFallback>
+            </Avatar>
+            <input
+              ref={avatarRef}
+              type="file"
+              accept="image/png,image/jpeg"
+              className="hidden"
+              onChange={(e) => void onPickAvatar(e.target.files?.[0])}
+            />
+            <Button
+              variant="secondary"
+              size="sm"
+              loading={avatarBusy}
+              leadingIcon={<Upload size={13} aria-hidden />}
+              onClick={() => avatarRef.current?.click()}
+            >
+              {avatarUrl ? t('settings:account.avatar.change') : t('settings:account.avatar.upload')}
+            </Button>
+            {avatarUrl ? (
+              <Button variant="ghost" size="sm" disabled={avatarBusy} onClick={() => void removeAvatar()}>
+                {t('settings:account.avatar.remove')}
+              </Button>
+            ) : null}
+          </div>
         </SettingsRow>
         <SettingsRow label={t('settings:account.rows.name')} description={t('settings:account.rows.nameBody')}>
           <Input

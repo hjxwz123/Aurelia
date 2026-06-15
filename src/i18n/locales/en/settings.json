@@ -50,6 +50,7 @@
       "emailBody": "Used for sign-in and important notices.",
       "emailLocked": "Used for sign-in. Contact an admin to change it."
     },
+    "avatar": { "upload": "Upload", "change": "Change", "remove": "Remove", "updated": "Avatar updated", "failed": "Could not update avatar" },
     "security": "Security",
     "securityRows": {
       "password": "Password",

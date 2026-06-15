@@ -74,6 +74,9 @@ func NewRouter(d Deps) http.Handler {
 	mux.handle("DELETE", "/api/me", requireAuth(d, deleteMeHandler))
 	mux.handle("PATCH", "/api/me/password", requireAuth(d, changePasswordHandler))
 	mux.handle("POST", "/api/me/password/set", requireAuth(d, setPasswordHandler))
+	// User avatar upload — reuses the image-validating icon handler (returns
+	// {url}); the client stores that URL in the user's settings (avatar_url).
+	mux.handle("POST", "/api/me/avatar", requireAuth(d, uploadIconAdmin))
 	mux.handle("GET", "/api/me/usage", requireAuth(d, meUsageHandler))
 	mux.handle("GET", "/api/me/settings", requireAuth(d, meSettingsHandler))
 	mux.handle("PATCH", "/api/me/settings", requireAuth(d, updateMeSettingsHandler))
