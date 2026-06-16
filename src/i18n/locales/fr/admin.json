@@ -429,6 +429,8 @@
       "priceUsd": "Prix (USD)",
       "priceCny": "Prix (CNY)",
       "features": "Fonctionnalités",
+      "research": "Recherche approfondie",
+      "researchHint": "Autoriser ce groupe à utiliser le mode Recherche approfondie.",
       "featuresHint": "Une par ligne. Affichées sous forme de liste de contrôle sur la page d'abonnement.",
       "featuresPlaceholder": "Accès prioritaire\nLimites d'utilisation plus élevées\nFonctionnalités en avant-première"
     },

@@ -196,16 +196,21 @@ export default function Subscription() {
                     <PriceTag group={g} t={t} />
                   </div>
 
-                  {g.features.length > 0 ? (
-                    <ul className="mt-5 flex flex-col gap-2.5">
-                      {g.features.map((f, i) => (
-                        <li key={i} className="flex items-start gap-2 text-[13px] text-[var(--color-fg)]">
-                          <Check size={15} aria-hidden className="mt-[2px] shrink-0 text-[var(--color-secondary)]" />
-                          <span className="leading-snug">{f}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : null}
+                  {(() => {
+                    // Hide reserved functional flags (e.g. 'research') from the
+                    // marketing bullet list — they're capabilities, not copy.
+                    const bullets = g.features.filter((f) => f !== 'research')
+                    return bullets.length > 0 ? (
+                      <ul className="mt-5 flex flex-col gap-2.5">
+                        {bullets.map((f, i) => (
+                          <li key={i} className="flex items-start gap-2 text-[13px] text-[var(--color-fg)]">
+                            <Check size={15} aria-hidden className="mt-[2px] shrink-0 text-[var(--color-secondary)]" />
+                            <span className="leading-snug">{f}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null
+                  })()}
 
                   <div className="mt-6 pt-2 grow flex items-end">
                     {isCurrent ? (

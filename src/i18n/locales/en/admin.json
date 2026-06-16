@@ -429,6 +429,8 @@
       "priceUsd": "Price (USD)",
       "priceCny": "Price (CNY)",
       "features": "Features",
+      "research": "Deep Research",
+      "researchHint": "Allow this group to use the Deep Research mode.",
       "featuresHint": "One per line. Shown as a checklist on the subscription page.",
       "featuresPlaceholder": "Priority access\nHigher usage limits\nEarly features"
     },

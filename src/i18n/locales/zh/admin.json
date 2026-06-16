@@ -429,6 +429,8 @@
       "priceUsd": "价格（美元）",
       "priceCny": "价格（人民币）",
       "features": "功能介绍",
+      "research": "深度研究",
+      "researchHint": "允许该用户组使用深度研究功能。",
       "featuresHint": "每行一条，将在订阅页面以清单形式展示。",
       "featuresPlaceholder": "优先访问\n更高用量上限\n抢先体验新功能"
     },

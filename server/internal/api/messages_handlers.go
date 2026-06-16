@@ -48,6 +48,12 @@ func postMessageHandler(d Deps, w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, errors.New("text required"))
 		return
 	}
+	// Deep Research is a per-group capability (§ user groups). If the user's
+	// group isn't entitled, silently downgrade to a normal turn (the client also
+	// hides the button, so this is defense-in-depth, not the primary UX).
+	if req.Mode == "deep-research" && u.Role != "admin" && !userGroupHasFeature(r.Context(), d, u.GroupID, "research") {
+		req.Mode = ""
+	}
 	// Admins are exempt from all usage quotas (§ admin) — they can test freely.
 	if u.Role != "admin" {
 		// Limit per day.
@@ -266,6 +272,28 @@ func regenerateHandler(d Deps, w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		_ = writer.Send(map[string]string{"type": "error", "message": err.Error()}, "error")
 	}
+}
+
+// userGroupHasFeature reports whether the user's group carries a capability
+// flag (e.g. "research"). Missing group / parse error → not entitled.
+func userGroupHasFeature(ctx context.Context, d Deps, groupID, feature string) bool {
+	if groupID == "" {
+		groupID = store.DefaultGroupID
+	}
+	g, err := store.GetUserGroup(ctx, d.DB, groupID)
+	if err != nil || g == nil {
+		return false
+	}
+	var feats []string
+	if json.Unmarshal(g.Features, &feats) != nil {
+		return false
+	}
+	for _, f := range feats {
+		if f == feature {
+			return true
+		}
+	}
+	return false
 }
 
 func checkDailyMessageLimit(d Deps, userID string) bool {

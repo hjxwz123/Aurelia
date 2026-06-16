@@ -35,6 +35,10 @@ type User struct {
 	// updated (throttled) by the auth middleware. Drives the admin online status.
 	LastSeenAt int64 `json:"last_seen_at"`
 	CreatedAt  int64 `json:"created_at"`
+	// Features is the transient list of capability flags from the user's group
+	// (e.g. "research"). Populated only on the /api/me response so the client can
+	// gate features; never persisted on the users table.
+	Features []string `json:"features,omitempty"`
 }
 
 // UserGroup is a membership tier (§ user groups). Features is a JSON array of

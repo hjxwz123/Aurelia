@@ -19,7 +19,6 @@ import {
   Image as ImageIcon,
   Mic,
   StopCircle,
-  Sparkles,
   Telescope,
   X,
   Loader2,
@@ -37,6 +36,7 @@ import { ParamControls } from './param-controls'
 import { filterVisibleParams } from './param-controls.utils'
 import { useAutosizeTextarea } from '@/hooks/use-autosize-textarea'
 import { useModels } from '@/store/models'
+import { useAuth } from '@/store/auth'
 import { api, ApiError } from '@/api/client'
 import type { ApiAttachment } from '@/api/types'
 import { toast } from '@/hooks/use-toast'
@@ -183,6 +183,11 @@ export function Composer({
   const effectivePlaceholder = placeholder ?? t('composer.placeholder')
 
   const currentModel = useModels((s) => s.models.find((m) => m.id === modelId))
+  // Deep Research is a per-group capability — only show the button when the
+  // user's group is entitled (admins always are).
+  const researchEnabled = useAuth(
+    (s) => s.user?.role === 'admin' || Boolean(s.user?.features?.includes('research')),
+  )
   const paramControls = currentModel?.param_controls
 
   // Reset param values whenever the model changes (different schemas).
@@ -387,23 +392,10 @@ export function Composer({
         'focus-within:border-[var(--color-border-strong)] focus-within:shadow-[var(--shadow-md)]',
       )}
     >
-      {/* Armed mode chip + attachments */}
-      {(mode !== 'default' || attachments.length > 0) && (
+      {/* Attachments preview. The armed-mode (research) state is shown by the
+          toolbar button below, so we don't repeat a chip above the input. */}
+      {attachments.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5 px-3.5 pt-3 pb-1">
-          {mode !== 'default' && (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--color-secondary-soft)] text-[var(--color-secondary)] border border-[var(--color-secondary)]/20 px-2 py-0.5 text-[11px] font-medium">
-              {mode === 'deep-research' ? <Telescope size={11} aria-hidden /> : <Sparkles size={11} aria-hidden />}
-              {mode === 'deep-research' ? t('modePill.deepResearch') : t('modePill.canvas')}
-              <button
-                type="button"
-                aria-label={t('actions.more')}
-                onClick={() => setMode('default')}
-                className="ml-0.5 inline-flex items-center justify-center rounded-full hover:bg-[var(--color-secondary)]/15"
-              >
-                <X size={10} aria-hidden />
-              </button>
-            </span>
-          )}
           {attachments.map((a) =>
             a.kind === 'image' && a.previewUrl ? (
               <span key={a.id} className="group/att relative inline-block">
@@ -569,24 +561,26 @@ export function Composer({
 
         <div className="mx-1 h-5 w-px bg-[var(--color-divider)]" aria-hidden />
 
-        <Tooltip content={t('composer.researchTooltip')}>
-          <button
-            type="button"
-            onClick={() => setMode((m) => (m === 'deep-research' ? 'default' : 'deep-research'))}
-            aria-pressed={mode === 'deep-research'}
-            aria-label={t('composer.researchTooltip')}
-            className={cn(
-              'inline-flex items-center gap-1.5 h-8 px-2 rounded-[8px] text-[12px] font-medium interactive',
-              mode === 'deep-research'
-                ? 'bg-[var(--color-secondary-soft)] text-[var(--color-secondary)]'
-                : 'text-[var(--color-fg-muted)] hover:bg-[var(--color-bg-muted)] hover:text-[var(--color-fg)]',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]',
-            )}
-          >
-            <Telescope size={14} aria-hidden />
-            <span className="max-sm:hidden">{t('composer.research')}</span>
-          </button>
-        </Tooltip>
+        {researchEnabled ? (
+          <Tooltip content={t('composer.researchTooltip')}>
+            <button
+              type="button"
+              onClick={() => setMode((m) => (m === 'deep-research' ? 'default' : 'deep-research'))}
+              aria-pressed={mode === 'deep-research'}
+              aria-label={t('composer.researchTooltip')}
+              className={cn(
+                'inline-flex items-center gap-1.5 h-8 px-2 rounded-[8px] text-[12px] font-medium interactive',
+                mode === 'deep-research'
+                  ? 'bg-[var(--color-secondary-soft)] text-[var(--color-secondary)]'
+                  : 'text-[var(--color-fg-muted)] hover:bg-[var(--color-bg-muted)] hover:text-[var(--color-fg)]',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]',
+              )}
+            >
+              <Telescope size={14} aria-hidden />
+              <span className="max-sm:hidden">{t('composer.research')}</span>
+            </button>
+          </Tooltip>
+        ) : null}
 
         {/* Per-model param_controls — below the input, to the left of the KB
             selector (§2.3-G). The picked values flow up via onSubmit(). */}
