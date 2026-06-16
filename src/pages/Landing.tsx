@@ -100,6 +100,30 @@ export default function Landing() {
         // Depth: the soft background orbs drift at different rates on scroll.
         gsap.to('.orb-1', { yPercent: 22, ease: 'none', scrollTrigger: { start: 'top top', end: 'max', scrub: true } })
         gsap.to('.orb-2', { yPercent: -16, ease: 'none', scrollTrigger: { start: 'top top', end: 'max', scrub: true } })
+
+        // Pointer-parallax tilt on the hero preview — subtle 3D depth, desktop
+        // (fine-pointer) only. quickTo keeps it off the React render cycle.
+        const preview = root.current?.querySelector<HTMLElement>('.hero-preview')
+        if (preview && window.matchMedia('(pointer: fine)').matches) {
+          gsap.set(preview, { transformPerspective: 1100, transformOrigin: 'center' })
+          const rx = gsap.quickTo(preview, 'rotationX', { duration: 0.5, ease: 'power3' })
+          const ry = gsap.quickTo(preview, 'rotationY', { duration: 0.5, ease: 'power3' })
+          const onMove = (e: PointerEvent) => {
+            const r = preview.getBoundingClientRect()
+            ry(((e.clientX - r.left) / r.width - 0.5) * 5)
+            rx(-((e.clientY - r.top) / r.height - 0.5) * 5)
+          }
+          const onLeave = () => {
+            rx(0)
+            ry(0)
+          }
+          preview.addEventListener('pointermove', onMove)
+          preview.addEventListener('pointerleave', onLeave)
+          return () => {
+            preview.removeEventListener('pointermove', onMove)
+            preview.removeEventListener('pointerleave', onLeave)
+          }
+        }
       })
 
       // Scroll-to-top visibility (no React state, no window scroll listener).

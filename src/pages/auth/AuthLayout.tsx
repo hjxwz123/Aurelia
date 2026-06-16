@@ -1,6 +1,7 @@
 import { Outlet, Link } from 'react-router-dom'
 import { useEffect, useRef } from 'react'
-import { motion } from 'framer-motion'
+import { gsap } from 'gsap'
+import { useGSAP } from '@gsap/react'
 import { Logo, LogoMark } from '@/components/brand/logo'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
 import { LanguageToggle } from '@/components/ui/language-toggle'
@@ -8,45 +9,69 @@ import { useTheme } from '@/store/theme'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 
-const ease: [number, number, number, number] = [0.2, 0.8, 0.2, 1]
+gsap.registerPlugin(useGSAP)
 
 export default function AuthLayout() {
   const syncSystem = useTheme((s) => s.syncSystem)
   const { t } = useTranslation('common')
   useEffect(() => syncSystem(), [syncSystem])
 
+  const root = useRef<HTMLDivElement>(null)
+
+  // All entrance motion via GSAP (consistent with the welcome page), gated by
+  // prefers-reduced-motion. Elements keep their natural visible state under
+  // "reduce"; useGSAP reverts everything on unmount.
+  useGSAP(
+    () => {
+      const mm = gsap.matchMedia()
+      mm.add('(prefers-reduced-motion: no-preference)', () => {
+        const tl = gsap.timeline({ defaults: { ease: 'power3.out' } })
+        tl.from('.auth-ring', { scale: 0.5, autoAlpha: 0, duration: 1.1, stagger: 0.1 })
+          .from('.auth-logo', { scale: 0.8, autoAlpha: 0, duration: 0.7 }, '-=0.7')
+          .from('.auth-name', { yPercent: 120, duration: 0.85 }, '-=0.35')
+          .from('.auth-tagline', { y: 10, autoAlpha: 0, duration: 0.6 }, '-=0.45')
+          .from('.auth-card', { y: 18, autoAlpha: 0, duration: 0.6 }, '-=0.5')
+        // A single accent point orbits the rings — calm ambient motion.
+        gsap.to('.auth-orbit', { rotate: 360, duration: 90, ease: 'none', repeat: -1 })
+      })
+    },
+    { scope: root },
+  )
+
   return (
-    <div className="relative min-h-svh w-full overflow-hidden bg-[var(--color-bg)] text-[var(--color-fg)] flex">
+    <div ref={root} className="relative min-h-svh w-full overflow-hidden bg-[var(--color-bg)] text-[var(--color-fg)] flex">
       {/* ── Left brand panel (hidden on mobile) ─────────────────────── */}
       <aside className="hidden lg:flex w-[50%] min-h-svh relative overflow-hidden flex-col items-center justify-center bg-[var(--color-surface-sunken)]">
         <AuroraBackground />
 
+        {/* Concentric rings + one orbiting accent for quiet editorial depth. */}
+        <div aria-hidden className="pointer-events-none absolute inset-0 grid place-items-center">
+          {[420, 600, 800].map((s) => (
+            <div
+              key={s}
+              className="auth-ring absolute rounded-full border border-[var(--color-border)]/55"
+              style={{ width: s, height: s }}
+            />
+          ))}
+          <div className="auth-orbit absolute" style={{ width: 600, height: 600 }}>
+            <span className="absolute left-1/2 top-0 size-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[var(--color-secondary)] shadow-[0_0_12px_var(--color-secondary)]" />
+          </div>
+        </div>
+
         <div className="relative z-10 flex flex-col items-center text-center px-12">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.85 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.8, ease }}
-          >
-            <LogoMark size={56} />
-          </motion.div>
+          <div className="auth-logo">
+            <LogoMark size={60} />
+          </div>
 
-          <motion.span
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.2, ease }}
-            className="mt-6 font-serif text-[2rem] xl:text-[2.5rem] tracking-tight text-[var(--color-fg)]"
-          >
-            {t('appName')}
-          </motion.span>
+          <span className="mt-6 block overflow-hidden pb-[0.08em]">
+            <span className="auth-name block font-serif text-[2rem] xl:text-[2.5rem] tracking-tight text-[var(--color-fg)]">
+              {t('appName')}
+            </span>
+          </span>
 
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.5, delay: 0.45, ease }}
-            className="mt-3 text-sm text-[var(--color-fg-subtle)] tracking-wide"
-          >
+          <p className="auth-tagline mt-3 text-sm text-[var(--color-fg-subtle)] tracking-wide">
             {t('tagline')}
-          </motion.p>
+          </p>
         </div>
       </aside>
 
@@ -71,14 +96,9 @@ export default function AuthLayout() {
         </header>
 
         <main className="flex-1 grid place-items-center px-5 py-10">
-          <motion.div
-            initial={{ opacity: 0, y: 18 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.55, delay: 0.08, ease }}
-            className="w-full max-w-[420px]"
-          >
+          <div className="auth-card w-full max-w-[420px]">
             <Outlet />
-          </motion.div>
+          </div>
         </main>
 
         <footer className="px-5 sm:px-8 py-6 text-center text-xs text-[var(--color-fg-subtle)] lg:hidden">
