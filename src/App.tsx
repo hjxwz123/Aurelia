@@ -23,7 +23,10 @@ const KnowledgeBaseDetail = lazy(() => import('@/pages/kb/KnowledgeBaseDetail'))
 const AuthLayout = lazy(() => import('@/pages/auth/AuthLayout'))
 const Login = lazy(() => import('@/pages/auth/Login'))
 const Register = lazy(() => import('@/pages/auth/Register'))
+const Setup = lazy(() => import('@/pages/auth/Setup'))
 const ForgotPassword = lazy(() => import('@/pages/auth/ForgotPassword'))
+const Privacy = lazy(() => import('@/pages/legal/Privacy'))
+const Terms = lazy(() => import('@/pages/legal/Terms'))
 const SettingsLayout = lazy(() => import('@/pages/settings/SettingsLayout'))
 const SettingsAccount = lazy(() => import('@/pages/settings/Account'))
 const SettingsAppearance = lazy(() => import('@/pages/settings/Appearance'))
@@ -37,6 +40,7 @@ const AdminLayout = lazy(() => import('@/pages/admin/AdminLayout'))
 const AdminChannels = lazy(() => import('@/pages/admin/AdminChannels'))
 const AdminModels = lazy(() => import('@/pages/admin/AdminModels'))
 const AdminModelEdit = lazy(() => import('@/pages/admin/AdminModelEdit'))
+const AdminModelTags = lazy(() => import('@/pages/admin/AdminModelTags'))
 const AdminSkills = lazy(() => import('@/pages/admin/AdminSkills'))
 const AdminUsers = lazy(() => import('@/pages/admin/AdminUsers'))
 const AdminUserGroups = lazy(() => import('@/pages/admin/AdminUserGroups'))
@@ -140,8 +144,11 @@ export default function App() {
             <Route element={<AuthLayout />}>
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
+              <Route path="/setup" element={<Setup />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
             </Route>
+            <Route path="/privacy" element={<Privacy />} />
+            <Route path="/terms" element={<Terms />} />
             {/* Settings live inside ChatLayout (conversation sidebar on the
                 left, settings on the right) — like Subscription. SettingsLayout
                 supplies the in-panel header + tab nav. */}
@@ -161,6 +168,7 @@ export default function App() {
               <Route path="channels" element={<AdminChannels />} />
               <Route path="models" element={<AdminModels />} />
               <Route path="models/:id" element={<AdminModelEdit />} />
+              <Route path="model-tags" element={<AdminModelTags />} />
               <Route path="skills" element={<AdminSkills />} />
               <Route path="users" element={<AdminUsers />} />
               <Route path="user-groups" element={<AdminUserGroups />} />

@@ -8,6 +8,7 @@ import {
   ThumbsUp,
   ThumbsDown,
   Pencil,
+  Trash2,
   MoreHorizontal,
   ChevronLeft,
   ChevronRight,
@@ -32,6 +33,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { useCopy } from '@/hooks/use-clipboard'
@@ -65,6 +74,8 @@ interface MessageRowProps {
   onBranchSwitch?: (leafId: string) => void
   /** Called when the user picks "Fork to new conversation" from the menu. */
   onFork?: (leafId: string) => void
+  /** Delete this whole round (the question + all its answers). Branch-safe. */
+  onDelete?: (id: string) => void
 }
 
 // Compact generation time: "3.2s" under a minute, "1m4s" beyond.
@@ -75,7 +86,7 @@ function formatGenMs(ms: number): string {
   return `${m}m${s}s`
 }
 
-export function MessageRow({ message, userName, onRegenerate, onEdit, onSaveEdit, onLike, onDislike, onBranchSwitch, onFork }: MessageRowProps) {
+export function MessageRow({ message, userName, onRegenerate, onEdit, onSaveEdit, onLike, onDislike, onBranchSwitch, onFork, onDelete }: MessageRowProps) {
   const isUser = message.role === 'user'
   // §7.2-6: assistant 气泡标注生成它的模型名 + 图标。
   const model = useModels((s) => (message.modelId ? s.getById(message.modelId) : undefined))
@@ -83,6 +94,7 @@ export function MessageRow({ message, userName, onRegenerate, onEdit, onSaveEdit
   const displayUserName = userName ?? t('common.you', { ns: 'common' })
   const [hovered, setHovered] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(message.content)
   // Attachments the user keeps in the edit dialog. Seeded from the original
@@ -548,6 +560,19 @@ export function MessageRow({ message, userName, onRegenerate, onEdit, onSaveEdit
                   </Tooltip>
                 )}
 
+                {onDelete && (
+                  <Tooltip content={t('actions.delete', { defaultValue: 'Delete' })}>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDelete(true)}
+                      aria-label={t('actions.delete', { defaultValue: 'Delete' })}
+                      className="inline-flex items-center justify-center size-7 rounded-[7px] text-[var(--color-fg-subtle)] hover:bg-[var(--color-danger-soft)] hover:text-[var(--color-danger)] interactive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
+                    >
+                      <Trash2 size={13} aria-hidden />
+                    </button>
+                  </Tooltip>
+                )}
+
                 <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
                   <Tooltip content={t('actions.more')}>
                     <DropdownMenuTrigger asChild>
@@ -608,6 +633,35 @@ export function MessageRow({ message, userName, onRegenerate, onEdit, onSaveEdit
         onOpenChange={(o) => !o && setFilePreview(null)}
         file={filePreview}
       />
+      {/* Delete-round confirmation — removes this question and all of its
+          answers (branch-safe: earlier/later turns and other branches stay). */}
+      <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <DialogContent size="sm">
+          <DialogHeader>
+            <DialogTitle>{t('deleteRound.title', { defaultValue: 'Delete this exchange?' })}</DialogTitle>
+            <DialogDescription>
+              {t('deleteRound.body', {
+                defaultValue:
+                  'This removes this question and its answer from the conversation. Earlier and later messages are kept.',
+              })}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setConfirmDelete(false)}>
+              {t('actions.cancel', { ns: 'common', defaultValue: 'Cancel' })}
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                setConfirmDelete(false)
+                onDelete?.(message.id)
+              }}
+            >
+              {t('actions.delete', { defaultValue: 'Delete' })}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

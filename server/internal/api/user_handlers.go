@@ -11,19 +11,29 @@ import (
 // meHandler returns the authenticated user profile.
 func meHandler(d Deps, w http.ResponseWriter, r *http.Request) {
 	u := authUser(r)
-	// Attach the user's group capability flags (e.g. "research") so the client
-	// can gate features without a second round-trip.
+	attachGroupInfo(d, r, u)
+	writeJSON(w, 200, u)
+}
+
+// attachGroupInfo enriches a user payload with display + capability fields
+// derived from its membership group: the group NAME (the tier label shown in the
+// sidebar) and the feature flags (e.g. "research"), so the client gets both
+// without a second round-trip. Best-effort; transient (never persisted).
+func attachGroupInfo(d Deps, r *http.Request, u *store.User) {
+	if u == nil {
+		return
+	}
 	gid := u.GroupID
 	if gid == "" {
 		gid = store.DefaultGroupID
 	}
 	if g, err := store.GetUserGroup(r.Context(), d.DB, gid); err == nil && g != nil {
+		u.GroupName = g.Name
 		var feats []string
 		if json.Unmarshal(g.Features, &feats) == nil {
 			u.Features = feats
 		}
 	}
-	writeJSON(w, 200, u)
 }
 
 type updateMeReq struct {

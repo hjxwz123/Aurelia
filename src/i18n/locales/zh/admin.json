@@ -66,7 +66,8 @@
       "basic": "基本信息",
       "behaviour": "对话行为",
       "pricing": "计费",
-      "permissions": "权限"
+      "permissions": "权限",
+      "tags": "标签"
     },
     "fields": {
       "channel": "渠道",
@@ -111,7 +112,8 @@
       "missingFields": "请填写渠道、显示名和 request_id",
       "invalidJSON": "param_controls 不是合法 JSON"
     },
-    "permissionsLead": "选择哪些用户组可以使用此模型，以及每个周期的额度。全部关闭则此模型对所有人开放。"
+    "permissionsLead": "选择哪些用户组可以使用此模型，以及每个周期的额度。全部关闭则此模型对所有人开放。",
+    "tagsHint": "为该模型分配标签，以便在选择框的筛选条中归类。"
   },
   "skills": {
     "title": "技能",
@@ -629,5 +631,14 @@
       "instruction": "输入 {{word}} 以确认。",
       "action": "替换全部"
     }
+  },
+  "modelTags": {
+    "title": "模型标签",
+    "lead": "创建可分配给模型的标签。用户可在模型选择框中按标签筛选。",
+    "namePlaceholder": "新标签名称",
+    "add": "添加",
+    "empty": "还没有标签，请在上方添加。",
+    "emptyHint": "还没有标签——请到「模型标签」页面创建。",
+    "manage": "管理标签"
   }
 }

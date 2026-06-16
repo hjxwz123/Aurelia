@@ -8,7 +8,6 @@ package store
 import (
 	"database/sql"
 	_ "embed"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -108,6 +107,8 @@ func Migrate(db *sql.DB) error {
 	addInlineSource := `ALTER TABLE conversations ADD COLUMN inline_source_conv TEXT NOT NULL DEFAULT ''`
 	addInlineParent := `ALTER TABLE conversations ADD COLUMN inline_parent_id TEXT NOT NULL DEFAULT ''`
 	addInlineQuote := `ALTER TABLE conversations ADD COLUMN inline_quote TEXT NOT NULL DEFAULT ''`
+	// Model tags (§ model tags) — JSON id array on models.
+	addModelTags := `ALTER TABLE models ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'`
 	if usePostgres {
 		schema = schemaPGSQL
 		addImageRef = `ALTER TABLE chunks ADD COLUMN IF NOT EXISTS image_ref TEXT`
@@ -131,6 +132,7 @@ func Migrate(db *sql.DB) error {
 		addInlineSource = `ALTER TABLE conversations ADD COLUMN IF NOT EXISTS inline_source_conv TEXT NOT NULL DEFAULT ''`
 		addInlineParent = `ALTER TABLE conversations ADD COLUMN IF NOT EXISTS inline_parent_id TEXT NOT NULL DEFAULT ''`
 		addInlineQuote = `ALTER TABLE conversations ADD COLUMN IF NOT EXISTS inline_quote TEXT NOT NULL DEFAULT ''`
+		addModelTags = `ALTER TABLE models ADD COLUMN IF NOT EXISTS tags TEXT NOT NULL DEFAULT '[]'`
 	}
 	if _, err := db.Exec(schema); err != nil {
 		return fmt.Errorf("apply schema: %w", err)
@@ -146,6 +148,7 @@ func Migrate(db *sql.DB) error {
 		addGroupExpires, addPrevGroup, addPasswordSet, addLastSeen,
 		addGroupBuyURL,
 		addInlineSource, addInlineParent, addInlineQuote,
+		addModelTags,
 	} {
 		_, _ = db.Exec(ddl)
 	}
@@ -171,16 +174,9 @@ func Migrate(db *sql.DB) error {
 // ships with NO mock provider — an admin must configure a real channel + model
 // and set the default/task model before chat works.
 func Seed(db *sql.DB, cfg config.Config) error {
-	// Admin user.
-	var existingID string
-	err := db.QueryRow("SELECT id FROM users WHERE role='admin' LIMIT 1").Scan(&existingID)
-	if errors.Is(err, sql.ErrNoRows) {
-		if err := seedAdmin(db, cfg); err != nil {
-			return err
-		}
-	} else if err != nil {
-		return fmt.Errorf("check admin: %w", err)
-	}
+	// No admin is seeded from the environment. A brand-new deployment starts with
+	// ZERO users; the first account is created through the first-run setup flow
+	// (POST /api/setup) and becomes the admin (§ first-run setup).
 
 	// Default global settings.
 	for k, v := range map[string]string{
@@ -225,17 +221,4 @@ func Seed(db *sql.DB, cfg config.Config) error {
 		return fmt.Errorf("backfill user groups: %w", err)
 	}
 	return nil
-}
-
-func seedAdmin(db *sql.DB, cfg config.Config) error {
-	id := genID("u")
-	hash, err := hashPassword(cfg.SeedAdminPass)
-	if err != nil {
-		return err
-	}
-	_, err = db.Exec(
-		`INSERT INTO users(id, email, password_hash, name, role, status, settings) VALUES(?, ?, ?, ?, 'admin', 'active', '{}')`,
-		id, cfg.SeedAdminEmail, hash, "Aurelia Admin",
-	)
-	return err
 }

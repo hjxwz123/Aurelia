@@ -14,6 +14,7 @@ import type {
   ApiMemory,
   ApiMessage,
   ApiModel,
+  ApiModelTag,
   ApiModelQuota,
   ApiOAuthProvider,
   ApiProject,
@@ -34,6 +35,11 @@ import type {
 
 export const authApi = {
   signupOpen: () => api<{ open: boolean }>('/public/signup-open'),
+  /** Whether the deployment still needs its first-run setup (zero users). */
+  needsSetup: () => api<{ needs_setup: boolean }>('/public/needs-setup'),
+  /** Create the first account (admin) on a fresh deployment, then sign in. */
+  setup: (name: string, email: string, password: string) =>
+    api<ApiAuthResponse>('/setup', { method: 'POST', body: { name, email, password } }),
   me: () => api<ApiUser>('/me'),
   login: (email: string, password: string) =>
     api<ApiAuthResponse | { totp_required: true; ticket: string }>('/auth/login', {
@@ -111,6 +117,8 @@ export const modelsApi = {
   list: () => api<{ models: ApiModel[]; default_id: string }>('/models'),
   listImage: () => api<{ models: ApiModel[]; default_id: string }>('/image-models'),
   listEmbedding: () => api<{ models: ApiModel[]; default_id: string }>('/embedding-models'),
+  /** Model tags for the picker's filter chips (§ model tags). */
+  tags: () => api<ApiModelTag[]>('/model-tags'),
 }
 
 export const skillsApi = {
@@ -198,6 +206,13 @@ export const conversationsApi = {
     api<ApiMessage>(
       `/conversations/${encodeURIComponent(id)}/messages/${encodeURIComponent(msgId)}`,
       { method: 'PATCH', body: { text } },
+    ),
+  // Delete one round (the user message + all its assistant answers) by any
+  // message id inside it; branch-safe. Returns the refreshed active path.
+  deleteMessage: (id: string, msgId: string) =>
+    api<{ ok: true; active_leaf_id: string; messages: ApiMessage[] }>(
+      `/conversations/${encodeURIComponent(id)}/messages/${encodeURIComponent(msgId)}`,
+      { method: 'DELETE' },
     ),
   feedback: (id: string, msgId: string, feedback: 'like' | 'dislike' | '') =>
     api<{ ok: true }>(
@@ -292,6 +307,15 @@ export const adminApi = {
       method: 'PUT',
       body: { skill_ids: skillIds },
     }),
+
+  // Model tags (§ model tags): admin CRUD of the assignable label set.
+  modelTags: () => api<ApiModelTag[]>('/admin/model-tags'),
+  createModelTag: (name: string, sortOrder = 0) =>
+    api<ApiModelTag>('/admin/model-tags', { method: 'POST', body: { name, sort_order: sortOrder } }),
+  updateModelTag: (id: string, body: { name: string; sort_order?: number }) =>
+    api<ApiModelTag>(`/admin/model-tags/${encodeURIComponent(id)}`, { method: 'PATCH', body }),
+  removeModelTag: (id: string) =>
+    api<{ ok: true }>(`/admin/model-tags/${encodeURIComponent(id)}`, { method: 'DELETE' }),
 
   skills: () => api<ApiSkill[]>('/admin/skills'),
   createSkill: (body: Partial<ApiSkill>) => api<ApiSkill>('/admin/skills', { method: 'POST', body }),

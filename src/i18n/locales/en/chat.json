@@ -67,7 +67,8 @@
     "forked": "Forked to a new conversation",
     "viewImage": "View image",
     "removeAttachment": "Remove attachment",
-    "previewFile": "Preview file"
+    "previewFile": "Preview file",
+    "delete": "Delete"
   },
   "message": {
     "refused": "The model declined to answer this request.",
@@ -212,7 +213,9 @@
     "moreSoon": "More models coming soon",
     "current": "Current model",
     "label": "Model: {{name}}",
-    "upgrade": "Upgrade to unlock"
+    "upgrade": "Upgrade to unlock",
+    "allTags": "All",
+    "noneForTag": "No models with this tag."
   },
   "commandMenu": {
     "placeholder": "Search conversations, run a command…",
@@ -284,5 +287,9 @@
     "unsupported": "This file type can't be previewed in the browser.",
     "open": "Open in new tab",
     "download": "Download"
+  },
+  "deleteRound": {
+    "title": "Delete this exchange?",
+    "body": "This removes this question and its answer from the conversation. Earlier and later messages are kept."
   }
 }

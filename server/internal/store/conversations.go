@@ -526,3 +526,160 @@ func LatestAssistantInSubtree(ctx context.Context, db *sql.DB, convID, msgID str
 		current = child
 	}
 }
+
+// DeleteRound removes one conversational round — a user message together with
+// ALL of its assistant replies (every regenerated variant) — identified by ANY
+// message id inside the round (the question OR any of its answers resolve to the
+// same round). It is branch-safe and non-destructive to the rest of the thread:
+//
+//   - sibling rounds (other children of the round's parent) are untouched;
+//   - everything that came AFTER the round is preserved by re-parenting each
+//     continuation onto the round's own parent BEFORE deleting (so the FK
+//     ON DELETE CASCADE can't take later messages with it);
+//   - the active leaf is only re-pointed when it was itself part of the round.
+//
+// Returns the conversation's (possibly new) active leaf id.
+func DeleteRound(ctx context.Context, db *sql.DB, convID, userID, msgID string) (string, error) {
+	var owner string
+	if err := db.QueryRowContext(ctx, `SELECT user_id FROM conversations WHERE id=?`, convID).Scan(&owner); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", ErrNotFound
+		}
+		return "", err
+	}
+	if owner != userID {
+		return "", ErrNotFound
+	}
+	m, err := GetMessage(ctx, db, msgID)
+	if err != nil {
+		return "", err
+	}
+	if m.ConversationID != convID {
+		return "", ErrNotFound
+	}
+
+	// Resolve the round's user message U (and its parent P). Clicking an answer
+	// walks up to its question; clicking the question uses it directly.
+	uID, uParent := m.ID, m.ParentID
+	roundIsUser := m.Role == "user"
+	if !roundIsUser && m.ParentID != "" {
+		if pu, perr := GetMessage(ctx, db, m.ParentID); perr == nil && pu.Role == "user" {
+			uID, uParent, roundIsUser = pu.ID, pu.ParentID, true
+		}
+	}
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	deletable := []string{uID}
+	if roundIsUser {
+		// Children of U are the answer variants. Re-parent each variant's
+		// continuation onto P, then delete the variants (and U below).
+		answers, err := childIDsTx(ctx, tx, convID, uID)
+		if err != nil {
+			return "", err
+		}
+		for _, aid := range answers {
+			if err := reparentChildrenTx(ctx, tx, convID, aid, uParent); err != nil {
+				return "", err
+			}
+			deletable = append(deletable, aid)
+		}
+	} else {
+		// Degenerate (a parentless non-user node): re-parent its own children up
+		// and delete just it.
+		if err := reparentChildrenTx(ctx, tx, convID, uID, uParent); err != nil {
+			return "", err
+		}
+	}
+	for _, id := range deletable {
+		if _, err := tx.ExecContext(ctx, `DELETE FROM messages WHERE id=? AND conversation_id=?`, id, convID); err != nil {
+			return "", err
+		}
+	}
+
+	// Re-point the active leaf only if it disappeared with the round.
+	var curLeaf string
+	_ = tx.QueryRowContext(ctx, `SELECT COALESCE(active_leaf_id,'') FROM conversations WHERE id=?`, convID).Scan(&curLeaf)
+	newLeaf := curLeaf
+	if curLeaf == "" || !messageExistsTx(ctx, tx, convID, curLeaf) {
+		newLeaf, err = deepestLeafFromTx(ctx, tx, convID, uParent)
+		if err != nil {
+			return "", err
+		}
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE conversations SET active_leaf_id=NULLIF(?,''), updated_at=? WHERE id=?`, newLeaf, time.Now().Unix(), convID); err != nil {
+		return "", err
+	}
+	if err := tx.Commit(); err != nil {
+		return "", err
+	}
+	return newLeaf, nil
+}
+
+// childIDsTx lists the direct children of parentID, oldest first.
+func childIDsTx(ctx context.Context, tx *sql.Tx, convID, parentID string) ([]string, error) {
+	rows, err := tx.QueryContext(ctx, `SELECT id FROM messages WHERE conversation_id=? AND parent_id=? ORDER BY created_at ASC`, convID, parentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out = append(out, id)
+	}
+	return out, rows.Err()
+}
+
+// reparentChildrenTx moves every direct child of fromParent onto toParent
+// (empty toParent → NULL, i.e. they become roots).
+func reparentChildrenTx(ctx context.Context, tx *sql.Tx, convID, fromParent, toParent string) error {
+	if toParent == "" {
+		_, err := tx.ExecContext(ctx, `UPDATE messages SET parent_id=NULL WHERE conversation_id=? AND parent_id=?`, convID, fromParent)
+		return err
+	}
+	_, err := tx.ExecContext(ctx, `UPDATE messages SET parent_id=? WHERE conversation_id=? AND parent_id=?`, toParent, convID, fromParent)
+	return err
+}
+
+func messageExistsTx(ctx context.Context, tx *sql.Tx, convID, id string) bool {
+	var got string
+	err := tx.QueryRowContext(ctx, `SELECT id FROM messages WHERE id=? AND conversation_id=?`, id, convID).Scan(&got)
+	return err == nil
+}
+
+// deepestLeafFromTx walks from a node (or, when fromID is empty, the newest root)
+// down its newest-child chain to the leaf — the natural place to re-anchor the
+// active path after a deletion. Returns "" when the conversation is now empty.
+func deepestLeafFromTx(ctx context.Context, tx *sql.Tx, convID, fromID string) (string, error) {
+	current := fromID
+	if current == "" {
+		var root string
+		err := tx.QueryRowContext(ctx, `SELECT id FROM messages WHERE conversation_id=? AND parent_id IS NULL ORDER BY created_at DESC LIMIT 1`, convID).Scan(&root)
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", nil
+		}
+		if err != nil {
+			return "", err
+		}
+		current = root
+	}
+	for {
+		var child string
+		err := tx.QueryRowContext(ctx, `SELECT id FROM messages WHERE conversation_id=? AND parent_id=? ORDER BY created_at DESC LIMIT 1`, convID, current).Scan(&child)
+		if errors.Is(err, sql.ErrNoRows) {
+			return current, nil
+		}
+		if err != nil {
+			return "", err
+		}
+		current = child
+	}
+}

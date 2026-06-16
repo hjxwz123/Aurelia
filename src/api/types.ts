@@ -17,6 +17,9 @@ export interface ApiUser {
   status: 'active' | 'banned' | 'disabled'
   settings: Record<string, unknown>
   group_id?: string
+  /** Display name of the membership group (tier label shown in the sidebar).
+   *  Transient — populated on the auth/me responses, not stored. */
+  group_name?: string
   /** Unix seconds at which a redeem-code grant lapses back to previous_group_id. 0 = permanent. */
   group_expires_at?: number
   /** The tier to fall back to when group_expires_at hits. */
@@ -219,6 +222,14 @@ export interface ApiChannel {
   updated_at: number
 }
 
+/** An admin-managed model tag (§ model tags) used to filter the picker. */
+export interface ApiModelTag {
+  id: string
+  name: string
+  sort_order: number
+  created_at: number
+}
+
 export interface ApiModel {
   id: string
   channel_id: string
@@ -236,6 +247,8 @@ export interface ApiModel {
   param_controls: unknown
   /** OpenAI Responses hosted tools to enable; empty/absent = use system tools (§2.3-B). */
   official_tools?: string[]
+  /** model_tags ids assigned to this model — drives the picker's tag filter (§ model tags). */
+  tags?: string[]
   /** Screen each user prompt before generation (§ moderation). */
   moderation_enabled?: boolean
   /** Which screen to use when moderation is on: keyword list or a model verdict. */

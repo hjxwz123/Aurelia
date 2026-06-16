@@ -67,7 +67,8 @@
     "forked": "新しい会話に分岐しました",
     "viewImage": "画像を表示",
     "removeAttachment": "添付を削除",
-    "previewFile": "ファイルをプレビュー"
+    "previewFile": "ファイルをプレビュー",
+    "delete": "削除"
   },
   "message": {
     "refused": "モデルはこのリクエストへの回答を控えました。",
@@ -212,7 +213,9 @@
     "moreSoon": "さらに多くのモデルが近日登場",
     "current": "現在のモデル",
     "label": "モデル: {{name}}",
-    "upgrade": "アップグレードして解除"
+    "upgrade": "アップグレードして解除",
+    "allTags": "すべて",
+    "noneForTag": "このタグのモデルはありません。"
   },
   "commandMenu": {
     "placeholder": "会話を検索、またはコマンドを実行…",
@@ -284,5 +287,9 @@
     "unsupported": "このファイル形式はブラウザでプレビューできません。",
     "open": "新しいタブで開く",
     "download": "ダウンロード"
+  },
+  "deleteRound": {
+    "title": "このやり取りを削除しますか？",
+    "body": "この質問とその回答を会話から削除します。前後のメッセージは保持されます。"
   }
 }

@@ -26,6 +26,64 @@ func signupOpenHandler(d Deps, w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, 200, map[string]bool{"open": open})
 }
 
+// needsSetupHandler reports whether the deployment still needs its first-run
+// setup — i.e. there are zero user accounts. The client routes to the setup
+// screen (create the first admin) when this is true (§ first-run setup).
+func needsSetupHandler(d Deps, w http.ResponseWriter, r *http.Request) {
+	n, err := store.CountUsers(r.Context(), d.DB)
+	if err != nil {
+		writeError(w, 500, err)
+		return
+	}
+	writeJSON(w, 200, map[string]bool{"needs_setup": n == 0})
+}
+
+// setupHandler creates the FIRST account of a fresh deployment and makes it the
+// admin (§ first-run setup). It only works while there are zero users; once any
+// account exists it 409s, so it can't be used to mint extra admins. The new
+// admin is active immediately (no email-verification gate) and is signed in.
+func setupHandler(d Deps, w http.ResponseWriter, r *http.Request) {
+	n, err := store.CountUsers(r.Context(), d.DB)
+	if err != nil {
+		writeError(w, 500, err)
+		return
+	}
+	if n > 0 {
+		writeError(w, 409, errors.New("already initialized"))
+		return
+	}
+	var req registerReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, 400, errInvalidInput)
+		return
+	}
+	req.Email = strings.ToLower(strings.TrimSpace(req.Email))
+	req.Name = strings.TrimSpace(req.Name)
+	if req.Email == "" || !strings.Contains(req.Email, "@") {
+		writeError(w, 400, errors.New("valid email required"))
+		return
+	}
+	if req.Name == "" {
+		writeError(w, 400, errors.New("name required"))
+		return
+	}
+	if len(req.Password) < 8 {
+		writeError(w, 400, errors.New("password must be at least 8 characters"))
+		return
+	}
+	hash, err := store.HashPassword(req.Password)
+	if err != nil {
+		writeError(w, 500, err)
+		return
+	}
+	user, err := store.CreateUserWithRole(r.Context(), d.DB, req.Email, req.Name, hash, "admin")
+	if err != nil {
+		writeError(w, 500, err)
+		return
+	}
+	finaliseSession(d, w, r, user, 0)
+}
+
 type registerReq struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
@@ -54,6 +112,15 @@ func registerHandler(d Deps, w http.ResponseWriter, r *http.Request) {
 	}
 	if len(req.Password) < 8 {
 		writeError(w, 400, errors.New("password must be at least 8 characters"))
+		return
+	}
+
+	// First-run guard: a brand-new deployment has zero users and must create its
+	// first account through the setup flow (which makes it the admin), never via
+	// open registration — otherwise the first signup would be a plain user and the
+	// system would have no admin.
+	if n, err := store.CountUsers(r.Context(), d.DB); err == nil && n == 0 {
+		writeError(w, 409, errors.New("setup_required"))
 		return
 	}
 
@@ -350,6 +417,9 @@ func finaliseSession(d Deps, w http.ResponseWriter, r *http.Request, user *store
 		writeError(w, 500, err)
 		return
 	}
+	// Carry the tier label + feature flags so the client renders the sidebar
+	// group name immediately after login, without waiting for the next /api/me.
+	attachGroupInfo(d, r, user)
 	writeJSON(w, 200, authResp{User: user, AccessToken: access, ExpiresAt: exp.Unix()})
 }
 

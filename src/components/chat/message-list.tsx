@@ -27,6 +27,7 @@ export function MessageList({ conversation }: MessageListProps) {
   const fork = useConversations((s) => s.fork)
   const editMessageInPlace = useConversations((s) => s.editMessageInPlace)
   const setFeedback = useConversations((s) => s.setFeedback)
+  const deleteMessage = useConversations((s) => s.deleteMessage)
 
   // Build an id → message lookup so we can find the parent of an edited
   // message without scanning per-row.
@@ -137,6 +138,10 @@ export function MessageList({ conversation }: MessageListProps) {
     void setFeedback(conversation.id, id, disliked ? 'dislike' : '')
   }
 
+  function handleDelete(id: string) {
+    void deleteMessage(conversation.id, id)
+  }
+
   return (
     <div className="flex flex-col gap-8 px-4 sm:px-6 lg:px-8 py-8 mx-auto w-full max-w-[var(--layout-message-max-w)]">
       {hasMore ? (
@@ -156,6 +161,7 @@ export function MessageList({ conversation }: MessageListProps) {
           onDislike={handleDislike}
           onBranchSwitch={handleBranchSwitch}
           onFork={handleFork}
+          onDelete={handleDelete}
         />
       ))}
     </div>

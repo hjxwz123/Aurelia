@@ -28,8 +28,6 @@ type Config struct {
 	MaxUploadBytes   int64
 	DailyMessages    int
 	DailyImages      int
-	SeedAdminEmail   string
-	SeedAdminPass    string
 	SearchProvider   string
 	SearchAPIKey     string
 	SearchBaseURL    string
@@ -62,8 +60,6 @@ func Load() Config {
 		MaxUploadBytes:   getenvInt64("MAX_UPLOAD_BYTES", 50*1024*1024),
 		DailyMessages:    getenvInt("DAILY_MESSAGE_LIMIT", 200),
 		DailyImages:      getenvInt("IMAGE_DAILY_LIMIT", 30),
-		SeedAdminEmail:   getenv("SEED_ADMIN_EMAIL", "admin@aurelia.local"),
-		SeedAdminPass:    getenv("SEED_ADMIN_PASSWORD", "aurelia-admin"),
 		SearchProvider:   getenv("SEARCH_PROVIDER", ""),
 		SearchAPIKey:     getenv("SEARCH_API_KEY", ""),
 		SearchBaseURL:    getenv("SEARCH_BASE_URL", ""),
@@ -103,9 +99,9 @@ func Validate(cfg Config) error {
 	if len(cfg.JWTSecret) < 32 {
 		return fmt.Errorf("refusing to start: JWT_SECRET is too short (%d chars; need ≥32)", len(cfg.JWTSecret))
 	}
-	if cfg.SeedAdminPass == "" || cfg.SeedAdminPass == "aurelia-admin" {
-		return fmt.Errorf("refusing to start: SEED_ADMIN_PASSWORD is unset or the built-in default in a non-development deployment — set a real password")
-	}
+	// No admin is seeded from the environment any more — the first account is
+	// created through the first-run setup flow (§ first-run setup), so there is no
+	// default admin password to guard here.
 	return nil
 }
 

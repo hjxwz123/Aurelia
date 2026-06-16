@@ -67,7 +67,8 @@
     "forked": "Dupliqué dans une nouvelle conversation",
     "viewImage": "Afficher l’image",
     "removeAttachment": "Supprimer la pièce jointe",
-    "previewFile": "Aperçu du fichier"
+    "previewFile": "Aperçu du fichier",
+    "delete": "Supprimer"
   },
   "message": {
     "refused": "Le modèle a refusé de répondre à cette demande.",
@@ -212,7 +213,9 @@
     "moreSoon": "D'autres modèles arrivent bientôt",
     "current": "Modèle actuel",
     "label": "Modèle : {{name}}",
-    "upgrade": "Mettre à niveau pour débloquer"
+    "upgrade": "Mettre à niveau pour débloquer",
+    "allTags": "Tous",
+    "noneForTag": "Aucun modèle avec cette étiquette."
   },
   "commandMenu": {
     "placeholder": "Rechercher des conversations, lancer une commande…",
@@ -284,5 +287,9 @@
     "unsupported": "Ce type de fichier ne peut pas être prévisualisé dans le navigateur.",
     "open": "Ouvrir dans un nouvel onglet",
     "download": "Télécharger"
+  },
+  "deleteRound": {
+    "title": "Supprimer cet échange ?",
+    "body": "Cela retire cette question et sa réponse de la conversation. Les messages précédents et suivants sont conservés."
   }
 }

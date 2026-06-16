@@ -39,6 +39,10 @@ type User struct {
 	// (e.g. "research"). Populated only on the /api/me response so the client can
 	// gate features; never persisted on the users table.
 	Features []string `json:"features,omitempty"`
+	// GroupName is the transient display name of the user's membership group (the
+	// "tier" label shown in the sidebar). Populated alongside Features on the
+	// auth/me responses; never persisted on the users table.
+	GroupName string `json:"group_name,omitempty"`
 }
 
 // UserGroup is a membership tier (§ user groups). Features is a JSON array of
@@ -103,6 +107,9 @@ type Model struct {
 	// "web_search"). Empty = use the system's self-built tools (§2.3-B). Only
 	// meaningful for an openai channel with api_format=responses.
 	OfficialTools   json.RawMessage `json:"official_tools"`
+	// Tags is a JSON array of model_tags ids assigned to this model — used by the
+	// model picker's tag filter (§ model tags). Empty = untagged.
+	Tags            json.RawMessage `json:"tags"`
 	// ModerationEnabled screens each user prompt before generation (§ moderation).
 	// ModerationMode picks the screen: "keyword" (match the admin keyword list)
 	// or "model" (ask the configured moderation model for an ALLOW/BLOCK verdict).

@@ -127,6 +127,7 @@ CREATE TABLE IF NOT EXISTS models (
   system_prompt     TEXT NOT NULL DEFAULT '',
   param_controls    TEXT NOT NULL DEFAULT '[]',
   official_tools    TEXT NOT NULL DEFAULT '[]', -- OpenAI Responses hosted tools; [] = use system tools (§2.3-B)
+  tags              TEXT NOT NULL DEFAULT '[]', -- model_tags ids for the picker filter (§ model tags)
   moderation_enabled INTEGER NOT NULL DEFAULT 0,      -- screen prompts before generation (§ moderation)
   moderation_mode   TEXT NOT NULL DEFAULT 'keyword',  -- keyword | model
   price_input       REAL NOT NULL DEFAULT 0,
@@ -141,6 +142,15 @@ CREATE TABLE IF NOT EXISTS models (
 
 CREATE INDEX IF NOT EXISTS idx_models_channel ON models(channel_id);
 CREATE INDEX IF NOT EXISTS idx_models_kind ON models(kind, enabled);
+
+-- Model tags (§ model tags). Admin-managed labels; each model stores the tag ids
+-- it carries in models.tags (a JSON array), and the picker filters by them.
+CREATE TABLE IF NOT EXISTS model_tags (
+  id         TEXT PRIMARY KEY,
+  name       TEXT NOT NULL,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+);
 
 CREATE TABLE IF NOT EXISTS skills (
   id           TEXT PRIMARY KEY,
