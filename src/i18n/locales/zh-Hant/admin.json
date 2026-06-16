@@ -429,6 +429,8 @@
       "priceUsd": "價格（美元）",
       "priceCny": "價格（人民幣）",
       "features": "功能介紹",
+      "research": "深度研究",
+      "researchHint": "允許該使用者群組使用深度研究功能。",
       "featuresHint": "每行一條，將在訂閱頁面以清單形式展示。",
       "featuresPlaceholder": "優先訪問\n更高用量上限\n搶先體驗新功能"
     },

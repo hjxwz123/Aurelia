@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Field } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
 import {
   Dialog,
@@ -25,7 +26,12 @@ import {
 } from '@/components/ui/dialog'
 import { toast } from '@/hooks/use-toast'
 
-type Draft = Partial<ApiUserGroup> & { featuresText?: string }
+type Draft = Partial<ApiUserGroup> & { featuresText?: string; researchEnabled?: boolean }
+
+// Reserved functional feature flag (not a marketing bullet) — gates the Deep
+// Research mode. Managed via a dedicated toggle and hidden from the free-text
+// features editor + the subscription page's marketing list.
+const RESEARCH_FEATURE = 'research'
 
 export default function AdminUserGroups() {
   const { t } = useTranslation(['admin', 'common'])
@@ -55,10 +61,20 @@ export default function AdminUserGroups() {
   }, [])
 
   function openNew() {
-    setEditor({ open: true, draft: { featuresText: '', price_usd: 0, price_cny: 0 } })
+    setEditor({ open: true, draft: { featuresText: '', price_usd: 0, price_cny: 0, researchEnabled: false } })
   }
   function openEdit(row: ApiUserGroup) {
-    setEditor({ open: true, row, draft: { ...row, featuresText: (row.features ?? []).join('\n') } })
+    const feats = row.features ?? []
+    setEditor({
+      open: true,
+      row,
+      draft: {
+        ...row,
+        // Hide the reserved functional flag from the marketing free-text editor.
+        featuresText: feats.filter((f) => f !== RESEARCH_FEATURE).join('\n'),
+        researchEnabled: feats.includes(RESEARCH_FEATURE),
+      },
+    })
   }
   function setDraft(p: Partial<Draft>) {
     setEditor((ed) => ({ ...ed, draft: { ...ed.draft, ...p } }))
@@ -70,10 +86,13 @@ export default function AdminUserGroups() {
       toast.error(t('admin:groups.errors.nameRequired'))
       return
     }
-    const features = (d.featuresText ?? '')
+    const marketing = (d.featuresText ?? '')
       .split('\n')
       .map((s) => s.trim())
       .filter(Boolean)
+      .filter((f) => f !== RESEARCH_FEATURE)
+    // Append the reserved functional flag when the research toggle is on.
+    const features = d.researchEnabled ? [...marketing, RESEARCH_FEATURE] : marketing
     const body: Partial<ApiUserGroup> = {
       name: d.name,
       description: d.description ?? '',
@@ -230,6 +249,19 @@ export default function AdminUserGroups() {
                   placeholder={t('admin:groups.fields.featuresPlaceholder')}
                 />
               </Field>
+              <div className="flex items-center justify-between gap-3 rounded-[10px] border border-[var(--color-border)] px-3 py-2.5">
+                <div className="min-w-0">
+                  <p className="text-sm text-[var(--color-fg)]">{t('admin:groups.fields.research', { defaultValue: 'Deep Research' })}</p>
+                  <p className="text-[12px] text-[var(--color-fg-subtle)]">
+                    {t('admin:groups.fields.researchHint', { defaultValue: 'Allow this group to use the Deep Research mode.' })}
+                  </p>
+                </div>
+                <Switch
+                  checked={Boolean(editor.draft.researchEnabled)}
+                  onCheckedChange={(v) => setDraft({ researchEnabled: v })}
+                  aria-label={t('admin:groups.fields.research', { defaultValue: 'Deep Research' })}
+                />
+              </div>
             </div>
           </DialogBody>
           <DialogFooter>

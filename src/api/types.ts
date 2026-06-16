@@ -28,6 +28,9 @@ export interface ApiUser {
   has_password?: boolean
   /** Unix seconds of last authenticated activity. Drives admin online status. */
   last_seen_at?: number
+  /** Capability flags from the user's group (e.g. "research"). Populated on the
+   *  /api/me response so the client can gate features. */
+  features?: string[]
   created_at: number
 }
 

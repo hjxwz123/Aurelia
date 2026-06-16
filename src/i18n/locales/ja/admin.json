@@ -429,6 +429,8 @@
       "priceUsd": "価格（USD）",
       "priceCny": "価格（CNY）",
       "features": "機能",
+      "research": "ディープリサーチ",
+      "researchHint": "このグループにディープリサーチ機能の利用を許可します。",
       "featuresHint": "1行に1つ。サブスクリプションページにチェックリストとして表示されます。",
       "featuresPlaceholder": "優先アクセス\nより高い使用上限\n新機能への早期アクセス"
     },

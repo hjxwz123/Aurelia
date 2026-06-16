@@ -9,8 +9,21 @@ import (
 )
 
 // meHandler returns the authenticated user profile.
-func meHandler(_ Deps, w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, 200, authUser(r))
+func meHandler(d Deps, w http.ResponseWriter, r *http.Request) {
+	u := authUser(r)
+	// Attach the user's group capability flags (e.g. "research") so the client
+	// can gate features without a second round-trip.
+	gid := u.GroupID
+	if gid == "" {
+		gid = store.DefaultGroupID
+	}
+	if g, err := store.GetUserGroup(r.Context(), d.DB, gid); err == nil && g != nil {
+		var feats []string
+		if json.Unmarshal(g.Features, &feats) == nil {
+			u.Features = feats
+		}
+	}
+	writeJSON(w, 200, u)
 }
 
 type updateMeReq struct {

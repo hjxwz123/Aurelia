@@ -18,6 +18,7 @@ import {
   FileText,
   FileSpreadsheet,
   Sparkles,
+  BookText,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import type { Message, Attachment } from '@/types/chat'
@@ -306,17 +307,21 @@ export function MessageRow({ message, userName, onRegenerate, onEdit, onSaveEdit
             />
 
             {message.ragInjection ? (
-              <div className="mb-2 inline-flex items-center gap-1.5 rounded-[8px] border border-[var(--color-secondary)]/30 bg-[var(--color-secondary-soft)] px-2 py-1 text-[11px] text-[var(--color-secondary)]">
-                <span aria-hidden>📚</span>
-                <span>
-                  {message.ragInjection.strategy === 'full_text'
-                    ? t('message.ragFullText')
-                    : message.ragInjection.strategy === 'full_doc'
-                      ? t('message.ragFullDoc')
-                      : message.ragInjection.strategy === 'none'
-                        ? t('message.ragNone')
-                        : t('message.ragDefault')}
-                  {message.ragInjection.summary ? ` — ${message.ragInjection.summary}` : ''}
+              <div className="mb-2.5 inline-flex max-w-full items-center gap-1.5 text-[11.5px] text-[var(--color-fg-subtle)]">
+                <BookText size={13} strokeWidth={1.5} aria-hidden className="shrink-0 text-[var(--color-secondary)]" />
+                <span className="truncate">
+                  <span className="text-[var(--color-fg-muted)]">
+                    {message.ragInjection.strategy === 'full_text'
+                      ? t('message.ragFullText')
+                      : message.ragInjection.strategy === 'full_doc'
+                        ? t('message.ragFullDoc')
+                        : message.ragInjection.strategy === 'none'
+                          ? t('message.ragNone')
+                          : t('message.ragDefault')}
+                  </span>
+                  {message.ragInjection.summary ? (
+                    <span className="text-[var(--color-fg-faint)]"> · {message.ragInjection.summary}</span>
+                  ) : null}
                 </span>
               </div>
             ) : null}
