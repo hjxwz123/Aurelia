@@ -600,5 +600,34 @@
     "none": "No sandbox session for this conversation.",
     "empty": "Sandbox workspace is empty.",
     "open": "Open"
+  },
+  "backup": {
+    "title": "Backup & Migration",
+    "lead": "Export the full database as a portable archive, or restore one to migrate this deployment to another server — or between SQLite and PostgreSQL.",
+    "export": {
+      "title": "Export backup",
+      "lead": "Downloads every table as an engine-neutral archive you can restore on any Aurelia instance.",
+      "includeFiles": "Include uploaded files & generated artifacts",
+      "includeFilesHint": "Bundles the uploads and artifacts directories for a complete, one-click migration. Larger archive.",
+      "action": "Export backup",
+      "done": "Backup exported."
+    },
+    "import": {
+      "title": "Import & restore",
+      "lead": "Upload an archive exported above to load it into this deployment.",
+      "warning": "This replaces ALL existing data — every user, conversation, model and setting is wiped and overwritten by the archive. This cannot be undone. Back up first.",
+      "choose": "Choose archive…",
+      "action": "Import & replace data",
+      "done": "Import complete.",
+      "successTitle": "Restore complete",
+      "successSummary": "Restored {{rows}} rows across all tables and {{files}} files.",
+      "reloginNote": "Your session has ended — signing you out. Sign in again with an account from the imported data."
+    },
+    "confirm": {
+      "title": "Replace all data?",
+      "lead": "This permanently overwrites every record in this deployment with the uploaded archive.",
+      "instruction": "Type {{word}} to confirm.",
+      "action": "Replace everything"
+    }
   }
 }

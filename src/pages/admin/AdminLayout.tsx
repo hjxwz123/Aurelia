@@ -5,7 +5,7 @@
 import { useEffect, useState } from 'react'
 import { NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { ArrowLeft, BarChart3, Boxes, Cpu, FileText, GaugeCircle, KeyRound, Layers, Megaphone, Menu, Mic, Settings2, ShieldAlert, Sparkles, Ticket, Users, Wrench } from 'lucide-react'
+import { ArrowLeft, BarChart3, Boxes, Cpu, DatabaseBackup, FileText, GaugeCircle, KeyRound, Layers, Megaphone, Menu, Mic, Settings2, ShieldAlert, Sparkles, Ticket, Users, Wrench } from 'lucide-react'
 import { useAuth } from '@/store/auth'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import { cn } from '@/lib/utils'
@@ -51,6 +51,7 @@ export default function AdminLayout() {
     { to: '/admin/moderation', icon: ShieldAlert, label: t('admin:moderation.title') },
     { to: '/admin/announcement', icon: Megaphone, label: t('admin:announcement.title') },
     { to: '/admin/settings', icon: Settings2, label: t('admin:settings.title') },
+    { to: '/admin/backup', icon: DatabaseBackup, label: t('admin:backup.title') },
   ]
 
   // §react-router: when end is true, /admin/users only highlights on the

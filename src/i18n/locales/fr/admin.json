@@ -600,5 +600,34 @@
     "none": "Aucune session de bac à sable pour cette conversation.",
     "empty": "Espace de travail du bac à sable vide.",
     "open": "Ouvrir"
+  },
+  "backup": {
+    "title": "Sauvegarde et migration",
+    "lead": "Exportez toute la base de données dans une archive portable, ou importez-en une pour migrer ce déploiement vers un autre serveur — y compris entre SQLite et PostgreSQL.",
+    "export": {
+      "title": "Exporter une sauvegarde",
+      "lead": "Télécharge chaque table dans une archive indépendante du moteur, restaurable sur n'importe quelle instance Aurelia.",
+      "includeFiles": "Inclure les fichiers téléversés et les artefacts générés",
+      "includeFilesHint": "Regroupe les dossiers uploads et artifacts pour une migration complète en un clic. Archive plus volumineuse.",
+      "action": "Exporter une sauvegarde",
+      "done": "Sauvegarde exportée."
+    },
+    "import": {
+      "title": "Importer et restaurer",
+      "lead": "Téléversez une archive exportée ci-dessus pour la charger dans ce déploiement.",
+      "warning": "Cette action remplace TOUTES les données existantes — chaque utilisateur, conversation, modèle et réglage est effacé puis écrasé par l'archive. Irréversible. Sauvegardez d'abord.",
+      "choose": "Choisir une archive…",
+      "action": "Importer et remplacer les données",
+      "done": "Importation terminée.",
+      "successTitle": "Restauration terminée",
+      "successSummary": "{{rows}} lignes restaurées sur l'ensemble des tables et {{files}} fichiers.",
+      "reloginNote": "Votre session a pris fin — déconnexion en cours. Reconnectez-vous avec un compte des données importées."
+    },
+    "confirm": {
+      "title": "Remplacer toutes les données ?",
+      "lead": "Cette action écrase définitivement chaque enregistrement de ce déploiement par l'archive téléversée.",
+      "instruction": "Saisissez {{word}} pour confirmer.",
+      "action": "Tout remplacer"
+    }
   }
 }

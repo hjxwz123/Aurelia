@@ -600,5 +600,34 @@
     "none": "该对话还没有沙盒会话。",
     "empty": "沙盒工作区为空。",
     "open": "打开"
+  },
+  "backup": {
+    "title": "备份与迁移",
+    "lead": "将整个数据库导出为可移植的归档，或导入归档以将本部署迁移到另一台服务器——也可在 SQLite 与 PostgreSQL 之间迁移。",
+    "export": {
+      "title": "导出备份",
+      "lead": "将所有数据表导出为与数据库引擎无关的归档，可在任意 Aurelia 实例上还原。",
+      "includeFiles": "包含上传文件与生成产物",
+      "includeFilesHint": "一并打包 uploads 与 artifacts 目录，实现完整的一键迁移。归档体积更大。",
+      "action": "导出备份",
+      "done": "备份已导出。"
+    },
+    "import": {
+      "title": "导入与还原",
+      "lead": "上传上方导出的归档，将其载入本部署。",
+      "warning": "此操作将替换全部现有数据——所有用户、对话、模型与设置都会被清空并由归档覆盖。无法撤销，请先做好备份。",
+      "choose": "选择归档…",
+      "action": "导入并替换数据",
+      "done": "导入完成。",
+      "successTitle": "还原完成",
+      "successSummary": "已还原全部数据表共 {{rows}} 行，以及 {{files}} 个文件。",
+      "reloginNote": "你的会话已结束，正在退出登录。请使用导入数据中的账号重新登录。"
+    },
+    "confirm": {
+      "title": "替换全部数据？",
+      "lead": "此操作将用上传的归档永久覆盖本部署中的所有记录。",
+      "instruction": "输入 {{word}} 以确认。",
+      "action": "替换全部"
+    }
   }
 }
