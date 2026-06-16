@@ -164,6 +164,145 @@ func stripHTML(s string) string {
 	return strings.TrimSpace(text)
 }
 
+// fetchImageTool downloads a public image into the conversation's sandbox at
+// /workspace/uploads/ so it can be embedded into a generated deck/doc. The
+// sandbox itself has no outbound network (§ security), so this Go-side fetch is
+// the bridge for "find images on the web → build a PPT". SSRF-guarded + size
+// capped, same as web_fetch.
+type fetchImageTool struct {
+	sandbox sandbox.Service
+	logger  *log.Logger
+}
+
+func (t *fetchImageTool) Name() string { return "fetch_image" }
+func (t *fetchImageTool) Description() string {
+	return "Download an image from a public http(s) URL into /workspace/uploads/ so python_execute can embed it (e.g. python-pptx add_picture, python-docx, reportlab). Use this for web images — the sandbox has no internet of its own. Returns the local sandbox path to reference."
+}
+func (t *fetchImageTool) InputSchema() json.RawMessage {
+	return json.RawMessage(`{"type":"object","properties":{"url":{"type":"string"},"filename":{"type":"string"}},"required":["url"]}`)
+}
+
+type fetchImageInput struct {
+	URL      string `json:"url"`
+	Filename string `json:"filename"`
+}
+
+func (t *fetchImageTool) Execute(ctx context.Context, input []byte, tc *llm.ToolContext) (string, []llm.Citation, error) {
+	var in fetchImageInput
+	_ = json.Unmarshal(input, &in)
+	u, err := url.Parse(strings.TrimSpace(in.URL))
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") {
+		return "", nil, errors.New("invalid URL")
+	}
+	if p := u.Port(); p != "" && p != "80" && p != "443" {
+		return "", nil, errors.New("blocked non-web port")
+	}
+	if t.sandbox == nil || !t.sandbox.Enabled() {
+		return "", nil, errors.New("fetch_image needs the sandbox configured (Admin → settings)")
+	}
+	if tc == nil || tc.DB == nil || tc.ConvID == "" {
+		return "", nil, errors.New("fetch_image requires a conversation context")
+	}
+
+	req, _ := http.NewRequestWithContext(ctx, "GET", u.String(), nil)
+	req.Header.Set("user-agent", "AureliaBot/1.0")
+	resp, err := ssrfSafeClient().Do(req)
+	if err != nil {
+		return "", nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return "", nil, fmt.Errorf("image fetch failed: HTTP %d", resp.StatusCode)
+	}
+	const maxImg = 15 * 1024 * 1024
+	data, _ := io.ReadAll(io.LimitReader(resp.Body, maxImg+1))
+	if len(data) == 0 {
+		return "", nil, errors.New("empty image response")
+	}
+	if len(data) > maxImg {
+		return "", nil, errors.New("image too large (>15MB)")
+	}
+	ct := resp.Header.Get("content-type")
+	if !strings.HasPrefix(ct, "image/") {
+		ct = http.DetectContentType(data)
+		if !strings.HasPrefix(ct, "image/") {
+			return "", nil, errors.New("URL did not return an image")
+		}
+	}
+	name := sanitizeImageName(in.Filename, u, ct)
+
+	// Reuse (or provision) the conversation's persistent sandbox session so the
+	// image lands in the SAME /workspace python_execute will read.
+	sessionID, _ := store.GetConvProviderStateKey(ctx, tc.DB, tc.ConvID, "sandbox_id")
+	if sessionID == "" {
+		sid, err := t.sandbox.NewSession(ctx)
+		if err != nil {
+			if t.logger != nil {
+				t.logger.Printf("fetch_image: sandbox NewSession failed: %v", err)
+			}
+			return "", nil, fmt.Errorf("sandbox session: %w", err)
+		}
+		sessionID = sid
+		_ = store.SetConvProviderStateKey(ctx, tc.DB, tc.ConvID, "sandbox_id", sessionID)
+	}
+	path := "/workspace/uploads/" + name
+	if err := t.sandbox.PutFile(ctx, sessionID, path, data); err != nil {
+		return "", nil, fmt.Errorf("stage image: %w", err)
+	}
+	return fmt.Sprintf("Saved image (%d bytes, %s) to %s — embed it via python_execute, e.g. python-pptx add_picture(%q) or <img src='%s'>.", len(data), ct, path, path, path), nil, nil
+}
+
+// sanitizeImageName derives a safe /workspace filename from the requested name
+// or the URL, guaranteeing a sane image extension matching the content type.
+func sanitizeImageName(want string, u *url.URL, contentType string) string {
+	base := strings.TrimSpace(want)
+	if base == "" {
+		base = filepath.Base(u.Path)
+	}
+	base = filepath.Base(base)
+	base = strings.Map(func(r rune) rune {
+		switch {
+		case r == '/' || r == '\\' || r == ' ' || r == '?' || r == '#' || r == '&':
+			return '-'
+		default:
+			return r
+		}
+	}, base)
+	if base == "" || base == "." || base == "-" {
+		base = "image"
+	}
+	lower := strings.ToLower(base)
+	known := []string{".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg"}
+	hasExt := false
+	for _, e := range known {
+		if strings.HasSuffix(lower, e) {
+			hasExt = true
+			break
+		}
+	}
+	if !hasExt {
+		base += imageExtForType(contentType)
+	}
+	return base
+}
+
+func imageExtForType(ct string) string {
+	switch {
+	case strings.Contains(ct, "png"):
+		return ".png"
+	case strings.Contains(ct, "jpeg"), strings.Contains(ct, "jpg"):
+		return ".jpg"
+	case strings.Contains(ct, "gif"):
+		return ".gif"
+	case strings.Contains(ct, "webp"):
+		return ".webp"
+	case strings.Contains(ct, "svg"):
+		return ".svg"
+	default:
+		return ".png"
+	}
+}
+
 // pythonExecuteTool — design.md §4.5. Proxies to the configured sandbox
 // service (the single dependency point). When no sandbox is configured it
 // falls back to a safe-mode arithmetic evaluator so dev stays usable.
@@ -238,7 +377,10 @@ func (t *pythonExecuteTool) Execute(ctx context.Context, input []byte, tc *llm.T
 		}
 		if files, err := store.ListFilesByConversation(ctx, tc.DB, tc.ConvID, tc.UserID); err == nil {
 			for _, f := range files {
-				if f.Kind != "sheet" && f.Kind != "text" && f.Kind != "code" && f.Kind != "pdf" {
+				// Stage data files AND images — images so they can be embedded into
+				// generated decks/docs (python-pptx/-docx read them from /workspace
+				// /uploads). Other binary kinds (audio/video/archives) stay out.
+				if f.Kind != "sheet" && f.Kind != "text" && f.Kind != "code" && f.Kind != "pdf" && f.Kind != "image" {
 					continue
 				}
 				if f.SizeBytes > 20*1024*1024 {
