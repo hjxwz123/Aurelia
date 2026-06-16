@@ -178,15 +178,38 @@ func MaybeCompact(
 	if len(history) <= keepMsgs && ctxTok <= tokenTrigger {
 		return history, filterBlocksForPath(existing, history), nil
 	}
-	// Find the cut: the first index that aligns to a round boundary so we
-	// don't split tool_use / tool_result. In our blocks-based history this is
-	// safe to do at any user-prefix.
+	// Find the cut = first index of the verbatim tail. Two budgets push it:
+	//   1. Round budget: keep at most keepMsgs newest messages.
+	//   2. Token budget: if the kept tail still estimates OVER the token trigger,
+	//      drop more old rounds (deeper) until it fits — this is what makes the
+	//      token trigger actually shrink context instead of mirroring the round
+	//      trigger. Always keep at least the last round verbatim.
+	// The cut only ever moves forward as history grows, and we summarise strictly
+	// the range after the last summary's anchor (high-water mark below), so no
+	// range is ever summarised twice — whichever budget triggers (§4.7).
 	cut := len(history) - keepMsgs
-	if cut < 1 {
-		cut = 1 // token-triggered with few messages: still summarise the oldest
+	if cut < 0 {
+		cut = 0
 	}
-	// Make sure we cut at a user message boundary so we never split a
-	// tool_use / tool_result pair.
+	if tokenTrigger > 0 {
+		const minKeepMsgs = 2 // never compact away the final round
+		// Suffix token sums so the deepening loop stays O(n), not O(n²).
+		suffix := make([]int, len(history)+1)
+		for i := len(history) - 1; i >= 0; i-- {
+			var blocks []UnifiedBlock
+			_ = json.Unmarshal(history[i].Blocks, &blocks)
+			t := 4 // per-message structural overhead
+			for _, b := range blocks {
+				t += estimateTokens(b.Text) + estimateTokens(b.Summary)
+			}
+			suffix[i] = suffix[i+1] + t
+		}
+		for cut < len(history)-minKeepMsgs && suffix[cut] > tokenTrigger {
+			cut++
+		}
+	}
+	// Snap to a user-message boundary so a tool_use / tool_result pair is never
+	// split (move down to the nearest user prefix).
 	for cut > 0 && history[cut].Role != "user" {
 		cut--
 	}
