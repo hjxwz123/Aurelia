@@ -29,7 +29,7 @@ var toolHTTPClient = &http.Client{
 		Proxy:                 http.ProxyFromEnvironment,
 		DialContext:           (&net.Dialer{Timeout: 10 * time.Second}).DialContext,
 		TLSHandshakeTimeout:   10 * time.Second,
-		ResponseHeaderTimeout: 120 * time.Second,
+		ResponseHeaderTimeout: 600 * time.Second, // image gen can be slow; per-tool ctx is the real bound
 		IdleConnTimeout:       90 * time.Second,
 	},
 }

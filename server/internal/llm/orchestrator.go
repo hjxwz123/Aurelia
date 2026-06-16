@@ -1460,7 +1460,7 @@ var toolTimeouts = map[string]time.Duration{
 	"web_search":     10 * time.Second,
 	"web_fetch":      15 * time.Second,
 	"python_execute": 120 * time.Second,
-	"image_generate": 60 * time.Second,
+	"image_generate": 600 * time.Second, // slow third-party image gateways need a wide window
 }
 
 const toolTimeoutDefault = 100 * time.Second
