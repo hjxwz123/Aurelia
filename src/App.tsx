@@ -45,6 +45,7 @@ const AdminUserConversation = lazy(() => import('@/pages/admin/AdminUserConversa
 const AdminUsage = lazy(() => import('@/pages/admin/AdminUsage'))
 const AdminAnalytics = lazy(() => import('@/pages/admin/AdminAnalytics'))
 const AdminSettings = lazy(() => import('@/pages/admin/AdminSettings'))
+const AdminBackup = lazy(() => import('@/pages/admin/AdminBackup'))
 const AdminModeration = lazy(() => import('@/pages/admin/AdminModeration'))
 const AdminAnnouncement = lazy(() => import('@/pages/admin/AdminAnnouncement'))
 const AdminDocuments = lazy(() => import('@/pages/admin/AdminDocuments'))
@@ -175,6 +176,7 @@ export default function App() {
               <Route path="moderation" element={<AdminModeration />} />
               <Route path="announcement" element={<AdminAnnouncement />} />
               <Route path="settings" element={<AdminSettings />} />
+              <Route path="backup" element={<AdminBackup />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>

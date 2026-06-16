@@ -3,7 +3,7 @@
  * backend returns, with a small typed helper signature. Group by feature so
  * the call sites stay readable.
  */
-import { api, apiUrl } from './client'
+import { api, apiUrl, getAccessToken, ApiError } from './client'
 import type {
   ApiAnalytics,
   ApiAuthResponse,
@@ -413,4 +413,44 @@ export const adminApi = {
     fd.append('file', file)
     return api<{ url: string; filename: string }>('/admin/icons', { method: 'POST', body: fd })
   },
+
+  // Database backup / migration (§ admin → data migration). Export streams a
+  // .zip the browser saves; import uploads one and REPLACES all data. The blob
+  // path can't use the JSON `api()` helper, so it hand-rolls the fetch (still
+  // sending the cookie + Bearer the rest of the client uses).
+  backupExport: async (includeFiles: boolean): Promise<Blob> => {
+    const token = getAccessToken()
+    const res = await fetch(apiUrl(`/admin/backup/export${includeFiles ? '?files=1' : ''}`), {
+      credentials: 'include',
+      headers: token ? { authorization: `Bearer ${token}` } : {},
+    })
+    if (!res.ok) {
+      let msg = `export failed (${res.status})`
+      try {
+        const j = (await res.json()) as { error?: string }
+        if (j?.error) msg = j.error
+      } catch {
+        /* non-JSON error body */
+      }
+      throw new ApiError(res.status, msg, null)
+    }
+    return res.blob()
+  },
+  backupImport: (file: File) => {
+    const fd = new FormData()
+    fd.append('confirm', 'REPLACE')
+    fd.append('file', file)
+    return api<BackupImportResult>('/admin/backup/import', { method: 'POST', body: fd })
+  },
+}
+
+/** Result of a successful database import (§ admin → data migration). */
+export interface BackupImportResult {
+  ok: true
+  /** Row count restored per table. */
+  tables: Record<string, number>
+  files_restored: number
+  includes_files: boolean
+  /** The admin's session was invalidated by the restore — re-login required. */
+  relogin_required: boolean
 }

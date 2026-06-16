@@ -201,6 +201,10 @@ func NewRouter(d Deps) http.Handler {
 	mux.handle("DELETE", "/api/admin/oauth-providers/:id", requireAdmin(d, deleteOAuthProviderAdmin))
 	mux.handle("GET", "/api/admin/settings", requireAdmin(d, adminSettingsGet))
 	mux.handle("PATCH", "/api/admin/settings", requireAdmin(d, adminSettingsSet))
+	// Database backup / migration (§ admin → data migration). Export streams a
+	// logical, engine-neutral archive; import replaces ALL data from one.
+	mux.handle("GET", "/api/admin/backup/export", requireAdmin(d, exportBackupAdmin))
+	mux.handle("POST", "/api/admin/backup/import", requireAdmin(d, importBackupAdmin))
 	// Redeem codes (§ redeem codes). Admin lists/creates/patches/deletes;
 	// individual codes can be revoked (enabled=false) without losing audit.
 	mux.handle("GET", "/api/admin/redeem-codes", requireAdmin(d, listRedeemCodesAdmin))
