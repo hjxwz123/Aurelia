@@ -12,7 +12,6 @@ import {
   Lock,
   Cloud,
   Check,
-  Quote,
   ArrowUp,
   type LucideIcon,
 } from 'lucide-react'
@@ -37,6 +36,28 @@ const CAPABILITY_KEYS = [
 ] as const
 
 const USE_CASE_KEYS = ['writers', 'researchers', 'engineers', 'thinkers'] as const
+
+// The mainstream models Aurelia convenes (§ models showcase). Names + makers are
+// proper nouns (untranslated); logos are vendored brand marks in /public/brand,
+// painted in token ink via CSS mask. Claude leads (slightly larger) for hierarchy.
+interface ModelSpec {
+  key: string
+  name: string
+  maker: string
+  slug: string
+  lead?: boolean
+}
+
+const MODELS: readonly ModelSpec[] = [
+  { key: 'claude', name: 'Claude', maker: 'Anthropic', slug: 'claude', lead: true },
+  { key: 'gpt', name: 'GPT', maker: 'OpenAI', slug: 'openai' },
+  { key: 'gemini', name: 'Gemini', maker: 'Google', slug: 'gemini' },
+  { key: 'llama', name: 'Llama', maker: 'Meta', slug: 'meta' },
+  { key: 'mistral', name: 'Mistral', maker: 'Mistral AI', slug: 'mistral' },
+  { key: 'qwen', name: 'Qwen', maker: 'Alibaba', slug: 'qwen' },
+  { key: 'deepseek', name: 'DeepSeek', maker: 'DeepSeek', slug: 'deepseek' },
+  { key: 'grok', name: 'Grok', maker: 'xAI', slug: 'grok' },
+]
 
 const PRINCIPLE_KEYS = ['noDefaults', 'readingFirst', 'youOwnIt'] as const
 
@@ -71,15 +92,24 @@ export default function Landing() {
         const tl = gsap.timeline({ defaults: { ease: 'power3.out' } })
         tl.from('.hero-badge', { y: 14, autoAlpha: 0, duration: 0.5 })
           .from('.hero-line', { yPercent: 115, duration: 0.9, stagger: 0.12 }, '-=0.15')
-          .from('.hero-sub', { y: 16, autoAlpha: 0, duration: 0.7 }, '-=0.5')
+          // The violet ink wicks across line 2 just as it settles.
+          .fromTo('.ink-overlay', { '--ink': 0 }, { '--ink': 1, duration: 1.2, ease: 'power2.inOut' }, '-=0.4')
+          // The accent baseline segment draws in alongside it.
+          .from('.hero-baseline', { scaleX: 0, duration: 0.8 }, '<')
+          .from('.hero-sub', { y: 16, autoAlpha: 0, duration: 0.7 }, '-=0.85')
           .from('.hero-composer', { y: 22, autoAlpha: 0, duration: 0.7 }, '-=0.45')
           .from('.hero-meta', { y: 10, autoAlpha: 0, duration: 0.6 }, '-=0.5')
-          .from('.hero-preview', { y: 48, autoAlpha: 0, duration: 1.0 }, '-=0.35')
+          .from('.hero-preview', { y: 48, autoAlpha: 0, duration: 1.0 }, '-=0.9')
 
         // Nav backdrop fades in over the first bit of scroll.
         gsap.fromTo('.nav-bg', { autoAlpha: 0 }, {
           autoAlpha: 1, ease: 'none',
           scrollTrigger: { start: 8, end: 96, scrub: true },
+        })
+        // Reading-progress hairline along the nav's bottom edge.
+        gsap.fromTo('.nav-progress', { scaleX: 0 }, {
+          scaleX: 1, ease: 'none', transformOrigin: 'left center',
+          scrollTrigger: { start: 0, end: 'max', scrub: 0.3 },
         })
 
         // Section reveals — single elements rise as they enter the viewport.
@@ -126,6 +156,14 @@ export default function Landing() {
         }
       })
 
+      // Reduced motion: nothing animates. The one element whose *resting* state
+      // is the end of an animation is the ink wash (hidden by default) — show it
+      // fully wicked-in so line two keeps its violet treatment, statically. The
+      // nav-progress hairline is a pure scroll affordance, so it stays hidden.
+      mm.add('(prefers-reduced-motion: reduce)', () => {
+        gsap.set('.ink-overlay', { '--ink': 1 })
+      })
+
       // Scroll-to-top visibility (no React state, no window scroll listener).
       ScrollTrigger.create({
         start: 760,
@@ -156,6 +194,11 @@ export default function Landing() {
           aria-hidden
           className="nav-bg absolute inset-0 -z-10 bg-[var(--color-bg)]/85 border-b border-[var(--color-border-subtle)]"
         />
+        {/* Reading-progress hairline — scaleX scrubbed by scroll (see useGSAP). */}
+        <span
+          aria-hidden
+          className="nav-progress absolute inset-x-0 bottom-0 h-[2px] origin-left scale-x-0 bg-[var(--color-accent)]"
+        />
         <div className="mx-auto max-w-[76rem] flex items-center justify-between px-5 sm:px-8 h-[64px]">
           <Link to="/" aria-label={t('common:aria.homeLink')}>
             <Logo size="md" />
@@ -183,49 +226,74 @@ export default function Landing() {
         </div>
       </header>
 
-      {/* Hero */}
-      <section className="relative pt-20 sm:pt-32 pb-20 sm:pb-28">
-        <div className="mx-auto max-w-[68rem] px-5 sm:px-8">
-          <div className="text-center">
+      {/* Hero — left-anchored editorial split; the second headline line carries
+          a violet ink-wash (dual-layer masked real text, scrubbed by GSAP). */}
+      <section className="relative pt-16 sm:pt-24 pb-20 sm:pb-28">
+        <div className="mx-auto grid max-w-[76rem] items-center gap-12 px-5 sm:px-8 lg:grid-cols-[1.12fr_0.88fr] lg:gap-10">
+          <div className="min-w-0 max-w-[40rem]">
             <div className="hero-badge inline-block">
               <Badge variant="sage" leadingIcon={<Sparkles size={11} aria-hidden />} className="mb-7">
                 {t('landing:badgeNew')}
               </Badge>
             </div>
-            {/* Headline lines rise out of an overflow mask (per-line reveal). */}
-            <h1 className="font-serif tracking-tight text-balance text-[2.5rem] sm:text-[3.75rem] lg:text-[4.5rem] leading-[1.04] text-[var(--color-fg)]">
+            {/* Each line rises out of an overflow mask; line 2 holds the ink-wash. */}
+            <h1 className="font-optical font-serif tracking-tight text-balance text-[clamp(2.5rem,6.4vw,5.5rem)] leading-[1.03] text-[var(--color-fg)]">
               <span className="block overflow-hidden pb-[0.08em]">
                 <span className="hero-line block">{t('landing:hero.titleLine1')}</span>
               </span>
-              <span className="block overflow-hidden pb-[0.08em]">
-                <span className="hero-line block italic text-[var(--color-fg-muted)]">{t('landing:hero.titleLine2')}</span>
+              <span className="block overflow-hidden pb-[0.14em]">
+                <span className="hero-line block italic">
+                  <span className="ink-wash relative inline-block">
+                    <span className="block text-[var(--color-fg-muted)]">{t('landing:hero.titleLine2')}</span>
+                    <span
+                      aria-hidden
+                      className="ink-overlay absolute inset-0 block"
+                      style={{ color: 'color-mix(in oklch, var(--color-accent) 60%, var(--color-fg-muted))' }}
+                    >
+                      {t('landing:hero.titleLine2')}
+                    </span>
+                  </span>
+                </span>
               </span>
             </h1>
-            <p className="hero-sub mx-auto mt-7 max-w-xl text-[var(--color-fg-muted)] text-pretty text-[15px] sm:text-base leading-relaxed">
+            {/* Baseline hairline with one accent segment that draws in. */}
+            <div className="relative mt-6 h-px w-full max-w-[34rem] bg-[var(--color-divider)]">
+              <span className="hero-baseline absolute left-0 top-0 h-px w-[120px] origin-left bg-[var(--color-accent)]" />
+            </div>
+            <p className="hero-sub mt-7 max-w-xl text-[var(--color-fg-muted)] text-pretty text-[15px] sm:text-base leading-relaxed">
               {t('landing:hero.subtitle')}
             </p>
-          </div>
 
-          <div className="hero-composer mx-auto mt-10 max-w-[36rem]">
-            <Composer
-              modelId={defaultModelId}
-              onModelChange={() => { /* hero composer ignores; real switch happens in /chat */ }}
-              onSubmit={(text) => void handleHeroSubmit(text)}
-              placeholder={t('landing:hero.placeholder')}
-            />
-            <div className="hero-meta mt-3 flex items-center justify-center gap-x-5 gap-y-2 text-[12px] text-[var(--color-fg-subtle)] flex-wrap">
-              <span>{t('common:common.free')}</span>
-              <span aria-hidden>·</span>
-              <span>{t('common:common.noCard')}</span>
-              <span aria-hidden>·</span>
-              <span>{t('common:common.openAnytime')}</span>
+            <div className="hero-composer mt-8 max-w-[34rem]">
+              <Composer
+                modelId={defaultModelId}
+                onModelChange={() => { /* hero composer ignores; real switch happens in /chat */ }}
+                onSubmit={(text) => void handleHeroSubmit(text)}
+                placeholder={t('landing:hero.placeholder')}
+              />
+              <div className="hero-meta mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-[12px] text-[var(--color-fg-subtle)]">
+                <span>{t('common:common.free')}</span>
+                <span aria-hidden>·</span>
+                <span>{t('common:common.noCard')}</span>
+                <span aria-hidden>·</span>
+                <span>{t('common:common.openAnytime')}</span>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Floating product preview */}
-        <div className="hero-preview mx-auto mt-20 max-w-[60rem] px-5 sm:px-8 will-change-transform">
-          <ProductPreview />
+          {/* Product preview on a faint dot-grid plinth, bleeding past the gutter. */}
+          <div className="hero-preview relative min-w-0 will-change-transform lg:-mr-6">
+            <div
+              aria-hidden
+              className="mask-fade-bottom pointer-events-none absolute -inset-x-6 -inset-y-8 -z-10"
+              style={{
+                backgroundImage:
+                  'radial-gradient(circle, color-mix(in oklch, var(--color-fg) 8%, transparent) 1px, transparent 1px)',
+                backgroundSize: '16px 16px',
+              }}
+            />
+            <ProductPreview />
+          </div>
         </div>
       </section>
 
@@ -233,23 +301,26 @@ export default function Landing() {
       <section id="capabilities" className="py-24 sm:py-32 border-t border-[var(--color-divider)]">
         <div className="mx-auto max-w-[76rem] px-5 sm:px-8">
           <SectionHeader
-            eyebrow={t('landing:capabilities.eyebrow')}
             title={t('landing:capabilities.title')}
             body={t('landing:capabilities.body')}
           />
-          <div className="mt-14 grid grid-cols-1 md:grid-cols-3 gap-6" data-reveal-group>
+          {/* A ruled ledger, not a card grid: label column (icon + name) meets a
+              description column across a hairline. Hover warms the whole row. */}
+          <div className="mt-14 border-t border-[var(--color-divider)]" data-reveal-group>
             {CAPABILITY_KEYS.map((c) => (
               <div
                 key={c.key}
-                className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 transition-[transform,border-color,box-shadow] duration-300 hover:-translate-y-0.5 hover:border-[var(--color-border-strong)] hover:shadow-[var(--shadow-sm)]"
+                className="group grid grid-cols-1 items-baseline gap-x-10 gap-y-3 border-b border-[var(--color-divider)] py-7 transition-colors duration-300 sm:grid-cols-[minmax(0,16rem)_1fr] sm:py-9 hover:bg-[var(--color-surface)]"
               >
-                <div className="inline-flex size-9 items-center justify-center rounded-[10px] bg-[var(--color-accent-soft)] text-[var(--color-accent)]">
-                  <c.icon size={16} aria-hidden />
+                <div className="flex items-center gap-3.5">
+                  <span className="inline-flex size-9 items-center justify-center rounded-[10px] bg-[var(--color-accent-soft)] text-[var(--color-accent)] transition-transform duration-300 group-hover:-translate-y-0.5">
+                    <c.icon size={16} aria-hidden />
+                  </span>
+                  <h3 className="font-serif text-xl tracking-tight text-[var(--color-fg)]">
+                    {t(`landing:capabilities.items.${c.key}.title`)}
+                  </h3>
                 </div>
-                <h3 className="mt-5 font-serif text-xl tracking-tight text-[var(--color-fg)]">
-                  {t(`landing:capabilities.items.${c.key}.title`)}
-                </h3>
-                <p className="mt-2 text-sm text-[var(--color-fg-muted)] leading-relaxed">
+                <p className="max-w-[58ch] text-[15px] text-[var(--color-fg-muted)] leading-relaxed text-pretty">
                   {t(`landing:capabilities.items.${c.key}.body`)}
                 </p>
               </div>
@@ -262,8 +333,7 @@ export default function Landing() {
       <section id="how" className="py-24 sm:py-32 border-t border-[var(--color-divider)]">
         <div className="mx-auto max-w-[76rem] px-5 sm:px-8 grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 items-start">
           <div data-reveal>
-            <Badge variant="neutral">{t('landing:how.eyebrow')}</Badge>
-            <h2 className="mt-5 font-serif tracking-tight text-3xl sm:text-4xl text-[var(--color-fg)] text-balance">
+            <h2 className="font-serif tracking-tight text-3xl sm:text-4xl text-[var(--color-fg)] text-balance">
               {t('landing:how.title')}
             </h2>
             <p className="mt-5 text-[var(--color-fg-muted)] leading-relaxed text-pretty">
@@ -296,27 +366,36 @@ export default function Landing() {
       {/* Use cases */}
       <section className="py-24 sm:py-32 border-t border-[var(--color-divider)]">
         <div className="mx-auto max-w-[76rem] px-5 sm:px-8">
-          <SectionHeader eyebrow={t('landing:useCases.eyebrow')} title={t('landing:useCases.title')} />
-          <div className="mt-12 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5" data-reveal-group>
-            {USE_CASE_KEYS.map((key, i) => (
-              <div
-                key={key}
-                className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 min-h-[180px] flex flex-col"
-              >
-                <span className="text-[var(--color-fg-subtle)] font-mono text-xs">0{i + 1}</span>
-                <h3 className="mt-3 font-serif text-lg tracking-tight text-[var(--color-fg)]">
-                  {t(`landing:useCases.items.${key}.title`)}
-                </h3>
-                <p className="mt-2 text-sm text-[var(--color-fg-muted)] leading-relaxed">
+          <SectionHeader title={t('landing:useCases.title')} />
+          {/* A reading-room index: ruled entries, term over definition, two
+              columns on desktop. No cards, no numbers — it reads like a contents
+              page. An accent tick under each term draws in on hover. */}
+          <dl
+            className="mt-12 grid grid-cols-1 border-t border-[var(--color-divider)] sm:grid-cols-2 sm:gap-x-16"
+            data-reveal-group
+          >
+            {USE_CASE_KEYS.map((key) => (
+              <div key={key} className="group border-b border-[var(--color-divider)] py-7">
+                <dt className="font-serif text-xl tracking-tight text-[var(--color-fg)]">
+                  <span className="relative inline-block">
+                    {t(`landing:useCases.items.${key}.title`)}
+                    <span
+                      aria-hidden
+                      className="absolute -bottom-1 left-0 h-px w-full origin-left scale-x-0 bg-[var(--color-accent)] transition-transform duration-300 group-hover:scale-x-100"
+                    />
+                  </span>
+                </dt>
+                <dd className="mt-2.5 max-w-[46ch] text-sm text-[var(--color-fg-muted)] leading-relaxed text-pretty">
                   {t(`landing:useCases.items.${key}.body`)}
-                </p>
+                </dd>
               </div>
             ))}
-          </div>
+          </dl>
         </div>
       </section>
 
-      {/* Models */}
+      {/* Models — 汇集主流大模型: a type-specimen rail of the real mainstream
+          models, each logo painted in the product's own ink (CSS mask). */}
       <section id="models" className="py-24 sm:py-32 border-t border-[var(--color-divider)]">
         <div className="mx-auto max-w-[76rem] px-5 sm:px-8">
           <SectionHeader
@@ -324,12 +403,50 @@ export default function Landing() {
             title={t('landing:models.title')}
             body={t('landing:models.body')}
           />
-          <div className="mt-14 grid grid-cols-1 md:grid-cols-2 gap-5" data-reveal-group>
-            <ModelCard name="Aurelia Prose" tier={t('landing:models.tiers.standard')} body="Fast, conversational. The everyday model." accent="sage" />
-            <ModelCard name="Aurelia Reason" tier={t('landing:models.tiers.pro')} body="Deliberate, structured analysis. For research and code." accent="clay" />
-            <ModelCard name="Aurelia Canvas" tier={t('landing:models.tiers.pro')} body="Iterative editing of long-form writing and code." accent="sage" />
-            <ModelCard name="Aurelia Deep" tier={t('landing:models.tiers.max')} body="Long deliberation with citations and tool use." accent="clay" locked lockedNote={t('landing:models.lockedNote')} />
+          <ul
+            className="mt-12 grid grid-cols-2 sm:grid-cols-4 gap-px overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-border)]"
+            data-reveal-group
+          >
+            {MODELS.map((m) => (
+              <li
+                key={m.key}
+                className="group/m relative flex flex-col items-center gap-3 bg-[var(--color-bg)] px-4 py-8 text-center transition-transform duration-300 hover:-translate-y-0.5"
+              >
+                <span
+                  aria-hidden
+                  className={cn(
+                    'brand-mark text-[var(--color-fg-muted)] transition-colors duration-300 group-hover/m:text-[var(--color-fg)]',
+                    m.lead ? 'size-9' : 'size-7',
+                  )}
+                  style={{ WebkitMaskImage: `url(/brand/${m.slug}.svg)`, maskImage: `url(/brand/${m.slug}.svg)` }}
+                />
+                <span className={cn('font-serif tracking-tight text-[var(--color-fg)]', m.lead ? 'text-xl' : 'text-lg')}>
+                  {m.name}
+                </span>
+                <span className="font-mono text-[10.5px] uppercase tracking-wider text-[var(--color-fg-subtle)]">
+                  {m.maker}
+                </span>
+                <span
+                  aria-hidden
+                  className="absolute bottom-0 left-1/2 h-px w-10 -translate-x-1/2 origin-center scale-x-0 bg-[var(--color-accent)] transition-transform duration-300 group-hover/m:scale-x-100"
+                />
+              </li>
+            ))}
+          </ul>
+          <div
+            className="mt-12 grid grid-cols-1 border-t border-[var(--color-divider)] divide-y divide-[var(--color-divider)] sm:grid-cols-3 sm:divide-y-0 sm:divide-x"
+            data-reveal-group
+          >
+            {(['switch', 'strength', 'oneSub'] as const).map((k) => (
+              <p
+                key={k}
+                className="px-1 py-6 font-serif text-lg tracking-tight text-balance text-[var(--color-fg)] sm:px-6"
+              >
+                {t(`landing:models.proof.${k}`)}
+              </p>
+            ))}
           </div>
+          <p className="mt-6 text-[12px] text-[var(--color-fg-subtle)]">{t('landing:models.footnote')}</p>
         </div>
       </section>
 
@@ -431,11 +548,16 @@ export default function Landing() {
   )
 }
 
-function SectionHeader({ eyebrow, title, body }: { eyebrow: string; title: string; body?: string }) {
+function SectionHeader({ eyebrow, title, body }: { eyebrow?: string; title: string; body?: string }) {
   return (
     <div className="max-w-2xl" data-reveal>
-      <Badge variant="neutral">{eyebrow}</Badge>
-      <h2 className="mt-5 font-serif tracking-tight text-3xl sm:text-4xl text-[var(--color-fg)] text-balance">
+      {eyebrow && <Badge variant="neutral">{eyebrow}</Badge>}
+      <h2
+        className={cn(
+          'font-serif tracking-tight text-3xl sm:text-4xl text-[var(--color-fg)] text-balance',
+          eyebrow && 'mt-5',
+        )}
+      >
         {title}
       </h2>
       {body && <p className="mt-5 text-[var(--color-fg-muted)] leading-relaxed text-pretty">{body}</p>}
@@ -443,49 +565,9 @@ function SectionHeader({ eyebrow, title, body }: { eyebrow: string; title: strin
   )
 }
 
-function ModelCard({
-  name,
-  tier,
-  body,
-  accent,
-  locked,
-  lockedNote,
-}: {
-  name: string
-  tier: string
-  body: string
-  accent: 'clay' | 'sage'
-  locked?: boolean
-  lockedNote?: string
-}) {
-  // Map tier label → badge variant by accent prop (locale-agnostic).
-  const tierVariant = accent === 'clay' && locked ? 'accent' : accent === 'clay' ? 'sage' : 'sage'
-  return (
-    <div className="group/m rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 flex flex-col">
-      <div className="flex items-center gap-2">
-        <Sparkles
-          size={14}
-          className={cn(accent === 'clay' ? 'text-[var(--color-accent)]' : 'text-[var(--color-secondary)]')}
-          aria-hidden
-        />
-        <span className="font-serif text-xl tracking-tight text-[var(--color-fg)]">{name}</span>
-        <Badge variant={locked ? 'accent' : tierVariant} size="xs" className="ml-auto">
-          {tier}
-        </Badge>
-      </div>
-      <p className="mt-2.5 text-sm text-[var(--color-fg-muted)] leading-relaxed">{body}</p>
-      {locked && lockedNote && (
-        <span className="mt-4 inline-flex items-center gap-1.5 text-xs text-[var(--color-fg-subtle)]">
-          <Lock size={11} aria-hidden /> {lockedNote}
-        </span>
-      )}
-    </div>
-  )
-}
-
 function SafetyRow({ icon: Icon, title, body }: { icon: LucideIcon; title: string; body: string }) {
   return (
-    <li className="flex items-start gap-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
+    <li className="flex items-start gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
       <span className="inline-flex size-9 items-center justify-center rounded-full bg-[var(--color-accent-soft)] text-[var(--color-accent)] shrink-0">
         <Icon size={15} aria-hidden />
       </span>
@@ -517,13 +599,20 @@ function FooterCol({ title, links }: { title: string; links: [string, string][] 
 function PullQuote() {
   const { t } = useTranslation('landing')
   return (
-    <figure className="relative rounded-3xl border border-[var(--color-border)] bg-[var(--color-surface)] p-8 sm:p-10">
-      <Quote size={20} className="text-[var(--color-accent)]" aria-hidden />
-      <blockquote className="mt-5 font-serif text-[1.5rem] sm:text-[1.75rem] leading-[1.32] tracking-tight text-[var(--color-fg)]">
+    <figure className="relative overflow-hidden rounded-xl bg-[var(--color-bg-muted)] px-8 py-10 sm:px-10 sm:py-12">
+      {/* Oversized recessed quotation mark — sets the editorial register. */}
+      <span
+        aria-hidden
+        className="pointer-events-none absolute -top-6 left-5 select-none font-serif text-[8rem] leading-none"
+        style={{ color: 'color-mix(in oklch, var(--color-accent) 16%, transparent)' }}
+      >
+        &ldquo;
+      </span>
+      <blockquote className="relative font-serif text-[1.5rem] sm:text-[1.75rem] leading-[1.34] tracking-tight text-[var(--color-fg)] text-pretty">
         {t('how.quote')}
       </blockquote>
-      <figcaption className="mt-6 flex items-center gap-3 text-sm text-[var(--color-fg-muted)]">
-        <span className="inline-block size-7 rounded-full bg-[var(--color-accent-soft)] text-[var(--color-accent)] grid place-items-center font-mono">A</span>
+      <figcaption className="relative mt-7 flex items-center gap-3 text-sm text-[var(--color-fg-muted)]">
+        <span className="inline-grid size-7 place-items-center rounded-full bg-[var(--color-accent-soft)] font-mono text-[var(--color-accent)]">A</span>
         <span>{t('how.quoteSource')}</span>
       </figcaption>
     </figure>
@@ -534,7 +623,7 @@ function ProductPreview() {
   const { t } = useTranslation('landing')
   return (
     <div
-      className="relative rounded-[26px] border border-[var(--color-border)] bg-[var(--color-surface)] shadow-[var(--shadow-2xl)] overflow-hidden"
+      className="relative rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-[var(--shadow-2xl)] overflow-hidden"
       aria-hidden
     >
       {/* Window chrome */}

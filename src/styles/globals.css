@@ -349,6 +349,42 @@
     transition-duration: var(--duration-fast);
     transition-timing-function: var(--ease-out);
   }
+
+  /* Variable-font optical sizing — display serif opens up at large sizes. */
+  .font-optical {
+    font-optical-sizing: auto;
+  }
+
+  /* Brand logo painted in the product's own ink via CSS mask (not <img>): the
+     mark inherits currentColor, so every logo sits in one token color and
+     auto-adapts to light/dark + the active accent. mask url() is set per cell. */
+  .brand-mark {
+    display: inline-block;
+    background-color: currentColor;
+    -webkit-mask-position: center;
+    mask-position: center;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-size: contain;
+    mask-size: contain;
+  }
+
+  /* Violet ink-wash (§ welcome hero): the overlay is the SAME text as the base
+     layer, in deepened accent ink, revealed through a feathered diagonal mask
+     whose position GSAP scrubs so the ink "wicks" across the letters. The base
+     layer underneath stays the AA-readable carrier — this is a mask over real
+     selectable text, never background-clip:text. */
+  .ink-overlay {
+    --ink: 0; /* 0 = hidden (muted base shows), 1 = ink fully wicked in; GSAP scrubs it */
+    -webkit-mask-image: linear-gradient(105deg, #000 0%, #000 38%, transparent 62%);
+    mask-image: linear-gradient(105deg, #000 0%, #000 38%, transparent 62%);
+    -webkit-mask-size: 320% 100%;
+    mask-size: 320% 100%;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-position: calc(100% - var(--ink) * 100%) 0;
+    mask-position: calc(100% - var(--ink) * 100%) 0;
+  }
 }
 
 /* ============================================================================

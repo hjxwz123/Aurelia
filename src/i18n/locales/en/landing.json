@@ -50,31 +50,52 @@
     "eyebrow": "Made for",
     "title": "Four ways people are using it.",
     "items": {
-      "writers": { "title": "Long-form writers", "body": "Essays, books, talks. Resists templating." },
-      "researchers": { "title": "Researchers", "body": "Multi-source synthesis with traceable claims." },
-      "engineers": { "title": "Engineers", "body": "Code review, refactors, paired thinking." },
-      "thinkers": { "title": "Quiet thinkers", "body": "Decision matrices, reading lists, planning." }
+      "writers": {
+        "title": "Long-form writers",
+        "body": "Essays, books, talks. Resists templating."
+      },
+      "researchers": {
+        "title": "Researchers",
+        "body": "Multi-source synthesis with traceable claims."
+      },
+      "engineers": {
+        "title": "Engineers",
+        "body": "Code review, refactors, paired thinking."
+      },
+      "thinkers": {
+        "title": "Quiet thinkers",
+        "body": "Decision matrices, reading lists, planning."
+      }
     }
   },
   "models": {
     "eyebrow": "Models",
-    "title": "Pick the voice that fits the work.",
-    "body": "Aurelia ships with a small, considered lineup. Switch models per conversation; we remember.",
-    "tiers": {
-      "standard": "Standard",
-      "pro": "Pro",
-      "max": "Max"
+    "title": "Every frontier model. One calm studio.",
+    "body": "Claude, GPT, Gemini, Llama, Mistral, Qwen, DeepSeek, Grok — the models the field actually runs on, gathered behind one unhurried interface.",
+    "proof": {
+      "switch": "Switch models mid-conversation; the thread stays whole.",
+      "strength": "Reach for each model's strength without leaving the page.",
+      "oneSub": "One subscription — no keys to juggle, no tabs to chase."
     },
-    "lockedNote": "Available on Max plan"
+    "footnote": "…and more, added as they ship."
   },
   "safety": {
     "eyebrow": "Safety & privacy",
     "title": "Your conversations are yours.",
     "body": "Aurelia does not train on your conversations by default. Memory is editable and exportable. Workspaces can be enterprise-isolated with custom retention rules.",
     "rows": {
-      "noTraining": { "title": "No training on your chats", "body": "You opt in, not out. Off by default for everyone." },
-      "export": { "title": "Export anything", "body": "Your archive is yours. Markdown, JSON, plain text." },
-      "memory": { "title": "Editable memory", "body": "Every fact Aurelia learns is a row you can edit or delete." }
+      "noTraining": {
+        "title": "No training on your chats",
+        "body": "You opt in, not out. Off by default for everyone."
+      },
+      "export": {
+        "title": "Export anything",
+        "body": "Your archive is yours. Markdown, JSON, plain text."
+      },
+      "memory": {
+        "title": "Editable memory",
+        "body": "Every fact Aurelia learns is a row you can edit or delete."
+      }
     }
   },
   "cta": {

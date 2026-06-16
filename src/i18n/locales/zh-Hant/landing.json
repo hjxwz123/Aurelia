@@ -70,14 +70,14 @@
   },
   "models": {
     "eyebrow": "模型",
-    "title": "為不同的工作，選擇不同的聲音。",
-    "body": "Aurelia 提供一個精挑細選的小型模型陣容。每個對話可以獨立切換；我們會記住。",
-    "tiers": {
-      "standard": "標準",
-      "pro": "Pro",
-      "max": "Max"
+    "title": "匯集主流大模型，一個從容的工作室。",
+    "body": "Claude、GPT、Gemini、Llama、Mistral、Qwen、DeepSeek、Grok——業界真正在用的模型，匯聚於同一個從容的介面之後。",
+    "proof": {
+      "switch": "對話中途隨意切換模型，上下文始終完整。",
+      "strength": "無需離開頁面，即可調用每個模型的所長。",
+      "oneSub": "一份訂閱，無需管理金鑰，無需在分頁間奔波。"
     },
-    "lockedNote": "Max 套餐可用"
+    "footnote": "……更多模型，將在發布時陸續接入。"
   },
   "safety": {
     "eyebrow": "安全與隱私",
