@@ -97,6 +97,21 @@ interface ConversationStore {
 
 const streamControllers = new Map<string, AbortController>()
 
+// Stop every in-progress generation in a conversation: tell the backend to
+// halt (so partial output is persisted) and abort the local SSE readers. Used
+// when the user abandons the current branch — editing a past turn into a new
+// branch, or switching to a different branch — so the old stream can't keep
+// running invisibly and its late completion can't clobber the new active leaf.
+function stopConversationStreams(convId: string, messages: Message[]): void {
+  const live = messages.filter((m) => m.streaming)
+  if (live.length === 0) return
+  void conversationsApi.stop(convId).catch(() => {})
+  for (const m of live) {
+    streamControllers.get(m.id)?.abort()
+    streamControllers.get(m.id + '-regen')?.abort()
+  }
+}
+
 export const useConversations = create<ConversationStore>((set, get) => ({
   conversations: [],
   loaded: false,
@@ -260,6 +275,10 @@ export const useConversations = create<ConversationStore>((set, get) => ({
   },
 
   async setActiveLeaf(id, leafId) {
+    // Switching branch abandons the current one — stop its stream first so the
+    // old reply actually halts (and can't overwrite the leaf we're switching to).
+    const cur = get().conversations.find((c) => c.id === id)
+    stopConversationStreams(id, cur?.messages ?? [])
     try {
       const resp = await conversationsApi.setActiveLeaf(id, leafId)
       const conv = toLocalConversation(resp.conversation)
@@ -360,6 +379,14 @@ export const useConversations = create<ConversationStore>((set, get) => ({
   },
 
   async sendMessage(input) {
+    // §4.15: editing a past turn into a NEW branch while the old branch is still
+    // generating must stop the old stream first — otherwise two streams race and
+    // the old one's late completion clobbers the new branch's active leaf (the
+    // new branch appeared next to the first sibling instead of the current one).
+    if (input.branch) {
+      const cur = get().conversations.find((c) => c.id === input.conversationId)
+      stopConversationStreams(input.conversationId, cur?.messages ?? [])
+    }
     const abort = new AbortController()
     const userMsg: Message = {
       id: uid('m'),
