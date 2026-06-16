@@ -66,7 +66,8 @@
       "basic": "Basic",
       "behaviour": "Chat behaviour",
       "pricing": "Pricing",
-      "permissions": "Permissions"
+      "permissions": "Permissions",
+      "tags": "Tags"
     },
     "fields": {
       "channel": "Channel",
@@ -111,7 +112,8 @@
       "missingFields": "Channel, label and request_id are required",
       "invalidJSON": "param_controls is not valid JSON"
     },
-    "permissionsLead": "Choose which user groups may use this model, and how much each gets per period. Leave every group off to keep the model open to everyone."
+    "permissionsLead": "Choose which user groups may use this model, and how much each gets per period. Leave every group off to keep the model open to everyone.",
+    "tagsHint": "Assign tags to group this model under the picker’s filter chips."
   },
   "skills": {
     "title": "Skills",
@@ -629,5 +631,14 @@
       "instruction": "Type {{word}} to confirm.",
       "action": "Replace everything"
     }
+  },
+  "modelTags": {
+    "title": "Model Tags",
+    "lead": "Create labels you can assign to models. Users filter the model picker by them.",
+    "namePlaceholder": "New tag name",
+    "add": "Add",
+    "empty": "No tags yet. Add one above.",
+    "emptyHint": "No tags yet — create them on the Model Tags page.",
+    "manage": "Manage tags"
   }
 }

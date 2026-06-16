@@ -5,7 +5,7 @@
 import { useEffect, useState } from 'react'
 import { NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { ArrowLeft, BarChart3, Boxes, Cpu, DatabaseBackup, FileText, GaugeCircle, KeyRound, Layers, Megaphone, Menu, Mic, Settings2, ShieldAlert, Sparkles, Ticket, Users, Wrench } from 'lucide-react'
+import { ArrowLeft, BarChart3, Boxes, Cpu, DatabaseBackup, FileText, GaugeCircle, KeyRound, Layers, Megaphone, Menu, Mic, Settings2, ShieldAlert, Sparkles, Tags, Ticket, Users, Wrench } from 'lucide-react'
 import { useAuth } from '@/store/auth'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import { cn } from '@/lib/utils'
@@ -38,6 +38,7 @@ export default function AdminLayout() {
   const items = [
     { to: '/admin/channels', icon: Boxes, label: t('admin:channels.title') },
     { to: '/admin/models', icon: Cpu, label: t('admin:models.title') },
+    { to: '/admin/model-tags', icon: Tags, label: t('admin:modelTags.title') },
     { to: '/admin/skills', icon: Sparkles, label: t('admin:skills.title') },
     { to: '/admin/documents', icon: FileText, label: t('admin:documents.title') },
     { to: '/admin/tools', icon: Wrench, label: t('admin:tools.title') },

@@ -1,3 +1,4 @@
+import { useState, type ReactNode } from 'react'
 import { ChevronDown, Lock } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
@@ -25,9 +26,20 @@ interface ModelPickerProps {
  */
 export function ModelPicker({ value, onChange, className }: ModelPickerProps) {
   const models = useModels((s) => s.models)
+  const tags = useModels((s) => s.tags)
   const current = models.find((m) => m.id === value) ?? models[0]
   const { t } = useTranslation('chat')
   const navigate = useNavigate()
+
+  // Tag filter (§ model tags): null = all models (the default). Only tags that
+  // are actually assigned to at least one model are worth showing as chips.
+  const [activeTag, setActiveTag] = useState<string | null>(null)
+  const usedTagIds = new Set(models.flatMap((m) => m.tags ?? []))
+  const shownTags = tags.filter((tag) => usedTagIds.has(tag.id))
+  const visibleModels =
+    activeTag && shownTags.some((tag) => tag.id === activeTag)
+      ? models.filter((m) => (m.tags ?? []).includes(activeTag))
+      : models
 
   return (
     <DropdownMenu>
@@ -46,9 +58,31 @@ export function ModelPicker({ value, onChange, className }: ModelPickerProps) {
         <span className="truncate">{current?.label ?? 'Model'}</span>
         <ChevronDown size={13} aria-hidden />
       </DropdownMenuTrigger>
-      <DropdownMenuContent side="top" align="end" className="w-[320px]">
+      <DropdownMenuContent
+        side="top"
+        align="end"
+        // Cap to the viewport and scroll when there are many models, so a long
+        // registry never overflows off-screen. `overflow-[hidden_auto]` replaces
+        // the menu's base `overflow-hidden` (x clipped, y scrolls).
+        className="w-[320px] max-h-[min(70vh,32rem)] overflow-[hidden_auto]"
+      >
         <DropdownMenuLabel>{t('modelPicker.section')}</DropdownMenuLabel>
-        {models.map((m) => {
+        {shownTags.length > 0 && (
+          // Tag filter chips (§ model tags). Sticky so they stay reachable while
+          // the model list scrolls. Plain buttons (not menu items) so a click
+          // filters without closing the menu.
+          <div className="sticky top-0 z-10 -mx-1.5 mb-1 flex gap-1 overflow-x-auto border-b border-[var(--color-divider)] bg-[var(--color-surface-raised)] px-1.5 pb-2 pt-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <TagChip active={activeTag === null} onClick={() => setActiveTag(null)}>
+              {t('modelPicker.allTags')}
+            </TagChip>
+            {shownTags.map((tag) => (
+              <TagChip key={tag.id} active={activeTag === tag.id} onClick={() => setActiveTag(tag.id)}>
+                {tag.name}
+              </TagChip>
+            ))}
+          </div>
+        )}
+        {visibleModels.map((m) => {
           const active = m.id === value
           const locked = Boolean(m.locked)
           return (
@@ -92,7 +126,39 @@ export function ModelPicker({ value, onChange, className }: ModelPickerProps) {
             </DropdownMenuItem>
           )
         })}
+        {visibleModels.length === 0 && (
+          <div className="px-2.5 py-3 text-center text-[12px] text-[var(--color-fg-subtle)]">
+            {t('modelPicker.noneForTag')}
+          </div>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
+  )
+}
+
+/** A single tag filter chip in the picker header. */
+function TagChip({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean
+  onClick: () => void
+  children: ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'shrink-0 rounded-full px-2.5 py-1 text-[12px] font-medium whitespace-nowrap interactive',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]',
+        active
+          ? 'bg-[var(--color-accent)] text-[var(--color-accent-fg)]'
+          : 'bg-[var(--color-bg-muted)] text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]',
+      )}
+    >
+      {children}
+    </button>
   )
 }

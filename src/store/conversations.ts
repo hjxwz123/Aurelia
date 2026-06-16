@@ -90,6 +90,10 @@ interface ConversationStore {
    *  regeneration (§4.15 "save" vs "save & resend"). */
   editMessageInPlace: (conversationId: string, messageId: string, text: string) => Promise<void>
   setFeedback: (conversationId: string, messageId: string, next: 'like' | 'dislike' | '') => Promise<void>
+  /** Delete the whole round (user message + all its assistant answers) that the
+   *  given message belongs to. Branch-safe: earlier/later turns and sibling
+   *  branches are preserved (§ message deletion). */
+  deleteMessage: (conversationId: string, messageId: string) => Promise<void>
   abortStream: (assistantMessageId: string) => void
 
   getConversation: (id: string) => Conversation | undefined
@@ -286,6 +290,23 @@ export const useConversations = create<ConversationStore>((set, get) => ({
       set((s) => ({ conversations: replaceOrPrepend(s.conversations, conv) }))
     } catch (e) {
       toast.error(errorMessage(e, 'Failed to switch branch'))
+    }
+  },
+
+  async deleteMessage(conversationId, messageId) {
+    // Deleting under a live stream would race the writer — stop it first.
+    const cur = get().conversations.find((c) => c.id === conversationId)
+    stopConversationStreams(conversationId, cur?.messages ?? [])
+    try {
+      const resp = await conversationsApi.deleteMessage(conversationId, messageId)
+      // The response carries the refreshed active path; swap it in.
+      set((s) => ({
+        conversations: s.conversations.map((c) =>
+          c.id === conversationId ? { ...c, messages: resp.messages.map(toLocalMessage) } : c,
+        ),
+      }))
+    } catch (e) {
+      toast.error(errorMessage(e, 'Failed to delete message'))
     }
   },
 

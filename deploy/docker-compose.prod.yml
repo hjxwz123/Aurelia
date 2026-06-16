@@ -134,8 +134,9 @@ services:
       # --- Auth / app ---
       JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
       ALLOWED_ORIGINS: ${PUBLIC_ORIGIN:-http://localhost}
-      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@aurelia.local}
-      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:?set SEED_ADMIN_PASSWORD in .env}
+      # No admin is seeded from the environment — on first boot the deployment has
+      # zero users and the first account created via the setup screen becomes the
+      # administrator (§ first-run setup).
       ENABLE_MOCK_PROVIDER: ${ENABLE_MOCK_PROVIDER:-false}
       # --- Optional integrations (channel keys live in the DB, not here) ---
       SEARCH_PROVIDER: ${SEARCH_PROVIDER:-}
@@ -155,8 +156,12 @@ services:
       SANDBOX_BASE_URL: "http://sandbox:8000"
       SANDBOX_API_KEY: ${SANDBOX_API_KEY:-aurelia-bundled-sandbox}
     volumes:
-      # Uploads + artifacts are filesystem-backed regardless of DB backend.
-      - apidata:/app/data
+      # Uploads + artifacts (and the SQLite file, if ever used) are filesystem-
+      # backed regardless of DB backend. Bind-mounted to a HOST directory so the
+      # files live on the host — directly visible and backup-able — rather than
+      # trapped inside a Docker-managed volume. Override the host path with
+      # DATA_DIR in .env (defaults to ./data next to this compose file).
+      - ${DATA_DIR:-./data}:/app/data
     networks: [internal]
 
   web:
@@ -176,7 +181,6 @@ volumes:
   pgdata:
   redisdata:
   qdrantdata:
-  apidata:
 
 networks:
   internal:

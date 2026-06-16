@@ -19,6 +19,9 @@ interface AuthState {
    *  Drives the suspended notice on the login screen. */
   banned: boolean
   signupOpen: boolean
+  /** True when the deployment has no users yet — the app routes to the first-run
+   *  setup screen (create the first admin) instead of login (§ first-run setup). */
+  needsSetup: boolean
   /** Set when registration returns verification_required — drives the code UI. */
   pendingVerification: string | null
   /** Set when password login returns totp_required — drives the 2FA code UI. */
@@ -28,6 +31,8 @@ interface AuthState {
   login: (email: string, password: string) => Promise<boolean | '2fa'>
   loginTwoFactor: (code: string) => Promise<boolean>
   register: (email: string, password: string, name: string) => Promise<boolean | 'verify'>
+  /** First-run: create the initial admin account, then sign in. */
+  setup: (name: string, email: string, password: string) => Promise<boolean>
   logout: () => Promise<void>
   updateProfile: (patch: { name?: string; email?: string }) => Promise<void>
   setUser: (user: ApiUser | null) => void
@@ -44,6 +49,7 @@ export const useAuth = create<AuthState>((set, get) => ({
   error: null,
   banned: false,
   signupOpen: true,
+  needsSetup: false,
   pendingVerification: null,
   pendingTwoFactor: null,
 
@@ -87,6 +93,26 @@ export const useAuth = create<AuthState>((set, get) => ({
       } catch {
         /* ignore */
       }
+      // First-run probe: a fresh deployment (zero users) routes to /setup.
+      try {
+        const s = await authApi.needsSetup()
+        set({ needsSetup: s.needs_setup })
+      } catch {
+        /* ignore */
+      }
+    }
+  },
+
+  async setup(name, email, password) {
+    set({ status: 'authenticating', error: null })
+    try {
+      const resp = await authApi.setup(name, email, password)
+      setAccessToken(resp.access_token)
+      set({ user: resp.user, status: 'authenticated', needsSetup: false, error: null })
+      return true
+    } catch (e) {
+      set({ error: e instanceof ApiError ? e.message : 'Setup failed', status: 'unauthenticated' })
+      return false
     }
   },
 

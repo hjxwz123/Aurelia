@@ -278,8 +278,8 @@ export default function Register() {
               i18nKey="register.agree"
               t={t}
               components={{
-                terms: <Link to="#" className="text-[var(--color-accent)] hover:underline" />,
-                privacy: <Link to="#" className="text-[var(--color-accent)] hover:underline" />,
+                terms: <Link to="/terms" target="_blank" className="text-[var(--color-accent)] hover:underline" />,
+                privacy: <Link to="/privacy" target="_blank" className="text-[var(--color-accent)] hover:underline" />,
               }}
               values={{ terms: t('register.terms'), privacy: t('register.privacy') }}
             />

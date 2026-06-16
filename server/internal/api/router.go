@@ -57,6 +57,9 @@ func NewRouter(d Deps) http.Handler {
 		writeJSON(w, 200, map[string]any{"ok": true})
 	})
 	mux.handle("GET", "/api/public/signup-open", wrap(d, signupOpenHandler))
+	// First-run setup (§ first-run setup): public probe + create-first-admin.
+	mux.handle("GET", "/api/public/needs-setup", wrap(d, needsSetupHandler))
+	mux.handle("POST", "/api/setup", rateLimitedIP(d, "auth", 10, 60*time.Second, wrap(d, setupHandler)))
 	mux.handle("GET", "/api/public/oauth-providers", wrap(d, oauthProvidersPublicHandler))
 	// Public read-only conversation share (token in the path; no auth). Rate
 	// limited (§D1) so the token space can't be swept even though it's now 192-bit.
@@ -105,6 +108,7 @@ func NewRouter(d Deps) http.Handler {
 	mux.handle("GET", "/api/image-models", requireAuth(d, listImageModelsHandler))
 	mux.handle("GET", "/api/embedding-models", requireAuth(d, listEmbeddingModelsHandler))
 	mux.handle("GET", "/api/skills", requireAuth(d, listSkillsPublicHandler))
+	mux.handle("GET", "/api/model-tags", requireAuth(d, listModelTagsPublic))
 	mux.handle("GET", "/api/user-groups", requireAuth(d, listUserGroupsPublic))
 	mux.handle("POST", "/api/audio/transcriptions", requireAuth(d, transcribeAudioHandler))
 
@@ -126,6 +130,7 @@ func NewRouter(d Deps) http.Handler {
 	mux.handle("GET", "/api/conversations/:id/messages", requireAuth(d, listMessagesHandler))
 	mux.handle("POST", "/api/conversations/:id/messages", requireAuth(d, postMessageHandler))
 	mux.handle("PATCH", "/api/conversations/:id/messages/:msgId", requireAuth(d, editMessageHandler))
+	mux.handle("DELETE", "/api/conversations/:id/messages/:msgId", requireAuth(d, deleteMessageHandler))
 	mux.handle("POST", "/api/conversations/:id/messages/:msgId/feedback", requireAuth(d, feedbackMessageHandler))
 	mux.handle("POST", "/api/conversations/:id/stop", requireAuth(d, stopHandler))
 	mux.handle("POST", "/api/conversations/:id/regenerate", requireAuth(d, regenerateHandler))
@@ -163,6 +168,11 @@ func NewRouter(d Deps) http.Handler {
 	mux.handle("PATCH", "/api/admin/models/:id", requireAdmin(d, updateModelAdmin))
 	mux.handle("DELETE", "/api/admin/models/:id", requireAdmin(d, deleteModelAdmin))
 	mux.handle("PUT", "/api/admin/models/:id/skills", requireAdmin(d, setModelSkillsAdmin))
+	// Model tags (§ model tags): admin CRUD of the assignable label set.
+	mux.handle("GET", "/api/admin/model-tags", requireAdmin(d, listModelTagsAdmin))
+	mux.handle("POST", "/api/admin/model-tags", requireAdmin(d, createModelTagAdmin))
+	mux.handle("PATCH", "/api/admin/model-tags/:id", requireAdmin(d, updateModelTagAdmin))
+	mux.handle("DELETE", "/api/admin/model-tags/:id", requireAdmin(d, deleteModelTagAdmin))
 	mux.handle("GET", "/api/admin/models/:id/quotas", requireAdmin(d, listModelQuotasAdmin))
 	mux.handle("PUT", "/api/admin/models/:id/quotas", requireAdmin(d, setModelQuotasAdmin))
 	mux.handle("GET", "/api/admin/user-groups", requireAdmin(d, listUserGroupsAdmin))

@@ -68,6 +68,10 @@ export default function ChatThread() {
   }, [])
 
   const scrollRef = useRef<HTMLDivElement>(null)
+  // Tracks the conversation id we've already positioned at the bottom, so the
+  // instant "jump to newest" only runs once per conversation (not on every
+  // streaming token).
+  const positionedFor = useRef<string | null>(null)
   const [autoFollow, setAutoFollow] = useState(true)
   const [showJump, setShowJump] = useState(false)
 
@@ -138,14 +142,38 @@ export default function ChatThread() {
   useEffect(() => {
     setAutoFollow(true)
     setShowJump(false)
+    positionedFor.current = null
   }, [id])
 
+  // Keep the newest message in view. On the FIRST load of a conversation we jump
+  // instantly to the bottom and re-pin across the next few frames — late-laying-out
+  // content (code blocks, math, images) grows the transcript after the effect
+  // fires, and a one-shot smooth scroll would otherwise strand the view near the
+  // top (showing the oldest message). Afterwards we follow the tail smoothly.
   useEffect(() => {
     if (!autoFollow) return
     const el = scrollRef.current
-    if (!el) return
+    if (!el || !conversation?.messages.length) return
+
+    const firstLoad = positionedFor.current !== conversation.id
+    if (firstLoad) {
+      positionedFor.current = conversation.id
+      const pin = () => {
+        el.scrollTop = el.scrollHeight
+      }
+      pin()
+      const raf = requestAnimationFrame(() => {
+        pin()
+        requestAnimationFrame(pin)
+      })
+      const tmo = window.setTimeout(pin, 150)
+      return () => {
+        cancelAnimationFrame(raf)
+        clearTimeout(tmo)
+      }
+    }
     el.scrollTo({ top: el.scrollHeight, behavior: streaming ? 'auto' : 'smooth' })
-  }, [conversation?.messages, autoFollow, streaming])
+  }, [conversation?.id, conversation?.messages, autoFollow, streaming])
 
   function handleScroll(e: React.UIEvent<HTMLDivElement>) {
     const el = e.currentTarget

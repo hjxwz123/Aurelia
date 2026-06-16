@@ -11,7 +11,6 @@ import {
   Archive,
   MoreHorizontal,
   Share2,
-  Sparkles,
   FolderKanban,
   ChevronRight,
   BookText,
@@ -24,7 +23,6 @@ import { Logo, LogoMark } from '@/components/brand/logo'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { initials } from '@/components/ui/avatar.utils'
 import { Tooltip } from '@/components/ui/tooltip'
-import { Badge } from '@/components/ui/badge'
 import { KeyboardShortcut } from '@/components/ui/kbd'
 import {
   DropdownMenu,
@@ -525,10 +523,10 @@ function UserMenu({ collapsed }: { collapsed: boolean }) {
             <div className="flex-1 min-w-0 text-left">
               <div className="flex items-center gap-1.5">
                 <span className="text-sm font-medium text-[var(--color-fg)] truncate">{displayName}</span>
-                {isAdmin && (
-                  <Badge variant="accent" size="xs" leadingIcon={<Sparkles size={9} aria-hidden />}>
-                    ADMIN
-                  </Badge>
+                {user?.group_name && (
+                  <span className="shrink-0 rounded-full border border-[var(--color-border)] px-1.5 py-px text-[10px] font-medium uppercase tracking-wide text-[var(--color-fg-muted)]">
+                    {user.group_name}
+                  </span>
                 )}
               </div>
               <span className="text-[11px] text-[var(--color-fg-subtle)] truncate block">{user?.email}</span>

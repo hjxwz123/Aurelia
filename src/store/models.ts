@@ -8,10 +8,12 @@
  */
 import { create } from 'zustand'
 import { modelsApi, ApiError } from '@/api'
-import type { ApiModel } from '@/api/types'
+import type { ApiModel, ApiModelTag } from '@/api/types'
 
 interface ModelStore {
   models: ApiModel[]
+  /** Admin-managed tags (§ model tags) — drives the picker's filter chips. */
+  tags: ApiModelTag[]
   defaultId: string
   loaded: boolean
   loading: boolean
@@ -23,6 +25,7 @@ interface ModelStore {
 
 export const useModels = create<ModelStore>((set, get) => ({
   models: [],
+  tags: [],
   defaultId: '',
   loaded: false,
   loading: false,
@@ -32,9 +35,12 @@ export const useModels = create<ModelStore>((set, get) => ({
     if (get().loading) return
     set({ loading: true, error: null })
     try {
-      const resp = await modelsApi.list()
+      // Tags are optional decoration for the picker — never let a tag-fetch
+      // failure block the model list.
+      const [resp, tags] = await Promise.all([modelsApi.list(), modelsApi.tags().catch(() => [])])
       set({
         models: resp.models,
+        tags,
         defaultId: resp.default_id || resp.models[0]?.id || '',
         loaded: true,
         loading: false,

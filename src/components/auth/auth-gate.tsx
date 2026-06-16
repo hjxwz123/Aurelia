@@ -12,7 +12,7 @@ import { useConversations } from '@/store/conversations'
 import { useProjects } from '@/store/projects'
 import { useModels } from '@/store/models'
 
-const PUBLIC_PATHS = ['/welcome', '/login', '/register', '/forgot-password', '/share']
+const PUBLIC_PATHS = ['/welcome', '/login', '/register', '/forgot-password', '/share', '/setup', '/privacy', '/terms']
 
 function isPublic(path: string): boolean {
   return PUBLIC_PATHS.some((p) => path === p || path.startsWith(p + '/'))
@@ -22,6 +22,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const status = useAuth((s) => s.status)
   const hydrate = useAuth((s) => s.hydrate)
   const user = useAuth((s) => s.user)
+  const needsSetup = useAuth((s) => s.needsSetup)
   const loadConversations = useConversations((s) => s.load)
   const loadProjects = useProjects((s) => s.load)
   const loadModels = useModels((s) => s.load)
@@ -48,6 +49,15 @@ export function AuthGate({ children }: { children: ReactNode }) {
         <span className="inline-block size-4 rounded-full border-2 border-[var(--color-fg-faint)] border-r-transparent animate-[spin_900ms_linear_infinite]" />
       </div>
     )
+  }
+
+  // First-run: a deployment with no users routes everything to the setup screen
+  // (create the first admin); once it's done, /setup bounces back out.
+  if (needsSetup && location.pathname !== '/setup') {
+    return <Navigate to="/setup" replace />
+  }
+  if (!needsSetup && location.pathname === '/setup') {
+    return <Navigate to={user ? '/' : '/login'} replace />
   }
 
   if (!user) {

@@ -146,7 +146,7 @@ func DeleteChannel(ctx context.Context, db *sql.DB, id string) error {
 // ListModels returns every model with optional kind filter (empty = all).
 // onlyEnabled restricts to enabled rows.
 func ListModels(ctx context.Context, db *sql.DB, kind string, onlyEnabled bool) ([]Model, error) {
-	q := `SELECT id, channel_id, kind, request_id, label, description, icon, enabled, sort_order, tool_mode, vision, stream, system_prompt, param_controls, official_tools, moderation_enabled, moderation_mode, price_input, price_output, price_cache_read, price_cache_write, price_per_image, currency, dim, updated_at FROM models WHERE 1=1`
+	q := `SELECT id, channel_id, kind, request_id, label, description, icon, enabled, sort_order, tool_mode, vision, stream, system_prompt, param_controls, official_tools, tags, moderation_enabled, moderation_mode, price_input, price_output, price_cache_read, price_cache_write, price_per_image, currency, dim, updated_at FROM models WHERE 1=1`
 	args := []any{}
 	if kind != "" {
 		q += " AND kind=?"
@@ -175,7 +175,7 @@ func ListModels(ctx context.Context, db *sql.DB, kind string, onlyEnabled bool) 
 // GetModel returns one row.
 func GetModel(ctx context.Context, db *sql.DB, id string) (*Model, error) {
 	row := db.QueryRowContext(ctx,
-		`SELECT id, channel_id, kind, request_id, label, description, icon, enabled, sort_order, tool_mode, vision, stream, system_prompt, param_controls, official_tools, moderation_enabled, moderation_mode, price_input, price_output, price_cache_read, price_cache_write, price_per_image, currency, dim, updated_at FROM models WHERE id=?`, id)
+		`SELECT id, channel_id, kind, request_id, label, description, icon, enabled, sort_order, tool_mode, vision, stream, system_prompt, param_controls, official_tools, tags, moderation_enabled, moderation_mode, price_input, price_output, price_cache_read, price_cache_write, price_per_image, currency, dim, updated_at FROM models WHERE id=?`, id)
 	m, err := scanModel(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
@@ -189,9 +189,9 @@ func GetModel(ctx context.Context, db *sql.DB, id string) (*Model, error) {
 func scanModel(s scanner) (Model, error) {
 	var m Model
 	var en, vi, st, modEn int
-	var paramControls, officialTools string
+	var paramControls, officialTools, tags string
 	if err := s.Scan(&m.ID, &m.ChannelID, &m.Kind, &m.RequestID, &m.Label, &m.Description, &m.Icon, &en, &m.SortOrder,
-		&m.ToolMode, &vi, &st, &m.SystemPrompt, &paramControls, &officialTools, &modEn, &m.ModerationMode,
+		&m.ToolMode, &vi, &st, &m.SystemPrompt, &paramControls, &officialTools, &tags, &modEn, &m.ModerationMode,
 		&m.PriceInput, &m.PriceOutput, &m.PriceCacheRead, &m.PriceCacheWrite, &m.PricePerImage, &m.Currency, &m.Dim, &m.UpdatedAt); err != nil {
 		return m, err
 	}
@@ -201,6 +201,7 @@ func scanModel(s scanner) (Model, error) {
 	m.ModerationEnabled = modEn == 1
 	m.ParamControls = json.RawMessage(paramControls)
 	m.OfficialTools = json.RawMessage(orDefault(officialTools, "[]"))
+	m.Tags = json.RawMessage(orDefault(tags, "[]"))
 	if m.ModerationMode == "" {
 		m.ModerationMode = "keyword"
 	}
@@ -231,17 +232,20 @@ func CreateModel(ctx context.Context, db *sql.DB, m Model) (*Model, error) {
 	if len(m.OfficialTools) == 0 {
 		m.OfficialTools = json.RawMessage("[]")
 	}
+	if len(m.Tags) == 0 {
+		m.Tags = json.RawMessage("[]")
+	}
 	if m.ModerationMode == "" {
 		m.ModerationMode = "keyword"
 	}
 	_, err := db.ExecContext(ctx, `INSERT INTO models(
 		id, channel_id, kind, request_id, label, description, icon, enabled, sort_order,
-		tool_mode, vision, stream, system_prompt, param_controls, official_tools, moderation_enabled, moderation_mode,
+		tool_mode, vision, stream, system_prompt, param_controls, official_tools, tags, moderation_enabled, moderation_mode,
 		price_input, price_output, price_cache_read, price_cache_write, price_per_image, currency,
 		dim, updated_at
-	) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+	) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		m.ID, m.ChannelID, m.Kind, m.RequestID, m.Label, m.Description, m.Icon, boolInt(m.Enabled), m.SortOrder,
-		m.ToolMode, boolInt(m.Vision), boolInt(m.Stream), m.SystemPrompt, string(m.ParamControls), string(m.OfficialTools), boolInt(m.ModerationEnabled), m.ModerationMode,
+		m.ToolMode, boolInt(m.Vision), boolInt(m.Stream), m.SystemPrompt, string(m.ParamControls), string(m.OfficialTools), string(m.Tags), boolInt(m.ModerationEnabled), m.ModerationMode,
 		m.PriceInput, m.PriceOutput, m.PriceCacheRead, m.PriceCacheWrite, m.PricePerImage, m.Currency,
 		m.Dim, time.Now().Unix())
 	if err != nil {
@@ -255,17 +259,20 @@ func UpdateModel(ctx context.Context, db *sql.DB, id string, m Model) (*Model, e
 	if len(m.OfficialTools) == 0 {
 		m.OfficialTools = json.RawMessage("[]")
 	}
+	if len(m.Tags) == 0 {
+		m.Tags = json.RawMessage("[]")
+	}
 	if m.ModerationMode == "" {
 		m.ModerationMode = "keyword"
 	}
 	_, err := db.ExecContext(ctx, `UPDATE models SET
 		channel_id=?, label=?, description=?, icon=?, request_id=?, kind=?, enabled=?, sort_order=?,
-		tool_mode=?, vision=?, stream=?, system_prompt=?, param_controls=?, official_tools=?, moderation_enabled=?, moderation_mode=?,
+		tool_mode=?, vision=?, stream=?, system_prompt=?, param_controls=?, official_tools=?, tags=?, moderation_enabled=?, moderation_mode=?,
 		price_input=?, price_output=?, price_cache_read=?, price_cache_write=?, price_per_image=?, currency=?,
 		dim=?, updated_at=?
 		WHERE id=?`,
 		m.ChannelID, m.Label, m.Description, m.Icon, m.RequestID, m.Kind, boolInt(m.Enabled), m.SortOrder,
-		m.ToolMode, boolInt(m.Vision), boolInt(m.Stream), m.SystemPrompt, string(m.ParamControls), string(m.OfficialTools), boolInt(m.ModerationEnabled), m.ModerationMode,
+		m.ToolMode, boolInt(m.Vision), boolInt(m.Stream), m.SystemPrompt, string(m.ParamControls), string(m.OfficialTools), string(m.Tags), boolInt(m.ModerationEnabled), m.ModerationMode,
 		m.PriceInput, m.PriceOutput, m.PriceCacheRead, m.PriceCacheWrite, m.PricePerImage, m.Currency,
 		m.Dim, time.Now().Unix(), id)
 	if err != nil {

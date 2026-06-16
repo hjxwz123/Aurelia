@@ -342,6 +342,35 @@ func editMessageHandler(d Deps, w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, updated)
 }
 
+// deleteMessageHandler deletes ONE conversational round (the user question + all
+// of its assistant answers) given any message id inside it. Branch-safe: earlier
+// turns, later turns, and sibling branches are preserved (see store.DeleteRound).
+// Returns the conversation's new active leaf + the refreshed active-path messages.
+func deleteMessageHandler(d Deps, w http.ResponseWriter, r *http.Request) {
+	u := authUser(r)
+	convID := pathParam(r, "id")
+	msgID := pathParam(r, "msgId")
+	if _, err := store.GetConversation(r.Context(), d.DB, convID, u.ID); err != nil {
+		writeError(w, 404, errNotFound)
+		return
+	}
+	newLeaf, err := store.DeleteRound(r.Context(), d.DB, convID, u.ID, msgID)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			writeError(w, 404, errNotFound)
+			return
+		}
+		writeError(w, 500, err)
+		return
+	}
+	msgs, err := store.ListMessages(r.Context(), d.DB, convID, newLeaf)
+	if err != nil {
+		writeError(w, 500, err)
+		return
+	}
+	writeJSON(w, 200, map[string]any{"ok": true, "active_leaf_id": newLeaf, "messages": msgs})
+}
+
 // feedbackMessageHandler stores a like/dislike on an assistant message.
 func feedbackMessageHandler(d Deps, w http.ResponseWriter, r *http.Request) {
 	u := authUser(r)

@@ -66,7 +66,8 @@
       "basic": "基本資訊",
       "behaviour": "對話行為",
       "pricing": "計費",
-      "permissions": "許可權"
+      "permissions": "許可權",
+      "tags": "標籤"
     },
     "fields": {
       "channel": "渠道",
@@ -111,7 +112,8 @@
       "missingFields": "請填寫渠道、顯示名和 request_id",
       "invalidJSON": "param_controls 不是合法 JSON"
     },
-    "permissionsLead": "選擇哪些使用者組可以使用此模型，以及每個週期的額度。全部關閉則此模型對所有人開放。"
+    "permissionsLead": "選擇哪些使用者組可以使用此模型，以及每個週期的額度。全部關閉則此模型對所有人開放。",
+    "tagsHint": "為此模型指派標籤，以便在選擇框的篩選條中分類。"
   },
   "skills": {
     "title": "技能",
@@ -629,5 +631,14 @@
       "instruction": "輸入 {{word}} 以確認。",
       "action": "取代全部"
     }
+  },
+  "modelTags": {
+    "title": "模型標籤",
+    "lead": "建立可指派給模型的標籤。使用者可在模型選擇框中依標籤篩選。",
+    "namePlaceholder": "新標籤名稱",
+    "add": "新增",
+    "empty": "尚無標籤，請在上方新增。",
+    "emptyHint": "尚無標籤——請到「模型標籤」頁面建立。",
+    "manage": "管理標籤"
   }
 }

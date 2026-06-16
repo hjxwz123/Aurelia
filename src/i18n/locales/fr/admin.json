@@ -66,7 +66,8 @@
       "basic": "Général",
       "behaviour": "Comportement du chat",
       "pricing": "Tarification",
-      "permissions": "Permissions"
+      "permissions": "Permissions",
+      "tags": "Étiquettes"
     },
     "fields": {
       "channel": "Canal",
@@ -111,7 +112,8 @@
       "missingFields": "Le canal, le libellé et le request_id sont requis",
       "invalidJSON": "param_controls n'est pas un JSON valide"
     },
-    "permissionsLead": "Choisissez quels groupes d'utilisateurs peuvent utiliser ce modèle, et combien chacun reçoit par période. Laissez tous les groupes désactivés pour garder le modèle ouvert à tous."
+    "permissionsLead": "Choisissez quels groupes d'utilisateurs peuvent utiliser ce modèle, et combien chacun reçoit par période. Laissez tous les groupes désactivés pour garder le modèle ouvert à tous.",
+    "tagsHint": "Assignez des étiquettes pour regrouper ce modèle sous les filtres du sélecteur."
   },
   "skills": {
     "title": "Compétences",
@@ -629,5 +631,14 @@
       "instruction": "Saisissez {{word}} pour confirmer.",
       "action": "Tout remplacer"
     }
+  },
+  "modelTags": {
+    "title": "Étiquettes de modèle",
+    "lead": "Créez des étiquettes assignables aux modèles. Les utilisateurs filtrent le sélecteur de modèles par étiquette.",
+    "namePlaceholder": "Nom de la nouvelle étiquette",
+    "add": "Ajouter",
+    "empty": "Aucune étiquette pour l'instant. Ajoutez-en une ci-dessus.",
+    "emptyHint": "Aucune étiquette — créez-en sur la page Étiquettes de modèle.",
+    "manage": "Gérer les étiquettes"
   }
 }

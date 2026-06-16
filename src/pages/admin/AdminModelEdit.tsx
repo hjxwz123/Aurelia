@@ -16,7 +16,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { ArrowLeft } from 'lucide-react'
 import { adminApi, ApiError } from '@/api'
-import type { ApiChannel, ApiModel } from '@/api/types'
+import type { ApiChannel, ApiModel, ApiModelTag } from '@/api/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Field } from '@/components/ui/label'
@@ -58,6 +58,7 @@ export default function AdminModelEdit() {
   const navigate = useNavigate()
   const { id = '' } = useParams<{ id: string }>()
   const [channels, setChannels] = useState<ApiChannel[]>([])
+  const [allTags, setAllTags] = useState<ApiModelTag[]>([])
   const [draft, setDraft] = useState<Draft | null>(null)
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
@@ -68,9 +69,14 @@ export default function AdminModelEdit() {
     async function load() {
       setLoading(true)
       try {
-        const [c, m] = await Promise.all([adminApi.channels(), adminApi.models()])
+        const [c, m, tg] = await Promise.all([
+          adminApi.channels(),
+          adminApi.models(),
+          adminApi.modelTags().catch(() => [] as ApiModelTag[]),
+        ])
         if (cancelled) return
         setChannels(c)
+        setAllTags(tg)
         const found = m.find((row) => row.id === id)
         if (!found) {
           setNotFound(true)
@@ -93,6 +99,14 @@ export default function AdminModelEdit() {
 
   function patch(p: Partial<Draft>) {
     setDraft((d) => (d ? { ...d, ...p } : d))
+  }
+
+  function toggleTag(tagId: string) {
+    setDraft((d) => {
+      if (!d) return d
+      const cur = d.tags ?? []
+      return { ...d, tags: cur.includes(tagId) ? cur.filter((x) => x !== tagId) : [...cur, tagId] }
+    })
   }
 
   // §2.3-B: the official/system tool switch only applies to an OpenAI channel
@@ -240,6 +254,46 @@ export default function AdminModelEdit() {
                 />
               </Field>
             </div>
+          </section>
+
+          {/* Section: Tags (§ model tags) ------------------------------------- */}
+          <section className="mt-6 rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] px-6 py-5">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="font-serif text-lg text-[var(--color-fg)]">{t('admin:models.sections.tags')}</h2>
+              <button
+                type="button"
+                onClick={() => navigate('/admin/model-tags')}
+                className="text-xs text-[var(--color-accent)] hover:underline interactive"
+              >
+                {t('admin:modelTags.manage')}
+              </button>
+            </div>
+            <p className="mt-1 text-xs text-[var(--color-fg-subtle)]">{t('admin:models.tagsHint')}</p>
+            {allTags.length === 0 ? (
+              <p className="mt-3 text-sm text-[var(--color-fg-muted)]">{t('admin:modelTags.emptyHint')}</p>
+            ) : (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {allTags.map((tag) => {
+                  const on = (draft.tags ?? []).includes(tag.id)
+                  return (
+                    <button
+                      key={tag.id}
+                      type="button"
+                      onClick={() => toggleTag(tag.id)}
+                      aria-pressed={on}
+                      className={cn(
+                        'rounded-full px-3 py-1 text-sm interactive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]',
+                        on
+                          ? 'bg-[var(--color-accent)] text-[var(--color-accent-fg)]'
+                          : 'bg-[var(--color-bg-muted)] text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]',
+                      )}
+                    >
+                      {tag.name}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
           </section>
 
           {/* Section: Chat behaviour (chat only) ------------------------------ */}

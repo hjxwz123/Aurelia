@@ -47,15 +47,14 @@ cd Aurelia/deploy
 
 # 2. Fill in secrets
 cp .env.example .env
-$EDITOR .env             # set POSTGRES_PASSWORD, REDIS_PASSWORD,
-                         #     JWT_SECRET, SEED_ADMIN_PASSWORD
+$EDITOR .env             # set POSTGRES_PASSWORD, REDIS_PASSWORD, JWT_SECRET
 
 # 3. Pull prebuilt images + start the stack
 docker compose -f docker-compose.prod.yml pull
 docker compose -f docker-compose.prod.yml up -d
 ```
 
-The app is now on `http://localhost` (or whatever you set `WEB_PORT` to). Log in with `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD`, head to `/admin/channels` and add your real provider keys.
+The app is now on `http://localhost` (or whatever you set `WEB_PORT` to). On first launch there are no accounts — the setup screen asks for a name, email, and password, and the first account you create becomes the **administrator**. Then head to `/admin/channels` and add your real provider keys.
 
 Six containers come up:
 
@@ -67,7 +66,7 @@ Six containers come up:
 | `api`      | `ghcr.io/hjxwz123/aurelia-api:latest`   | Go HTTP server (`/api/*`). |
 | `web`      | `ghcr.io/hjxwz123/aurelia-web:latest`   | nginx serving the SPA + `/api` reverse proxy. |
 
-Data lives in named volumes `pgdata`, `redisdata`, `qdrantdata`, `apidata` — back these up together so vectors, rows and files stay consistent.
+Postgres / Redis / Qdrant data live in named volumes (`pgdata`, `redisdata`, `qdrantdata`). Uploads + generated artifacts are bind-mounted to a **host** directory (`DATA_DIR`, default `./data`) so the files sit on the host filesystem, directly visible and backup-able. Back the volumes and `DATA_DIR` up together so vectors, rows and files stay consistent.
 
 ## Architecture
 
@@ -126,8 +125,10 @@ The handful of env vars in [`deploy/.env.example`](./deploy/.env.example) are:
 | **Redis** | `REDIS_PASSWORD` | Required (used as `requirepass`) |
 | **Qdrant** | `QDRANT_API_KEY` | Optional API key |
 | **Auth** | `JWT_SECRET` | Required; ≥32 chars, refuses dev default in production |
-| **Seed admin** | `SEED_ADMIN_EMAIL/PASSWORD` | First-boot admin only |
+| **Data** | `DATA_DIR` | Host dir bind-mounted at `/app/data` for uploads + artifacts (default `./data`) |
 | **Boot fallbacks** | `SEARCH_*`, `EMBEDDING_*`, `MINERU_*` | Used only when the matching admin setting is absent |
+
+> No admin is seeded from the environment — the first account created through the first-run setup screen becomes the administrator.
 
 ## Build images yourself
 
@@ -156,7 +157,7 @@ npm install
 npm run dev                       # Vite at :5173, proxies /api to :8787
 ```
 
-Open `http://localhost:5173`. Log in with `admin@aurelia.local` / `aurelia-admin` (defaults from `.env.example`). The mock provider is seeded so you can have a chat without configuring any real model.
+Open `http://localhost:5173`. The first launch shows the setup screen — the first account you create (name + email + password) becomes the administrator. Then add a channel + model in `/admin` to start chatting.
 
 ## GitHub Actions: automatic image builds
 

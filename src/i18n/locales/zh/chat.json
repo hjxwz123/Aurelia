@@ -66,7 +66,8 @@
     "forked": "已分支为新对话",
     "viewImage": "查看图片",
     "removeAttachment": "移除附件",
-    "previewFile": "预览文件"
+    "previewFile": "预览文件",
+    "delete": "删除"
   },
   "message": {
     "refused": "模型拒绝回答此请求。",
@@ -211,7 +212,9 @@
     "moreSoon": "更多模型即将上线",
     "current": "当前模型",
     "label": "模型：{{name}}",
-    "upgrade": "升级套餐解锁"
+    "upgrade": "升级套餐解锁",
+    "allTags": "全部",
+    "noneForTag": "该标签下暂无模型。"
   },
   "commandMenu": {
     "placeholder": "搜索会话，或执行命令…",
@@ -283,5 +286,9 @@
     "unsupported": "此文件类型无法在浏览器中预览。",
     "open": "在新标签页打开",
     "download": "下载"
+  },
+  "deleteRound": {
+    "title": "删除这一轮对话？",
+    "body": "这会从对话中移除这条提问及其回答。之前和之后的消息都会保留。"
   }
 }
