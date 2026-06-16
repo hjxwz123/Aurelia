@@ -71,6 +71,7 @@ type ToolContext struct {
 var perTurnToolLimits = map[string]int{
 	"web_search":     8,
 	"web_fetch":      5,
+	"fetch_image":    12, // images for a deck/doc — bounded so a turn can't mass-download
 	"image_generate": 4,
 	"python_execute": 8, // §F10: cap sandbox executions/turn (each up to 120s) to bound abuse/DoS
 }
@@ -80,6 +81,7 @@ var perTurnToolLimits = map[string]int{
 var deepResearchToolLimits = map[string]int{
 	"web_search":     40,
 	"web_fetch":      25,
+	"fetch_image":    12,
 	"image_generate": 4,
 	"python_execute": 8,
 }
@@ -489,7 +491,7 @@ func (o *Orchestrator) Run(ctx context.Context, req RunRequest, onEvent func(Sse
 	if convFiles, ferr := store.ListFilesByConversation(ctx, o.db, conv.ID, conv.UserID); ferr == nil {
 		for _, f := range convFiles {
 			switch f.Kind {
-			case "sheet", "text", "code", "pdf":
+			case "sheet", "text", "code", "pdf", "image":
 				sandboxFiles = append(sandboxFiles, ProjectFileSummary{Name: f.Filename, Kind: f.Kind})
 			}
 		}
@@ -1165,7 +1167,7 @@ for html in slides_html:
                     tbl.cell(ri, ci).text = cell.get_text()
 prs.save("/workspace/outputs/deck.pptx")
 ` + "```\n" +
-				`Authoring slides as HTML keeps structure natural; parsing maps headings → bold title runs, <ul><li> → bullets, <table> → a native PPTX table, <img src> → add_picture. This is the same no-screenshot approach common PPT-builder skills use — it needs no browser, so it runs in the sandbox. For charts/diagrams, render a matplotlib PNG first and reference it with <img src='/workspace/outputs/chart.png'>.
+				`Authoring slides as HTML keeps structure natural; parsing maps headings → bold title runs, <ul><li> → bullets, <table> → a native PPTX table, <img src> → add_picture. This is the same no-screenshot approach common PPT-builder skills use — it needs no browser, so it runs in the sandbox. For charts/diagrams, render a matplotlib PNG first and reference it with <img src='/workspace/outputs/chart.png'>. To use a WEB image (the sandbox has no internet of its own), first call fetch_image(url) — it downloads the picture into /workspace/uploads/ and returns the local path — then reference that path with add_picture / <img src>. User-uploaded images are already at /workspace/uploads/.
 
 **Word (.docx):** python-docx
 ` + "```python\n" +
