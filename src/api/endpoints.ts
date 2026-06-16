@@ -3,7 +3,7 @@
  * backend returns, with a small typed helper signature. Group by feature so
  * the call sites stay readable.
  */
-import { api } from './client'
+import { api, apiUrl } from './client'
 import type {
   ApiAnalytics,
   ApiAuthResponse,
@@ -386,6 +386,16 @@ export const adminApi = {
     ),
   deleteConversation: (id: string) =>
     api<{ ok: true }>(`/admin/conversations/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  // Sandbox inspector (§ admin tools): list / preview / clear a conversation's
+  // sandbox workspace files.
+  sandboxFiles: (id: string) =>
+    api<{ session: string; files: { path: string; size: number }[] }>(
+      `/admin/conversations/${encodeURIComponent(id)}/sandbox`,
+    ),
+  sandboxFileUrl: (id: string, path: string) =>
+    apiUrl(`/admin/conversations/${encodeURIComponent(id)}/sandbox/file?path=${encodeURIComponent(path)}`),
+  clearSandbox: (id: string) =>
+    api<{ ok: true }>(`/admin/conversations/${encodeURIComponent(id)}/sandbox`, { method: 'DELETE' }),
 
   usage: (days = 30) => api<{ days: number; rows: ApiUsageReportRow[]; trend: { bucket_start: number; input_tokens: number; output_tokens: number; calls: number; cost: number }[] }>(`/admin/usage?days=${days}`),
   analytics: (days = 30) => api<ApiAnalytics>(`/admin/analytics?days=${days}`),

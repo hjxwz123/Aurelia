@@ -406,6 +406,10 @@ class GetFileBody(BaseModel):
     path: str
 
 
+class ListFilesBody(BaseModel):
+    session_id: str
+
+
 # `storage` is a free-form snake_case block the Go side forwards verbatim
 # (provider, prefix, s3_*, oss_*); all fields optional. Modelling it as a dict
 # keeps the sidecar agnostic to which fields a given provider needs.
@@ -675,6 +679,42 @@ def get_file(body: GetFileBody):
             raise HTTPException(status_code=500, detail=f"read failed: {cp.stderr.decode(errors='replace')}")
         _touch(sid)
         return {"data_base64": cp.stdout.decode(errors="replace").strip()}
+
+
+@app.post("/files/list")
+def list_files(body: ListFilesBody):
+    """List every file under /workspace for a session (admin sandbox inspector).
+
+    Returns relative paths + byte sizes. Read-only; no container mutation.
+    """
+    sid = body.session_id
+    if not _valid_session(sid):
+        raise HTTPException(status_code=400, detail="invalid session_id")
+    name = _container(sid)
+    with _session_lock(sid):
+        if not _is_running(sid):
+            raise HTTPException(status_code=404, detail="session not found or not running")
+        # `find` prints "<size> <path>" per file, NUL-free, capped so a runaway
+        # workspace can't flood the response. Paths are relative to /workspace.
+        cp = _docker(
+            ["exec", name, "sh", "-c",
+             f"find {WORKSPACE} -maxdepth 6 -type f -printf '%s\\t%P\\n' 2>/dev/null | head -n 500"],
+            timeout=30,
+        )
+        _touch(sid)
+        files = []
+        if cp.returncode == 0:
+            for line in cp.stdout.decode(errors="replace").splitlines():
+                if "\t" not in line:
+                    continue
+                size_str, rel = line.split("\t", 1)
+                try:
+                    size = int(size_str)
+                except ValueError:
+                    continue
+                files.append({"path": rel, "size": size})
+        files.sort(key=lambda f: f["path"])
+        return {"files": files}
 
 
 @app.post("/storage/put")

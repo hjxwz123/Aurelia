@@ -98,6 +98,9 @@ type Service interface {
 	// orchestrator wants to surface a sandbox-produced file that isn't a
 	// declared artifact (e.g. an intermediate dataset the user asks about).
 	GetFile(ctx context.Context, sessionID, path string) ([]byte, error)
+	// ListFiles lists every file under /workspace for a session (admin sandbox
+	// inspector). Read-only.
+	ListFiles(ctx context.Context, sessionID string) ([]SandboxFile, error)
 	// Release tears down a session deliberately (the user closed the
 	// conversation, or compaction archived its workspace). Idempotent.
 	Release(ctx context.Context, sessionID string) error
@@ -246,6 +249,24 @@ func (s *HTTPSandbox) GetFile(ctx context.Context, sessionID, path string) ([]by
 		return nil, nil
 	}
 	return base64.StdEncoding.DecodeString(res.DataBase64)
+}
+
+// SandboxFile is one file in a session workspace (path relative to /workspace).
+type SandboxFile struct {
+	Path string `json:"path"`
+	Size int64  `json:"size"`
+}
+
+// ListFiles lists every file under /workspace for a session via the sidecar's
+// `POST /files/list {session_id}` → {files:[{path,size}]}.
+func (s *HTTPSandbox) ListFiles(ctx context.Context, sessionID string) ([]SandboxFile, error) {
+	var res struct {
+		Files []SandboxFile `json:"files"`
+	}
+	if err := s.do(ctx, "/files/list", map[string]any{"session_id": sessionID}, &res); err != nil {
+		return nil, err
+	}
+	return res.Files, nil
 }
 
 // Release deletes a session. Idempotent.

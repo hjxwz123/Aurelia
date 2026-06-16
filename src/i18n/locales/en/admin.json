@@ -591,5 +591,14 @@
       "quantityRange": "Quantity must be between 1 and 1000",
       "durationNegative": "Duration must be 0 or greater"
     }
+  },
+  "sandbox": {
+    "title": "Sandbox files",
+    "refresh": "Refresh",
+    "clear": "Clear sandbox",
+    "cleared": "Sandbox cleared",
+    "none": "No sandbox session for this conversation.",
+    "empty": "Sandbox workspace is empty.",
+    "open": "Open"
   }
 }
