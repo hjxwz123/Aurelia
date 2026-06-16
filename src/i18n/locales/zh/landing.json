@@ -50,31 +50,52 @@
     "eyebrow": "为这些人而做",
     "title": "四类人正在以它思考。",
     "items": {
-      "writers": { "title": "长文作者", "body": "随笔、书稿、讲稿。拒绝模板。" },
-      "researchers": { "title": "研究者", "body": "多源综述，结论可追溯。" },
-      "engineers": { "title": "工程师", "body": "代码审阅、重构、配对思考。" },
-      "thinkers": { "title": "安静的思考者", "body": "决策矩阵、阅读清单、规划。" }
+      "writers": {
+        "title": "长文作者",
+        "body": "随笔、书稿、讲稿。拒绝模板。"
+      },
+      "researchers": {
+        "title": "研究者",
+        "body": "多源综述，结论可追溯。"
+      },
+      "engineers": {
+        "title": "工程师",
+        "body": "代码审阅、重构、配对思考。"
+      },
+      "thinkers": {
+        "title": "安静的思考者",
+        "body": "决策矩阵、阅读清单、规划。"
+      }
     }
   },
   "models": {
     "eyebrow": "模型",
-    "title": "为不同的工作，选择不同的声音。",
-    "body": "Aurelia 提供一个精挑细选的小型模型阵容。每个对话可以独立切换；我们会记住。",
-    "tiers": {
-      "standard": "标准",
-      "pro": "Pro",
-      "max": "Max"
+    "title": "汇集主流大模型，一个从容的工作室。",
+    "body": "Claude、GPT、Gemini、Llama、Mistral、Qwen、DeepSeek、Grok——业界真正在用的模型，汇聚于同一个从容的界面之后。",
+    "proof": {
+      "switch": "对话中途随意切换模型，上下文始终完整。",
+      "strength": "无需离开页面，即可调用每个模型的所长。",
+      "oneSub": "一份订阅，无需管理密钥，无需在标签页间奔波。"
     },
-    "lockedNote": "Max 套餐可用"
+    "footnote": "……更多模型，将在发布时陆续接入。"
   },
   "safety": {
     "eyebrow": "安全与隐私",
     "title": "你的对话归你所有。",
     "body": "Aurelia 默认不会使用你的对话训练模型。记忆可编辑、可导出。企业空间可隔离，并支持自定义留存规则。",
     "rows": {
-      "noTraining": { "title": "不使用你的对话训练", "body": "你需要主动选择加入，而非退出。所有人默认关闭。" },
-      "export": { "title": "随时导出", "body": "你的存档，归你所有。Markdown、JSON、纯文本。" },
-      "memory": { "title": "可编辑的记忆", "body": "Aurelia 学到的每一条事实，都是一条你可以编辑或删除的记录。" }
+      "noTraining": {
+        "title": "不使用你的对话训练",
+        "body": "你需要主动选择加入，而非退出。所有人默认关闭。"
+      },
+      "export": {
+        "title": "随时导出",
+        "body": "你的存档，归你所有。Markdown、JSON、纯文本。"
+      },
+      "memory": {
+        "title": "可编辑的记忆",
+        "body": "Aurelia 学到的每一条事实，都是一条你可以编辑或删除的记录。"
+      }
     }
   },
   "cta": {
