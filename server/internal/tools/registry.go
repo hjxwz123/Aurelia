@@ -16,6 +16,7 @@ import (
 	"aurelia/server/internal/config"
 	"aurelia/server/internal/llm"
 	"aurelia/server/internal/rag"
+	"aurelia/server/internal/sandbox"
 )
 
 // Tool is the contract every self-built tool implements.
@@ -28,13 +29,18 @@ type Tool interface {
 
 // Registry is the global, model-aware tool registry.
 type Registry struct {
-	mu     sync.RWMutex
-	tools  map[string]Tool
-	cfg    config.Config
-	db     *sql.DB
-	rag    *rag.Service
-	logger *log.Logger
+	mu      sync.RWMutex
+	tools   map[string]Tool
+	cfg     config.Config
+	db      *sql.DB
+	rag     *rag.Service
+	logger  *log.Logger
+	sandbox sandbox.Service
 }
+
+// Sandbox exposes the settings-wrapped sandbox backend so admin endpoints can
+// inspect / clear a conversation's workspace.
+func (r *Registry) Sandbox() sandbox.Service { return r.sandbox }
 
 // NewRegistry builds the default registry with the built-in tools.
 func NewRegistry(db *sql.DB, ragSvc *rag.Service, cfg config.Config, logger *log.Logger) *Registry {
@@ -42,6 +48,7 @@ func NewRegistry(db *sql.DB, ragSvc *rag.Service, cfg config.Config, logger *log
 	// Sandbox config comes from admin settings (sandbox_base_url /
 	// sandbox_api_key), re-read per call, with env as the fallback default.
 	sb := newSettingsSandbox(db, cfg.SandboxBaseURL, cfg.SandboxAPIKey)
+	r.sandbox = sb
 	r.Register(&webSearchTool{cfg: cfg, searcher: newSettingsSearcher(db, cfg.SearchProvider, cfg.SearchAPIKey, cfg.SearchBaseURL)})
 	r.Register(&webFetchTool{})
 	r.Register(&fetchImageTool{sandbox: sb, logger: logger})

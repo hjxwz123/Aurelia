@@ -118,6 +118,10 @@ func (s *settingsSandbox) GetFile(ctx context.Context, sessionID, path string) (
 	return s.backend().GetFile(ctx, sessionID, path)
 }
 
+func (s *settingsSandbox) ListFiles(ctx context.Context, sessionID string) ([]sandbox.SandboxFile, error) {
+	return s.backend().ListFiles(ctx, sessionID)
+}
+
 func (s *settingsSandbox) Release(ctx context.Context, sessionID string) error {
 	return s.backend().Release(ctx, sessionID)
 }

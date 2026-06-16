@@ -591,5 +591,14 @@
       "quantityRange": "La quantité doit être entre 1 et 1000",
       "durationNegative": "La durée doit être supérieure ou égale à 0"
     }
+  },
+  "sandbox": {
+    "title": "Fichiers du bac à sable",
+    "refresh": "Actualiser",
+    "clear": "Vider le bac à sable",
+    "cleared": "Bac à sable vidé",
+    "none": "Aucune session de bac à sable pour cette conversation.",
+    "empty": "Espace de travail du bac à sable vide.",
+    "open": "Ouvrir"
   }
 }

@@ -591,5 +591,14 @@
       "quantityRange": "數量須在 1 到 1000 之間",
       "durationNegative": "時長不能為負數"
     }
+  },
+  "sandbox": {
+    "title": "沙盒檔案",
+    "refresh": "重新整理",
+    "clear": "清空沙盒",
+    "cleared": "沙盒已清空",
+    "none": "此對話尚無沙盒工作階段。",
+    "empty": "沙盒工作區為空。",
+    "open": "開啟"
   }
 }

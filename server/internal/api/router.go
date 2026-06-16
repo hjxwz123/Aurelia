@@ -188,6 +188,9 @@ func NewRouter(d Deps) http.Handler {
 	// admin can verify a report without needing to log in as the user.
 	mux.handle("GET", "/api/admin/users/:id/conversations", requireAdmin(d, listUserConversationsAdmin))
 	mux.handle("GET", "/api/admin/conversations/:id", requireAdmin(d, getConversationAdmin))
+	mux.handle("GET", "/api/admin/conversations/:id/sandbox", requireAdmin(d, sandboxFilesAdmin))
+	mux.handle("GET", "/api/admin/conversations/:id/sandbox/file", requireAdmin(d, sandboxFileGetAdmin))
+	mux.handle("DELETE", "/api/admin/conversations/:id/sandbox", requireAdmin(d, sandboxClearAdmin))
 	mux.handle("GET", "/api/admin/conversations/:id/messages", requireAdmin(d, listConversationMessagesAdmin))
 	mux.handle("DELETE", "/api/admin/conversations/:id", requireAdmin(d, deleteConversationAdmin))
 	mux.handle("GET", "/api/admin/usage", requireAdmin(d, usageReportAdmin))

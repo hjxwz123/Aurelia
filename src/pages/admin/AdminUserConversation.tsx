@@ -12,7 +12,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { ArrowLeft, Bot, FileText } from 'lucide-react'
+import { ArrowLeft, Bot, FileText, HardDrive, RefreshCw, Trash2, ExternalLink, ChevronDown } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { initials } from '@/components/ui/avatar.utils'
 import { adminApi, ApiError } from '@/api'
@@ -24,6 +25,7 @@ import { Markdown } from '@/components/chat/markdown'
 import { ReasoningTrace } from '@/components/chat/reasoning-trace'
 import { CitationList } from '@/components/chat/citation'
 import { toLocalMessage } from '@/store/conversations'
+import { cn } from '@/lib/utils'
 
 function formatStamp(unixMs: number): string {
   if (!unixMs) return ''
@@ -117,6 +119,8 @@ export default function AdminUserConversation() {
           {t('users.backToUsers')}
         </Link>
       </header>
+
+      <SandboxPanel convId={cid} />
 
       <section className="mt-8">
         {loading ? (
@@ -247,5 +251,147 @@ function AdminMessageRow({
         </ul>
       ) : null}
     </li>
+  )
+}
+
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
+  return `${(n / 1024 / 1024).toFixed(1)} MB`
+}
+
+const PREVIEWABLE = /\.(png|jpe?g|gif|webp|svg|bmp)$/i
+
+// SandboxPanel — admin inspector for a conversation's sandbox workspace
+// (§ admin tools). Lists files, opens/previews them, and clears the session.
+function SandboxPanel({ convId }: { convId: string }) {
+  const { t } = useTranslation('admin')
+  const [open, setOpen] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [loaded, setLoaded] = useState(false)
+  const [session, setSession] = useState('')
+  const [files, setFiles] = useState<{ path: string; size: number }[]>([])
+  const [clearing, setClearing] = useState(false)
+
+  async function refresh() {
+    setLoading(true)
+    try {
+      const res = await adminApi.sandboxFiles(convId)
+      setSession(res.session)
+      setFiles(res.files)
+      setLoaded(true)
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : t('common.failed'))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function clear() {
+    setClearing(true)
+    try {
+      await adminApi.clearSandbox(convId)
+      setSession('')
+      setFiles([])
+      toast.success(t('sandbox.cleared', { defaultValue: 'Sandbox cleared' }))
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : t('common.failed'))
+    } finally {
+      setClearing(false)
+    }
+  }
+
+  function toggle() {
+    const next = !open
+    setOpen(next)
+    if (next && !loaded) void refresh()
+  }
+
+  return (
+    <section className="mt-6 rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)]">
+      <button
+        type="button"
+        onClick={toggle}
+        aria-expanded={open}
+        className="flex w-full items-center gap-2 px-5 py-3.5 text-left interactive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)] rounded-[14px]"
+      >
+        <HardDrive size={15} aria-hidden className="text-[var(--color-fg-muted)]" />
+        <span className="font-medium text-[var(--color-fg)] text-sm">
+          {t('sandbox.title', { defaultValue: 'Sandbox files' })}
+        </span>
+        {loaded ? (
+          <span className="text-[12px] text-[var(--color-fg-subtle)]">· {files.length}</span>
+        ) : null}
+        <ChevronDown
+          size={15}
+          aria-hidden
+          className={cn('ml-auto text-[var(--color-fg-subtle)] transition-transform', open ? 'rotate-180' : '')}
+        />
+      </button>
+
+      {open ? (
+        <div className="border-t border-[var(--color-divider)] px-5 py-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Button variant="ghost" size="sm" leadingIcon={<RefreshCw size={13} aria-hidden />} onClick={() => void refresh()} loading={loading}>
+              {t('sandbox.refresh', { defaultValue: 'Refresh' })}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              leadingIcon={<Trash2 size={13} aria-hidden />}
+              className="text-[var(--color-danger)] hover:bg-[var(--color-danger-soft)]"
+              onClick={() => void clear()}
+              loading={clearing}
+              disabled={!session}
+            >
+              {t('sandbox.clear', { defaultValue: 'Clear sandbox' })}
+            </Button>
+          </div>
+
+          {loading ? (
+            <div className="text-sm text-[var(--color-fg-subtle)]">{t('common.loading')}</div>
+          ) : !session ? (
+            <div className="text-sm text-[var(--color-fg-subtle)]">
+              {t('sandbox.none', { defaultValue: 'No sandbox session for this conversation.' })}
+            </div>
+          ) : files.length === 0 ? (
+            <div className="text-sm text-[var(--color-fg-subtle)]">
+              {t('sandbox.empty', { defaultValue: 'Sandbox workspace is empty.' })}
+            </div>
+          ) : (
+            <ul className="flex flex-col divide-y divide-[var(--color-divider)]">
+              {files.map((f) => {
+                const url = adminApi.sandboxFileUrl(convId, f.path)
+                const isImg = PREVIEWABLE.test(f.path)
+                return (
+                  <li key={f.path} className="flex items-center gap-3 py-2">
+                    {isImg ? (
+                      <img src={url} alt={f.path} className="size-9 rounded-[6px] border border-[var(--color-border-subtle)] object-cover bg-[var(--color-bg-muted)]" />
+                    ) : (
+                      <span className="inline-flex size-9 items-center justify-center rounded-[6px] bg-[var(--color-bg-muted)] text-[var(--color-fg-subtle)]">
+                        <FileText size={14} aria-hidden />
+                      </span>
+                    )}
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-mono text-[12.5px] text-[var(--color-fg)]">{f.path}</span>
+                      <span className="text-[11px] text-[var(--color-fg-subtle)]">{formatBytes(f.size)}</span>
+                    </span>
+                    <a
+                      href={url}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      className="inline-flex items-center gap-1 text-[12px] text-[var(--color-accent)] hover:underline shrink-0"
+                    >
+                      {t('sandbox.open', { defaultValue: 'Open' })}
+                      <ExternalLink size={11} aria-hidden />
+                    </a>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </div>
+      ) : null}
+    </section>
   )
 }
