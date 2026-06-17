@@ -5,6 +5,14 @@
   "currentPlan": "Current group",
   "free": "Free",
   "allPlans": "All groups",
+  "credits": {
+    "timedTitle": "Timed credits",
+    "permanentTitle": "Permanent credits",
+    "permanentHint": "Purchased credits never expire and are used after your timed credits run out.",
+    "resetsOn": "Refreshes on {{date}}",
+    "topUp": "Top up credits",
+    "topUpUnavailable": "Top-up isn’t available right now."
+  },
   "current": "Current",
   "youreOnThis": "You’re on this group",
   "switchCta": "Switch",

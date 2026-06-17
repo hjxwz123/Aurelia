@@ -5,6 +5,14 @@
   "currentPlan": "當前使用者組",
   "free": "免費",
   "allPlans": "全部使用者組",
+  "credits": {
+    "timedTitle": "限時積分",
+    "permanentTitle": "永久積分",
+    "permanentHint": "購買的積分永不過期，會在限時積分用完後才扣除。",
+    "resetsOn": "{{date}} 刷新",
+    "topUp": "補充積分",
+    "topUpUnavailable": "暫不支援補充。"
+  },
   "current": "當前",
   "youreOnThis": "你正在使用此使用者組",
   "switchCta": "切換",

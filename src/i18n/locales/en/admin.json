@@ -223,6 +223,8 @@
       "passwordHint": "At least 8 characters.",
       "newPassword": "Reset password",
       "passwordEditHint": "Leave blank to keep the current password.",
+      "permanentCredits": "Permanent credits",
+      "permanentCreditsHint": "Non-expiring credit balance. Spent after the user's timed credits run out.",
       "role": "Role",
       "group": "User group",
       "groupHint": "Determines which models this member can use and their quotas.",
@@ -255,6 +257,7 @@
     "showThinking": "Show thinking",
     "hideThinking": "Hide thinking",
     "groupChanged": "User group updated",
+    "creditsSaved": "Permanent credits updated",
     "twofaHint": "Reset if the member lost their authenticator device.",
     "twofaReset": "Reset 2FA"
   },
@@ -442,7 +445,20 @@
       "buyUrlHint": "Optional. Shown as a “Buy / Upgrade” button on the subscription page.",
       "maxProjects": "Max projects",
       "maxKbs": "Max knowledge bases",
-      "limitHint": "0 = unlimited."
+      "limitHint": "0 = unlimited.",
+      "creditsSection": "Credits",
+      "creditsLead": "The USD→credit rate, the per-cycle timed allowance, and the top-up link for this group.",
+      "creditsPerUsd": "Credits per USD",
+      "creditsPerUsdHint": "1 USD of model cost = this many credits. 0 disables credits for the group.",
+      "creditAllowance": "Credits per cycle",
+      "creditAllowanceHint": "Timed credits granted each refresh; unused are voided.",
+      "creditPeriod": "Refresh every",
+      "creditPeriodHint": "How often timed credits reset to the allowance.",
+      "unitHour": "hours",
+      "unitDay": "days",
+      "unitWeek": "weeks",
+      "creditBuyUrl": "Top-up link",
+      "creditBuyUrlHint": "Where members buy permanent (non-expiring) credits."
     },
     "errors": {
       "nameRequired": "Name is required"

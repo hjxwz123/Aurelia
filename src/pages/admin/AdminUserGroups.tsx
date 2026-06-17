@@ -15,6 +15,7 @@ import { Field } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   Dialog,
   DialogBody,
@@ -26,7 +27,24 @@ import {
 } from '@/components/ui/dialog'
 import { toast } from '@/hooks/use-toast'
 
-type Draft = Partial<ApiUserGroup> & { featuresText?: string; researchEnabled?: boolean }
+type PeriodUnit = 'hour' | 'day' | 'week'
+type Draft = Partial<ApiUserGroup> & {
+  featuresText?: string
+  researchEnabled?: boolean
+  creditPeriodValue?: number
+  creditPeriodUnit?: PeriodUnit
+}
+
+const UNIT_SECONDS: Record<PeriodUnit, number> = { hour: 3600, day: 86400, week: 604800 }
+
+// Convert stored seconds into the largest whole unit for display, and back.
+function splitPeriod(seconds: number): { value: number; unit: PeriodUnit } {
+  if (!seconds || seconds <= 0) return { value: 0, unit: 'day' }
+  for (const u of ['week', 'day', 'hour'] as const) {
+    if (seconds % UNIT_SECONDS[u] === 0) return { value: seconds / UNIT_SECONDS[u], unit: u }
+  }
+  return { value: Math.round(seconds / 3600), unit: 'hour' }
+}
 
 // Reserved functional feature flag (not a marketing bullet) — gates the Deep
 // Research mode. Managed via a dedicated toggle and hidden from the free-text
@@ -61,10 +79,21 @@ export default function AdminUserGroups() {
   }, [])
 
   function openNew() {
-    setEditor({ open: true, draft: { featuresText: '', price_usd: 0, price_cny: 0, researchEnabled: false } })
+    setEditor({
+      open: true,
+      draft: {
+        featuresText: '',
+        price_usd: 0,
+        price_cny: 0,
+        researchEnabled: false,
+        creditPeriodValue: 0,
+        creditPeriodUnit: 'day',
+      },
+    })
   }
   function openEdit(row: ApiUserGroup) {
     const feats = row.features ?? []
+    const period = splitPeriod(row.credit_period_seconds ?? 0)
     setEditor({
       open: true,
       row,
@@ -73,6 +102,8 @@ export default function AdminUserGroups() {
         // Hide the reserved functional flag from the marketing free-text editor.
         featuresText: feats.filter((f) => f !== RESEARCH_FEATURE).join('\n'),
         researchEnabled: feats.includes(RESEARCH_FEATURE),
+        creditPeriodValue: period.value,
+        creditPeriodUnit: period.unit,
       },
     })
   }
@@ -93,6 +124,7 @@ export default function AdminUserGroups() {
       .filter((f) => f !== RESEARCH_FEATURE)
     // Append the reserved functional flag when the research toggle is on.
     const features = d.researchEnabled ? [...marketing, RESEARCH_FEATURE] : marketing
+    const periodSeconds = Math.max(0, Number(d.creditPeriodValue) || 0) * UNIT_SECONDS[d.creditPeriodUnit ?? 'day']
     const body: Partial<ApiUserGroup> = {
       name: d.name,
       description: d.description ?? '',
@@ -102,6 +134,10 @@ export default function AdminUserGroups() {
       buy_url: (d.buy_url ?? '').trim(),
       max_projects: Math.max(0, Number(d.max_projects) || 0),
       max_kbs: Math.max(0, Number(d.max_kbs) || 0),
+      credits_per_usd: Math.max(0, Number(d.credits_per_usd) || 0),
+      credit_allowance: Math.max(0, Number(d.credit_allowance) || 0),
+      credit_period_seconds: periodSeconds,
+      credit_buy_url: (d.credit_buy_url ?? '').trim(),
     }
     try {
       if (editor.row) {
@@ -271,6 +307,65 @@ export default function AdminUserGroups() {
                   />
                 </Field>
               </div>
+              {/* Credit system (§ credits) */}
+              <div className="pt-1 border-t border-[var(--color-divider)]">
+                <h2 className="pt-3 font-serif text-lg tracking-tight text-[var(--color-fg)]">{t('admin:groups.fields.creditsSection')}</h2>
+                <p className="mt-0.5 text-xs text-[var(--color-fg-muted)]">{t('admin:groups.fields.creditsLead')}</p>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <Field label={t('admin:groups.fields.creditsPerUsd')} htmlFor="g-cpu" hint={t('admin:groups.fields.creditsPerUsdHint')}>
+                  <Input
+                    id="g-cpu"
+                    type="number"
+                    min={0}
+                    value={String(editor.draft.credits_per_usd ?? 0)}
+                    onChange={(e) => setDraft({ credits_per_usd: Number(e.target.value) })}
+                  />
+                </Field>
+                <Field label={t('admin:groups.fields.creditAllowance')} htmlFor="g-allow" hint={t('admin:groups.fields.creditAllowanceHint')}>
+                  <Input
+                    id="g-allow"
+                    type="number"
+                    min={0}
+                    value={String(editor.draft.credit_allowance ?? 0)}
+                    onChange={(e) => setDraft({ credit_allowance: Number(e.target.value) })}
+                  />
+                </Field>
+              </div>
+              <Field label={t('admin:groups.fields.creditPeriod')} hint={t('admin:groups.fields.creditPeriodHint')}>
+                <div className="flex items-stretch gap-2">
+                  <Input
+                    type="number"
+                    min={0}
+                    aria-label={t('admin:groups.fields.creditPeriod')}
+                    value={String(editor.draft.creditPeriodValue ?? 0)}
+                    onChange={(e) => setDraft({ creditPeriodValue: Number(e.target.value) })}
+                    className="flex-1"
+                  />
+                  <Select
+                    value={editor.draft.creditPeriodUnit ?? 'day'}
+                    onValueChange={(v) => setDraft({ creditPeriodUnit: v as PeriodUnit })}
+                  >
+                    <SelectTrigger className="w-[120px] shrink-0">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="hour">{t('admin:groups.fields.unitHour')}</SelectItem>
+                      <SelectItem value="day">{t('admin:groups.fields.unitDay')}</SelectItem>
+                      <SelectItem value="week">{t('admin:groups.fields.unitWeek')}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </Field>
+              <Field label={t('admin:groups.fields.creditBuyUrl')} htmlFor="g-cbuy" hint={t('admin:groups.fields.creditBuyUrlHint')}>
+                <Input
+                  id="g-cbuy"
+                  value={editor.draft.credit_buy_url ?? ''}
+                  onChange={(e) => setDraft({ credit_buy_url: e.target.value })}
+                  placeholder="https://…"
+                />
+              </Field>
+
               <Field label={t('admin:groups.fields.features')} htmlFor="g-feat" hint={t('admin:groups.fields.featuresHint')}>
                 <Textarea
                   id="g-feat"

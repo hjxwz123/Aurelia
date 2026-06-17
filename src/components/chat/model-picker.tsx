@@ -1,7 +1,6 @@
 import { useState, type ReactNode } from 'react'
-import { ChevronDown, Lock } from 'lucide-react'
+import { ChevronDown } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate } from 'react-router-dom'
 import { useModels } from '@/store/models'
 import {
   DropdownMenu,
@@ -29,7 +28,6 @@ export function ModelPicker({ value, onChange, className }: ModelPickerProps) {
   const tags = useModels((s) => s.tags)
   const current = models.find((m) => m.id === value) ?? models[0]
   const { t } = useTranslation('chat')
-  const navigate = useNavigate()
 
   // Tag filter (§ model tags): null = all models (the default). Only tags that
   // are actually assigned to at least one model are worth showing as chips.
@@ -94,28 +92,26 @@ export function ModelPicker({ value, onChange, className }: ModelPickerProps) {
         )}
         {visibleModels.map((m) => {
           const active = m.id === value
-          const locked = Boolean(m.locked)
+          // Models past the group's free allotment are charged in credits — show
+          // the relative rate (×N) next to the name instead of locking (§ credits).
+          const showMultiplier = Boolean(m.uses_credits) && typeof m.multiplier === 'number' && m.multiplier > 0
           return (
             <DropdownMenuItem
               key={m.id}
-              onSelect={(e) => {
-                // Locked models stay visible (§ user groups) but route to the
-                // subscription page to upgrade rather than becoming selectable.
-                if (locked) {
-                  e.preventDefault()
-                  navigate('/subscription')
-                  return
-                }
-                onChange(m.id)
-              }}
-              className={cn('items-start py-2.5 gap-2', locked && 'opacity-70')}
+              onSelect={() => onChange(m.id)}
+              className="items-start py-2.5 gap-2"
             >
-              <ModelIcon icon={m.icon} size={16} className={cn('mt-0.5', locked && 'grayscale')} />
+              <ModelIcon icon={m.icon} size={16} className="mt-0.5" />
               <div className="flex flex-col gap-1 flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="font-medium text-[var(--color-fg)] truncate">{m.label}</span>
-                  {locked ? (
-                    <Lock size={12} aria-hidden className="ml-auto shrink-0 text-[var(--color-fg-subtle)]" />
+                  {showMultiplier ? (
+                    <span
+                      className="ml-auto shrink-0 rounded-full bg-[var(--color-bg-muted)] px-1.5 py-0.5 text-[10.5px] font-medium tabular-nums text-[var(--color-fg-muted)]"
+                      title={t('modelPicker.creditRate', { defaultValue: 'Credit rate' })}
+                    >
+                      ×{m.multiplier!.toFixed(1)}
+                    </span>
                   ) : active ? (
                     <span
                       className="ml-auto size-1.5 rounded-full bg-[var(--color-accent)] shrink-0"
@@ -123,11 +119,7 @@ export function ModelPicker({ value, onChange, className }: ModelPickerProps) {
                     />
                   ) : null}
                 </div>
-                {locked ? (
-                  <span className="text-[11.5px] text-[var(--color-accent)] leading-snug">
-                    {t('modelPicker.upgrade')}
-                  </span>
-                ) : m.description ? (
+                {m.description ? (
                   <span className="text-[11.5px] text-[var(--color-fg-muted)] leading-snug">
                     {m.description}
                   </span>

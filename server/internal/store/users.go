@@ -20,9 +20,9 @@ func FindUserByEmail(ctx context.Context, db *sql.DB, email string) (*User, erro
 	var totpEnabled int
 	var passwordSet int
 	err := db.QueryRowContext(ctx,
-		`SELECT id, email, name, role, status, token_ver, settings, group_id, group_expires_at, previous_group_id, totp_secret, totp_enabled, password_set, created_at FROM users WHERE email=?`,
+		`SELECT id, email, name, role, status, token_ver, settings, group_id, group_expires_at, previous_group_id, totp_secret, totp_enabled, password_set, COALESCE(credits_permanent,0), created_at FROM users WHERE email=?`,
 		strings.ToLower(strings.TrimSpace(email)),
-	).Scan(&u.ID, &u.Email, &u.Name, &u.Role, &u.Status, &u.TokenVer, &settings, &u.GroupID, &u.GroupExpiresAt, &u.PreviousGroupID, &u.TotpSecret, &totpEnabled, &passwordSet, &u.CreatedAt)
+	).Scan(&u.ID, &u.Email, &u.Name, &u.Role, &u.Status, &u.TokenVer, &settings, &u.GroupID, &u.GroupExpiresAt, &u.PreviousGroupID, &u.TotpSecret, &totpEnabled, &passwordSet, &u.CreditsPermanent, &u.CreatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -45,8 +45,8 @@ func FindUserByID(ctx context.Context, db *sql.DB, id string) (*User, error) {
 	var totpEnabled int
 	var passwordSet int
 	err := db.QueryRowContext(ctx,
-		`SELECT id, email, name, role, status, token_ver, settings, group_id, group_expires_at, previous_group_id, totp_secret, totp_enabled, password_set, created_at FROM users WHERE id=?`, id,
-	).Scan(&u.ID, &u.Email, &u.Name, &u.Role, &u.Status, &u.TokenVer, &settings, &u.GroupID, &u.GroupExpiresAt, &u.PreviousGroupID, &u.TotpSecret, &totpEnabled, &passwordSet, &u.CreatedAt)
+		`SELECT id, email, name, role, status, token_ver, settings, group_id, group_expires_at, previous_group_id, totp_secret, totp_enabled, password_set, COALESCE(credits_permanent,0), created_at FROM users WHERE id=?`, id,
+	).Scan(&u.ID, &u.Email, &u.Name, &u.Role, &u.Status, &u.TokenVer, &settings, &u.GroupID, &u.GroupExpiresAt, &u.PreviousGroupID, &u.TotpSecret, &totpEnabled, &passwordSet, &u.CreditsPermanent, &u.CreatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -302,7 +302,7 @@ func ListUsersPaged(ctx context.Context, db *sql.DB, limit, offset int) ([]User,
 		offset = 0
 	}
 	rows, err := db.QueryContext(ctx,
-		`SELECT id, email, name, role, status, token_ver, settings, group_id, group_expires_at, previous_group_id, totp_secret, totp_enabled, password_set, last_seen_at, created_at FROM users ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+		`SELECT id, email, name, role, status, token_ver, settings, group_id, group_expires_at, previous_group_id, totp_secret, totp_enabled, password_set, last_seen_at, COALESCE(credits_permanent,0), created_at FROM users ORDER BY created_at DESC LIMIT ? OFFSET ?`,
 		limit, offset)
 	if err != nil {
 		return nil, err
@@ -314,7 +314,7 @@ func ListUsersPaged(ctx context.Context, db *sql.DB, limit, offset int) ([]User,
 		var settings string
 		var totpEnabled int
 		var passwordSet int
-		if err := rows.Scan(&u.ID, &u.Email, &u.Name, &u.Role, &u.Status, &u.TokenVer, &settings, &u.GroupID, &u.GroupExpiresAt, &u.PreviousGroupID, &u.TotpSecret, &totpEnabled, &passwordSet, &u.LastSeenAt, &u.CreatedAt); err != nil {
+		if err := rows.Scan(&u.ID, &u.Email, &u.Name, &u.Role, &u.Status, &u.TokenVer, &settings, &u.GroupID, &u.GroupExpiresAt, &u.PreviousGroupID, &u.TotpSecret, &totpEnabled, &passwordSet, &u.LastSeenAt, &u.CreditsPermanent, &u.CreatedAt); err != nil {
 			return nil, err
 		}
 		u.TotpEnabled = totpEnabled != 0
@@ -323,6 +323,32 @@ func ListUsersPaged(ctx context.Context, db *sql.DB, limit, offset int) ([]User,
 		out = append(out, u)
 	}
 	return out, rows.Err()
+}
+
+// SetPermanentCredits overwrites a user's non-expiring credit balance (admin
+// edit on the users page, § credits). Floored at 0.
+func SetPermanentCredits(ctx context.Context, db *sql.DB, userID string, credits float64) error {
+	if credits < 0 {
+		credits = 0
+	}
+	_, err := db.ExecContext(ctx, `UPDATE users SET credits_permanent=? WHERE id=?`, credits, userID)
+	return err
+}
+
+// AddPermanentCredits atomically adds delta (may be negative) to a user's
+// permanent balance, flooring at 0. Used to debit credits after a paid turn and
+// to top up after a purchase.
+func AddPermanentCredits(ctx context.Context, db *sql.DB, userID string, delta float64) error {
+	_, err := db.ExecContext(ctx,
+		`UPDATE users SET credits_permanent = MAX(0, credits_permanent + ?) WHERE id=?`, delta, userID)
+	return err
+}
+
+// PermanentCredits returns a user's non-expiring balance.
+func PermanentCredits(ctx context.Context, db *sql.DB, userID string) (float64, error) {
+	var c float64
+	err := db.QueryRowContext(ctx, `SELECT COALESCE(credits_permanent,0) FROM users WHERE id=?`, userID).Scan(&c)
+	return c, err
 }
 
 // ActiveAdminCount returns how many active admin accounts exist — used to refuse

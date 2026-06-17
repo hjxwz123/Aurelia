@@ -83,6 +83,7 @@ func NewRouter(d Deps) http.Handler {
 	// {url}); the client stores that URL in the user's settings (avatar_url).
 	mux.handle("POST", "/api/me/avatar", requireAuth(d, uploadIconAdmin))
 	mux.handle("GET", "/api/me/usage", requireAuth(d, meUsageHandler))
+	mux.handle("GET", "/api/me/credits", requireAuth(d, meCreditsHandler))
 	mux.handle("GET", "/api/me/settings", requireAuth(d, meSettingsHandler))
 	mux.handle("PATCH", "/api/me/settings", requireAuth(d, updateMeSettingsHandler))
 	mux.handle("GET", "/api/me/upload-policy", requireAuth(d, meUploadPolicyHandler))
@@ -187,6 +188,7 @@ func NewRouter(d Deps) http.Handler {
 	mux.handle("PATCH", "/api/admin/user-groups/:id", requireAdmin(d, updateUserGroupAdmin))
 	mux.handle("DELETE", "/api/admin/user-groups/:id", requireAdmin(d, deleteUserGroupAdmin))
 	mux.handle("POST", "/api/admin/users/:id/group", requireAdmin(d, setUserGroupAdmin))
+	mux.handle("POST", "/api/admin/users/:id/credits", requireAdmin(d, setUserCreditsAdmin))
 	mux.handle("GET", "/api/admin/skills", requireAdmin(d, listSkillsAdmin))
 	mux.handle("POST", "/api/admin/skills", requireAdmin(d, createSkillAdmin))
 	mux.handle("PATCH", "/api/admin/skills/:id", requireAdmin(d, updateSkillAdmin))

@@ -34,7 +34,11 @@ type User struct {
 	// LastSeenAt is the unix seconds of the user's last authenticated activity,
 	// updated (throttled) by the auth middleware. Drives the admin online status.
 	LastSeenAt int64 `json:"last_seen_at"`
-	CreatedAt  int64 `json:"created_at"`
+	// CreditsPermanent is the user's non-expiring credit balance (§ credits) —
+	// bought via top-up or set by an admin. Debited only after timed credits run
+	// out; never reset by the refresh cycle.
+	CreditsPermanent float64 `json:"credits_permanent"`
+	CreatedAt        int64   `json:"created_at"`
 	// Features is the transient list of capability flags from the user's group
 	// (e.g. "research"). Populated only on the /api/me response so the client can
 	// gate features; never persisted on the users table.
@@ -61,10 +65,18 @@ type UserGroup struct {
 	SortOrder int    `json:"sort_order"`
 	// MaxProjects / MaxKBs cap how many projects / knowledge bases a member may
 	// create (§ user groups). 0 = unlimited.
-	MaxProjects int   `json:"max_projects"`
-	MaxKBs      int   `json:"max_kbs"`
-	CreatedAt   int64 `json:"created_at"`
-	UpdatedAt   int64 `json:"updated_at"`
+	MaxProjects int `json:"max_projects"`
+	MaxKBs      int `json:"max_kbs"`
+	// Credit system (§ credits). CreditsPerUSD converts a request's USD cost into
+	// credits (0 = credits disabled). CreditAllowance is the timed-credit budget
+	// granted each CreditPeriodSeconds cycle (unused voided on refresh).
+	// CreditBuyURL is the top-up link for non-expiring (permanent) credits.
+	CreditsPerUSD       float64 `json:"credits_per_usd"`
+	CreditAllowance     float64 `json:"credit_allowance"`
+	CreditPeriodSeconds int     `json:"credit_period_seconds"`
+	CreditBuyURL        string  `json:"credit_buy_url"`
+	CreatedAt           int64   `json:"created_at"`
+	UpdatedAt           int64   `json:"updated_at"`
 }
 
 // ModelGroupQuota caps a group's usage of one model within a fixed window.
@@ -299,7 +311,10 @@ type UsageLog struct {
 	ImagesCount      int     `json:"images_count"`
 	Cost             float64 `json:"cost"`
 	Currency         string  `json:"currency"`
-	CreatedAt        int64   `json:"created_at"`
+	// Credits charged for this row (§ credits). 0 = free (within the model's
+	// per-group free count) or credits disabled.
+	Credits   float64 `json:"credits"`
+	CreatedAt int64   `json:"created_at"`
 }
 
 // File — uploaded file metadata.

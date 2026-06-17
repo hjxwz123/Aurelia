@@ -303,11 +303,11 @@ func DeleteRedeemBatch(ctx context.Context, db *sql.DB, batchName string) (int64
 // Sentinel errors for the redeem flow — handlers map these to user-readable
 // strings + i18n keys via the API layer.
 var (
-	ErrRedeemCodeInvalid     = errors.New("redeem code invalid")
-	ErrRedeemCodeUsed        = errors.New("redeem code already used")
-	ErrRedeemCodeExpired     = errors.New("redeem code expired")
-	ErrRedeemCodeDisabled    = errors.New("redeem code disabled")
-	ErrRedeemAlreadyOwned    = errors.New("you already redeemed this code")
+	ErrRedeemCodeInvalid  = errors.New("redeem code invalid")
+	ErrRedeemCodeUsed     = errors.New("redeem code already used")
+	ErrRedeemCodeExpired  = errors.New("redeem code expired")
+	ErrRedeemCodeDisabled = errors.New("redeem code disabled")
+	ErrRedeemAlreadyOwned = errors.New("you already redeemed this code")
 )
 
 // RedeemCodeForUser atomically validates the code and grants the configured

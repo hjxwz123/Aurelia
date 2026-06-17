@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS users (
   totp_enabled  INTEGER NOT NULL DEFAULT 0,
   password_set  INTEGER NOT NULL DEFAULT 1,
   last_seen_at  BIGINT NOT NULL DEFAULT 0,
+  credits_permanent REAL NOT NULL DEFAULT 0,
   created_at    BIGINT NOT NULL DEFAULT (extract(epoch from now())::bigint)
 );
 
@@ -46,6 +47,10 @@ CREATE TABLE IF NOT EXISTS user_groups (
   sort_order  INTEGER NOT NULL DEFAULT 0,
   max_projects INTEGER NOT NULL DEFAULT 0,
   max_kbs      INTEGER NOT NULL DEFAULT 0,
+  credits_per_usd       REAL NOT NULL DEFAULT 0,
+  credit_allowance      REAL NOT NULL DEFAULT 0,
+  credit_period_seconds INTEGER NOT NULL DEFAULT 0,
+  credit_buy_url        TEXT NOT NULL DEFAULT '',
   created_at  BIGINT NOT NULL DEFAULT (extract(epoch from now())::bigint),
   updated_at  BIGINT NOT NULL DEFAULT (extract(epoch from now())::bigint)
 );
@@ -335,6 +340,7 @@ CREATE TABLE IF NOT EXISTS usage_logs (
   images_count       INTEGER NOT NULL DEFAULT 0,
   cost               DOUBLE PRECISION NOT NULL DEFAULT 0,
   currency           TEXT NOT NULL DEFAULT 'USD',
+  credits            DOUBLE PRECISION NOT NULL DEFAULT 0,
   created_at         BIGINT NOT NULL DEFAULT (extract(epoch from now())::bigint)
 );
 CREATE INDEX IF NOT EXISTS idx_usage_user_time ON usage_logs(user_id, created_at);

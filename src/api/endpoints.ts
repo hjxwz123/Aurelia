@@ -10,6 +10,7 @@ import type {
   ApiChannel,
   ApiConversation,
   ApiConversationFile,
+  ApiCredits,
   ApiDocument,
   ApiKnowledgeBase,
   ApiMemory,
@@ -53,6 +54,8 @@ export const authApi = {
   setup: (name: string, email: string, password: string) =>
     api<ApiAuthResponse>('/setup', { method: 'POST', body: { name, email, password } }),
   me: () => api<ApiUser>('/me'),
+  /** Credit balance (timed pool + permanent pool) for the subscription page. */
+  credits: () => api<ApiCredits>('/me/credits'),
   login: (email: string, password: string) =>
     api<ApiAuthResponse | { totp_required: true; ticket: string }>('/auth/login', {
       method: 'POST',
@@ -366,6 +369,12 @@ export const adminApi = {
     api<{ ok: true }>(`/admin/user-groups/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   setUserGroup: (id: string, group_id: string) =>
     api<{ ok: true }>(`/admin/users/${encodeURIComponent(id)}/group`, { method: 'POST', body: { group_id } }),
+  /** Overwrite a user's permanent (non-expiring) credit balance (§ credits). */
+  setUserCredits: (id: string, credits_permanent: number) =>
+    api<{ ok: true; credits_permanent: number }>(`/admin/users/${encodeURIComponent(id)}/credits`, {
+      method: 'POST',
+      body: { credits_permanent },
+    }),
   modelQuotas: (id: string) => api<ApiModelQuota[]>(`/admin/models/${encodeURIComponent(id)}/quotas`),
   setModelQuotas: (id: string, quotas: ApiModelQuota[]) =>
     api<{ ok: true }>(`/admin/models/${encodeURIComponent(id)}/quotas`, { method: 'PUT', body: { quotas } }),

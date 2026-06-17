@@ -223,6 +223,8 @@
       "passwordHint": "至少 8 個字元。",
       "newPassword": "重置密碼",
       "passwordEditHint": "留空則保持原密碼。",
+      "permanentCredits": "永久積分",
+      "permanentCreditsHint": "永不過期的積分餘額，在使用者的限時積分用完後扣除。",
       "role": "角色",
       "group": "使用者組",
       "groupHint": "決定該使用者可使用的模型及額度。",
@@ -255,6 +257,7 @@
     "showThinking": "展開推理",
     "hideThinking": "收起推理",
     "groupChanged": "使用者組已更新",
+    "creditsSaved": "永久積分已更新",
     "twofaHint": "如果該使用者丟失了身份驗證器裝置，可重置。",
     "twofaReset": "重置兩步驗證"
   },
@@ -442,7 +445,20 @@
       "buyUrlHint": "可選。將在訂閱頁面顯示為「購買 / 升級」按鈕。",
       "maxProjects": "最大專案數",
       "maxKbs": "最大知識庫數",
-      "limitHint": "0 = 不限。"
+      "limitHint": "0 = 不限。",
+      "creditsSection": "積分",
+      "creditsLead": "該使用者組的「美元→積分」比例、每週期限時額度，以及補充連結。",
+      "creditsPerUsd": "每美元積分數",
+      "creditsPerUsdHint": "模型花費 1 美元 = 多少積分。0 表示該組不啟用積分。",
+      "creditAllowance": "每週期積分",
+      "creditAllowanceHint": "每次刷新發放的限時積分，未用完作廢。",
+      "creditPeriod": "刷新週期",
+      "creditPeriodHint": "限時積分多久重置一次。",
+      "unitHour": "小時",
+      "unitDay": "天",
+      "unitWeek": "週",
+      "creditBuyUrl": "補充連結",
+      "creditBuyUrlHint": "使用者購買永久積分的網址。"
     },
     "errors": {
       "nameRequired": "請填寫名稱"

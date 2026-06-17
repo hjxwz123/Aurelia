@@ -223,6 +223,8 @@
       "passwordHint": "Au moins 8 caractères.",
       "newPassword": "Réinitialiser le mot de passe",
       "passwordEditHint": "Laissez vide pour conserver le mot de passe actuel.",
+      "permanentCredits": "Crédits permanents",
+      "permanentCreditsHint": "Solde de crédits non expirables, utilisé après épuisement des crédits temporaires.",
       "role": "Rôle",
       "group": "Groupe d'utilisateurs",
       "groupHint": "Détermine quels modèles ce membre peut utiliser et ses quotas.",
@@ -255,6 +257,7 @@
     "showThinking": "Afficher le raisonnement",
     "hideThinking": "Masquer le raisonnement",
     "groupChanged": "Groupe d'utilisateurs mis à jour",
+    "creditsSaved": "Crédits permanents mis à jour",
     "twofaHint": "Réinitialisez si le membre a perdu son appareil d'authentification.",
     "twofaReset": "Réinitialiser la 2FA"
   },
@@ -442,7 +445,20 @@
       "buyUrlHint": "Facultatif. Affiché comme bouton « Acheter / Améliorer » sur la page d'abonnement.",
       "maxProjects": "Projets max",
       "maxKbs": "Bases de connaissances max",
-      "limitHint": "0 = illimité."
+      "limitHint": "0 = illimité.",
+      "creditsSection": "Crédits",
+      "creditsLead": "Le taux USD→crédit, l’allocation temporaire par cycle et le lien de recharge de ce groupe.",
+      "creditsPerUsd": "Crédits par USD",
+      "creditsPerUsdHint": "1 USD de coût modèle = ce nombre de crédits. 0 désactive les crédits pour le groupe.",
+      "creditAllowance": "Crédits par cycle",
+      "creditAllowanceHint": "Crédits temporaires accordés à chaque renouvellement ; le solde inutilisé est perdu.",
+      "creditPeriod": "Renouveler tous les",
+      "creditPeriodHint": "Fréquence de réinitialisation des crédits temporaires.",
+      "unitHour": "heures",
+      "unitDay": "jours",
+      "unitWeek": "semaines",
+      "creditBuyUrl": "Lien de recharge",
+      "creditBuyUrlHint": "Où les membres achètent des crédits permanents."
     },
     "errors": {
       "nameRequired": "Le nom est requis"

@@ -223,6 +223,8 @@
       "passwordHint": "8文字以上。",
       "newPassword": "パスワードをリセット",
       "passwordEditHint": "空欄にすると現在のパスワードを保持します。",
+      "permanentCredits": "永久クレジット",
+      "permanentCreditsHint": "失効しないクレジット残高。ユーザーの期間限定クレジットを使い切った後に消費されます。",
       "role": "ロール",
       "group": "ユーザーグループ",
       "groupHint": "このメンバーが使用できるモデルとそのクォータを決定します。",
@@ -255,6 +257,7 @@
     "showThinking": "思考を表示",
     "hideThinking": "思考を非表示",
     "groupChanged": "ユーザーグループを更新しました",
+    "creditsSaved": "永久クレジットを更新しました",
     "twofaHint": "メンバーが認証アプリのデバイスを紛失した場合にリセットします。",
     "twofaReset": "2要素認証をリセット"
   },
@@ -442,7 +445,20 @@
       "buyUrlHint": "任意。サブスクリプションページに「購入 / アップグレード」ボタンとして表示されます。",
       "maxProjects": "最大プロジェクト数",
       "maxKbs": "最大ナレッジベース数",
-      "limitHint": "0 = 無制限。"
+      "limitHint": "0 = 無制限。",
+      "creditsSection": "クレジット",
+      "creditsLead": "このグループの「USD→クレジット」レート、サイクルごとの期間限定付与、補充リンク。",
+      "creditsPerUsd": "1 USD あたりのクレジット",
+      "creditsPerUsdHint": "モデル費用 1 USD = 何クレジットか。0 でこのグループのクレジットを無効化。",
+      "creditAllowance": "サイクルごとのクレジット",
+      "creditAllowanceHint": "更新ごとに付与される期間限定クレジット。未使用分は失効します。",
+      "creditPeriod": "更新間隔",
+      "creditPeriodHint": "期間限定クレジットがリセットされる頻度。",
+      "unitHour": "時間",
+      "unitDay": "日",
+      "unitWeek": "週",
+      "creditBuyUrl": "補充リンク",
+      "creditBuyUrlHint": "ユーザーが永久クレジットを購入する場所。"
     },
     "errors": {
       "nameRequired": "名前は必須です"

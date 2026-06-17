@@ -223,6 +223,8 @@
       "passwordHint": "至少 8 个字符。",
       "newPassword": "重置密码",
       "passwordEditHint": "留空则保持原密码。",
+      "permanentCredits": "永久积分",
+      "permanentCreditsHint": "永不过期的积分余额，在用户的限时积分用完后扣除。",
       "role": "角色",
       "group": "用户组",
       "groupHint": "决定该用户可使用的模型及额度。",
@@ -255,6 +257,7 @@
     "showThinking": "展开推理",
     "hideThinking": "收起推理",
     "groupChanged": "用户组已更新",
+    "creditsSaved": "永久积分已更新",
     "twofaHint": "如果该用户丢失了身份验证器设备，可重置。",
     "twofaReset": "重置两步验证"
   },
@@ -442,7 +445,20 @@
       "buyUrlHint": "可选。将在订阅页面显示为「购买 / 升级」按钮。",
       "maxProjects": "最大项目数",
       "maxKbs": "最大知识库数",
-      "limitHint": "0 = 不限。"
+      "limitHint": "0 = 不限。",
+      "creditsSection": "积分",
+      "creditsLead": "该用户组的「美元→积分」比例、每周期限时额度，以及补充链接。",
+      "creditsPerUsd": "每美元积分数",
+      "creditsPerUsdHint": "模型花费 1 美元 = 多少积分。0 表示该组不启用积分。",
+      "creditAllowance": "每周期积分",
+      "creditAllowanceHint": "每次刷新发放的限时积分，未用完作废。",
+      "creditPeriod": "刷新周期",
+      "creditPeriodHint": "限时积分多久重置一次。",
+      "unitHour": "小时",
+      "unitDay": "天",
+      "unitWeek": "周",
+      "creditBuyUrl": "补充链接",
+      "creditBuyUrlHint": "用户购买永久积分的地址。"
     },
     "errors": {
       "nameRequired": "请填写名称"

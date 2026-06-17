@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS users (
   totp_enabled  INTEGER NOT NULL DEFAULT 0,       -- 1 = login requires a 2FA code
   password_set  INTEGER NOT NULL DEFAULT 1,        -- 0 = OAuth account that never chose its own password
   last_seen_at  INTEGER NOT NULL DEFAULT 0,        -- unix seconds of last authenticated activity (online status)
+  credits_permanent REAL NOT NULL DEFAULT 0,       -- non-expiring credits (purchased / admin-set)
   created_at    INTEGER NOT NULL DEFAULT (strftime('%s','now'))
 );
 
@@ -44,6 +45,10 @@ CREATE TABLE IF NOT EXISTS user_groups (
   sort_order  INTEGER NOT NULL DEFAULT 0,
   max_projects INTEGER NOT NULL DEFAULT 0,
   max_kbs      INTEGER NOT NULL DEFAULT 0,
+  credits_per_usd       REAL NOT NULL DEFAULT 0,    -- 1 USD = N credits (0 = credits disabled)
+  credit_allowance      REAL NOT NULL DEFAULT 0,    -- timed credits granted each cycle
+  credit_period_seconds INTEGER NOT NULL DEFAULT 0, -- refresh cycle length (0 = no timed credits)
+  credit_buy_url        TEXT NOT NULL DEFAULT '',   -- top-up link for permanent credits
   created_at  INTEGER NOT NULL DEFAULT (strftime('%s','now')),
   updated_at  INTEGER NOT NULL DEFAULT (strftime('%s','now'))
 );
@@ -351,6 +356,7 @@ CREATE TABLE IF NOT EXISTS usage_logs (
   images_count       INTEGER NOT NULL DEFAULT 0,
   cost               REAL NOT NULL DEFAULT 0,
   currency           TEXT NOT NULL DEFAULT 'USD',
+  credits            REAL NOT NULL DEFAULT 0,   -- credits charged for this row (0 = free / unconverted)
   created_at         INTEGER NOT NULL DEFAULT (strftime('%s','now'))
 );
 CREATE INDEX IF NOT EXISTS idx_usage_user_time ON usage_logs(user_id, created_at);

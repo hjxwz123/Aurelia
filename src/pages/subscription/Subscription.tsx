@@ -10,9 +10,9 @@
  */
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Check, Sparkles, Ticket } from 'lucide-react'
-import { groupsApi, redeemApi, ApiError } from '@/api'
-import type { ApiUserGroup } from '@/api/types'
+import { Check, Sparkles, Ticket, Coins, Wallet, Plus, RefreshCw } from 'lucide-react'
+import { groupsApi, redeemApi, authApi, ApiError } from '@/api'
+import type { ApiUserGroup, ApiCredits } from '@/api/types'
 import { useAuth } from '@/store/auth'
 import { ContentHeader } from '@/components/layout/content-header'
 import { Button } from '@/components/ui/button'
@@ -35,6 +35,7 @@ export default function Subscription() {
   const user = useAuth((s) => s.user)
   const setUser = useAuth((s) => s.setUser)
   const [groups, setGroups] = useState<ApiUserGroup[]>([])
+  const [credits, setCredits] = useState<ApiCredits | null>(null)
   const [loading, setLoading] = useState(true)
   const [upgrade, setUpgrade] = useState<ApiUserGroup | null>(null)
   const [redeemCode, setRedeemCode] = useState('')
@@ -49,6 +50,12 @@ export default function Subscription() {
       .then((gs) => active && setGroups(gs))
       .catch((e) => active && toast.error(e instanceof ApiError ? e.message : t('subscription:loadFailed')))
       .finally(() => active && setLoading(false))
+    // Credits are decoration on top of the tier cards — a failure must never
+    // block the plan view.
+    authApi
+      .credits()
+      .then((c) => active && setCredits(c))
+      .catch(() => undefined)
     return () => {
       active = false
     }
@@ -156,6 +163,9 @@ export default function Subscription() {
             </div>
           </div>
         ) : null}
+
+        {/* Credits (§ credits) */}
+        {credits?.enabled ? <CreditCards credits={credits} t={t} /> : null}
 
         {/* All tiers */}
         <h2 className="mt-12 mb-5 font-serif text-xl text-[var(--color-fg)]">{t('subscription:allPlans')}</h2>
@@ -315,6 +325,66 @@ export default function Subscription() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  )
+}
+
+function CreditCards({
+  credits,
+  t,
+}: {
+  credits: ApiCredits
+  t: (k: string, o?: Record<string, unknown>) => string
+}) {
+  const timed = credits.timed
+  const showTimed = timed && (timed.allowance > 0 || timed.period_seconds > 0)
+  const pct = timed && timed.allowance > 0 ? Math.max(0, Math.min(100, (timed.remaining / timed.allowance) * 100)) : 0
+  const fmtCredits = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1))
+  return (
+    <div className="mt-10 grid gap-4 sm:grid-cols-2">
+      {/* Timed credits — remaining / total + progress + next refresh */}
+      {showTimed ? (
+        <div className="flex flex-col rounded-[16px] border border-[var(--color-border)] bg-[var(--color-surface)] px-6 py-5">
+          <div className="flex items-center gap-2 text-[12px] uppercase tracking-[0.08em] text-[var(--color-fg-subtle)]">
+            <Coins size={14} aria-hidden className="text-[var(--color-accent)]" />
+            {t('subscription:credits.timedTitle')}
+          </div>
+          <div className="mt-2 flex items-baseline gap-1.5">
+            <span className="font-serif text-2xl text-[var(--color-fg)] tabular-nums">{fmtCredits(timed!.remaining)}</span>
+            <span className="text-[13px] text-[var(--color-fg-subtle)] tabular-nums">/ {fmtCredits(timed!.allowance)}</span>
+          </div>
+          <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-[var(--color-bg-muted)]">
+            <div className="h-full rounded-full bg-[var(--color-accent)] transition-[width] duration-500" style={{ width: `${pct}%` }} />
+          </div>
+          {timed!.resets_at > 0 ? (
+            <p className="mt-2.5 inline-flex items-center gap-1.5 text-[12px] text-[var(--color-fg-subtle)]">
+              <RefreshCw size={12} aria-hidden />
+              {t('subscription:credits.resetsOn', { date: formatAbsoluteDate(timed!.resets_at * 1000) })}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
+      {/* Permanent credits — separate balance + top-up */}
+      <div className="flex flex-col rounded-[16px] border border-[var(--color-border)] bg-[var(--color-surface)] px-6 py-5">
+        <div className="flex items-center gap-2 text-[12px] uppercase tracking-[0.08em] text-[var(--color-fg-subtle)]">
+          <Wallet size={14} aria-hidden className="text-[var(--color-secondary)]" />
+          {t('subscription:credits.permanentTitle')}
+        </div>
+        <div className="mt-2 font-serif text-2xl text-[var(--color-fg)] tabular-nums">{fmtCredits(credits.permanent)}</div>
+        <p className="mt-1 text-[12px] text-[var(--color-fg-muted)]">{t('subscription:credits.permanentHint')}</p>
+        <div className="mt-auto pt-4">
+          {credits.buy_url ? (
+            <Button asChild variant="primary" leadingIcon={<Plus size={14} aria-hidden />} className="w-full sm:w-auto">
+              <a href={safeHref(credits.buy_url)} target="_blank" rel="noreferrer noopener">
+                {t('subscription:credits.topUp')}
+              </a>
+            </Button>
+          ) : (
+            <p className="text-[12px] text-[var(--color-fg-subtle)]">{t('subscription:credits.topUpUnavailable')}</p>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
