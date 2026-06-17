@@ -1068,6 +1068,13 @@ func composeSystemPrompt(o systemPromptOpts) string {
 		b.WriteString("You are Aurelia, a thoughtful AI assistant. Answer in the user's language, write with calm clarity, and use Markdown formatting (code in fenced blocks, math in $...$). When you use any tool, briefly explain what you did before showing the result.")
 	}
 
+	// ①.1 ground the model in real time. Without this it falls back to its
+	// training-era date, so "today" / "latest" — and the queries it hands to
+	// web_search — silently target the wrong year. Server-local time; operators
+	// set TZ to their zone.
+	now := time.Now()
+	fmt.Fprintf(&b, "\n\nThe current date is %s. When the user refers to \"today\", \"now\", \"latest\", \"recent\", or \"current\", anchor to THIS date — including the date terms you put in web_search queries. Never assume an earlier year from your training data.", now.Format("Monday, 2006-01-02"))
+
 	// ①.5 user personalization — tone traits + custom instructions + nickname.
 	// Placed high so the assistant adopts the user's preferred style.
 	if !o.Persona.empty() {
