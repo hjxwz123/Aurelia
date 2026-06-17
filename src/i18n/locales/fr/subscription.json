@@ -5,6 +5,7 @@
   "currentPlan": "Groupe actuel",
   "free": "Gratuit",
   "allPlans": "Tous les groupes",
+  "planCount": "{{count}} forfaits",
   "credits": {
     "timedTitle": "Crédits temporaires",
     "permanentTitle": "Crédits permanents",
