@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Trans, useTranslation } from 'react-i18next'
 import { motion } from 'framer-motion'
-import { Mail, Lock, User, ArrowRight, ShieldCheck, Calculator, RefreshCw } from 'lucide-react'
+import { Mail, Lock, User, ArrowRight, ShieldCheck } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Field } from '@/components/ui/label'
@@ -11,9 +11,9 @@ import { Separator } from '@/components/ui/separator'
 import { toast } from '@/hooks/use-toast'
 import { useAuth } from '@/store/auth'
 import { authApi, setAccessToken, ApiError } from '@/api'
-import { cn } from '@/lib/utils'
 import { useOAuthProviders } from '@/hooks/use-oauth-providers'
 import { OAuthButtons } from '@/components/auth/oauth-buttons'
+import { PuzzleCaptcha, type PuzzleData } from '@/components/auth/puzzle-captcha'
 
 const ease: [number, number, number, number] = [0.2, 0.8, 0.2, 1]
 const stagger = { hidden: {}, visible: { transition: { staggerChildren: 0.06, delayChildren: 0.04 } } }
@@ -38,19 +38,20 @@ export default function Register() {
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState<{ name?: string; email?: string; pw?: string; agree?: string; captcha?: string; general?: string }>({})
 
-  // Arithmetic captcha (only when the admin requires it). Single-use server-side,
-  // so we fetch a fresh one on mount and after every failed attempt.
-  const [captcha, setCaptcha] = useState<{ id: string; question: string } | null>(null)
-  const [captchaAnswer, setCaptchaAnswer] = useState('')
+  // Slider-puzzle captcha (only when the admin requires it). Single-use
+  // server-side, so we fetch a fresh one on mount and after every failed attempt.
+  // captchaAnswer holds the drop position as a fraction (0–1), null until dragged.
+  const [captcha, setCaptcha] = useState<PuzzleData | null>(null)
+  const [captchaAnswer, setCaptchaAnswer] = useState<number | null>(null)
   const [captchaLoading, setCaptchaLoading] = useState(false)
 
   async function loadCaptcha() {
     setCaptchaLoading(true)
     try {
       setCaptcha(await authApi.captcha())
-      setCaptchaAnswer('')
+      setCaptchaAnswer(null)
     } catch {
-      /* leave the previous question in place; the user can retry */
+      /* leave the previous puzzle in place; the user can retry */
     } finally {
       setCaptchaLoading(false)
     }
@@ -74,7 +75,7 @@ export default function Register() {
     if (!pw) next.pw = t('errors.required')
     else if (pw.length < 8) next.pw = t('errors.minPassword')
     if (!agree) next.agree = t('errors.acceptTerms')
-    if (captchaRequired && !captchaAnswer.trim()) next.captcha = t('errors.required')
+    if (captchaRequired && captchaAnswer == null) next.captcha = t('register.captchaSlide', { defaultValue: 'Slide to fit the piece' })
     setErrors(next)
     if (Object.keys(next).length) return
     setLoading(true)
@@ -82,7 +83,7 @@ export default function Register() {
       email,
       pw,
       name.trim(),
-      captchaRequired && captcha ? { id: captcha.id, answer: captchaAnswer.trim() } : undefined,
+      captchaRequired && captcha && captchaAnswer != null ? { id: captcha.id, answer: String(captchaAnswer) } : undefined,
     )
     setLoading(false)
     if (result === 'verify') {
@@ -311,35 +312,14 @@ export default function Register() {
         </motion.div>
         {captchaRequired ? (
           <motion.div variants={fadeUp}>
-            <Field label={t('register.captchaLabel')} htmlFor="captcha" error={errors.captcha}>
-              <div className="flex items-stretch gap-2">
-                <div className="inline-flex select-none items-center gap-1.5 rounded-[10px] border border-[var(--color-border)] bg-[var(--color-bg-muted)] px-3 font-mono text-sm text-[var(--color-fg)]">
-                  <span aria-hidden className={cn('tabular-nums', captchaLoading && 'opacity-40')}>
-                    {captcha?.question ?? '— + —'}
-                  </span>
-                  <span className="text-[var(--color-fg-subtle)]">=</span>
-                </div>
-                <Input
-                  id="captcha"
-                  value={captchaAnswer}
-                  onChange={(e) => setCaptchaAnswer(e.target.value.replace(/[^\d-]/g, '').slice(0, 4))}
-                  placeholder={t('register.captchaPlaceholder')}
-                  leadingIcon={<Calculator size={14} aria-hidden />}
-                  inputMode="numeric"
-                  autoComplete="off"
-                  invalid={!!errors.captcha}
-                  className="flex-1"
-                />
-                <button
-                  type="button"
-                  onClick={() => void loadCaptcha()}
-                  disabled={captchaLoading}
-                  aria-label={t('register.captchaRefresh')}
-                  className="inline-flex size-10 shrink-0 items-center justify-center rounded-[10px] border border-[var(--color-border)] text-[var(--color-fg-muted)] hover:bg-[var(--color-bg-muted)] hover:text-[var(--color-fg)] interactive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)] disabled:opacity-50"
-                >
-                  <RefreshCw size={15} aria-hidden className={cn(captchaLoading && 'animate-[spin_0.8s_linear_infinite]')} />
-                </button>
-              </div>
+            <Field label={t('register.captchaLabel')} error={errors.captcha}>
+              <PuzzleCaptcha
+                data={captcha}
+                loading={captchaLoading}
+                onChange={setCaptchaAnswer}
+                onRefresh={() => void loadCaptcha()}
+                invalid={!!errors.captcha}
+              />
             </Field>
           </motion.div>
         ) : null}

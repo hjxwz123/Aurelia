@@ -336,7 +336,7 @@
       "memoryEnabled": "Mémoires activées",
       "signupOpen": "Nouvelles inscriptions ouvertes",
       "registerCaptcha": "Exiger un captcha à l'inscription",
-      "registerCaptchaHint": "Les nouvelles inscriptions doivent résoudre une courte question arithmétique (texte seul — aucune image à lire).",
+      "registerCaptchaHint": "Les nouvelles inscriptions doivent résoudre un puzzle à glissière (placez la pièce dans l’encoche — aucun texte à lire).",
       "registerIpDailyLimit": "Inscriptions par jour et par IP",
       "registerIpDailyLimitHint": "Nombre maximal de comptes qu'une adresse IP peut créer par jour. 0 = illimité.",
       "dailyMessageLimit": "Limite quotidienne de messages",
