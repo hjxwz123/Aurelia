@@ -1,11 +1,48 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
+	"math"
 	"net/http"
+	"time"
 
 	"aurelia/server/internal/store"
 )
+
+// creditMultiplier is the relative credit rate shown in the picker: the model's
+// (input + output price) / 5 (so a $5 combined price = ×1.0), one decimal.
+func creditMultiplier(m store.Model) float64 {
+	v := (m.PriceInput + m.PriceOutput) / 5.0
+	return math.Round(v*10) / 10
+}
+
+// modelUsesCredits reports whether the model would be CREDIT-charged for this
+// user's group right now: it has a quota (restricted) but the group has no free
+// grant, or the per-cycle free allotment is used up (§ credits). Models with no
+// quota rows are free + unlimited → false.
+func modelUsesCredits(ctx context.Context, d Deps, userID string, m store.Model, restricted bool, grants map[string]store.ModelGroupQuota) bool {
+	if !restricted {
+		return false
+	}
+	q, granted := grants[m.ID]
+	if !granted {
+		return true // group has no free grant → credits
+	}
+	if q.LimitValue <= 0 {
+		return false // granted unlimited free
+	}
+	p := int64(q.PeriodSeconds)
+	if p <= 0 {
+		p = 604800
+	}
+	start := (time.Now().Unix() / p) * p
+	cost, count, _ := store.UsageInWindow(ctx, d.DB, userID, m.ID, start)
+	if q.LimitType == "count" {
+		return count >= int(q.LimitValue+0.5)
+	}
+	return cost >= q.LimitValue
+}
 
 // listModelsHandler returns chat models visible to all signed-in users.
 func listModelsHandler(d Deps, w http.ResponseWriter, r *http.Request) {
@@ -65,29 +102,39 @@ func modelsResponse(d Deps, r *http.Request, models []store.Model) map[string]an
 		ChannelID     string          `json:"channel_id"`
 		SortOrder     int             `json:"sort_order"`
 		Currency      string          `json:"currency"`
-		// Locked is true when this model is restricted and the caller's group has
-		// no grant for it — the picker shows a lock + upgrade prompt (§user-groups).
-		Locked bool `json:"locked"`
+		// UsesCredits is true when this model has NO free allotment left for the
+		// caller's group (none configured, or the per-cycle count is used up) —
+		// the picker shows the credit multiplier instead of a lock (§ credits).
+		UsesCredits bool `json:"uses_credits"`
+		// Multiplier is the relative credit rate shown next to the name: the model's
+		// (input price + output price) / 5, where 5 = ×1.0. One decimal.
+		Multiplier float64 `json:"multiplier"`
 	}
 
-	// Resolve "locked" cheaply: which models are restricted, and which the
-	// caller's group is granted (both single queries, no usage aggregates).
+	// Resolve per-model free-allotment state for the caller's group. Restricted =
+	// the model has any quota row; grants = the group's quotas (with limits).
 	restricted, _ := store.RestrictedModelIDs(r.Context(), d.DB)
+	caller := authUser(r)
+	isAdmin := caller != nil && caller.Role == "admin"
 	groupID := store.DefaultGroupID
-	if u := authUser(r); u != nil && u.GroupID != "" {
-		groupID = u.GroupID
+	userID := ""
+	if caller != nil {
+		userID = caller.ID
+		if caller.GroupID != "" {
+			groupID = caller.GroupID
+		}
 	}
 	grants, _ := store.QuotasForGroup(r.Context(), d.DB, groupID)
 
 	items := []item{}
 	for _, m := range models {
-		_, granted := grants[m.ID]
-		locked := restricted[m.ID] && !granted
 		items = append(items, item{
 			ID: m.ID, Label: m.Label, Description: m.Description, Icon: m.Icon,
 			Kind: m.Kind, Vision: m.Vision, Stream: m.Stream, ToolMode: m.ToolMode,
 			ParamControls: m.ParamControls, ChannelID: m.ChannelID, SortOrder: m.SortOrder,
-			Currency: m.Currency, Locked: locked,
+			Currency:    m.Currency,
+			UsesCredits: !isAdmin && modelUsesCredits(r.Context(), d, userID, m, restricted[m.ID], grants),
+			Multiplier:  creditMultiplier(m),
 		})
 	}
 	defaultID := ""

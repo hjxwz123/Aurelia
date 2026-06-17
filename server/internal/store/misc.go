@@ -236,11 +236,24 @@ func ListMemoriesActive(ctx context.Context, db *sql.DB, userID string) ([]Memor
 // LogUsage writes a single usage row. Best-effort — callers ignore errors.
 func LogUsage(ctx context.Context, db *sql.DB, u UsageLog) error {
 	_, err := db.ExecContext(ctx,
-		`INSERT INTO usage_logs(user_id, conversation_id, message_id, model_id, purpose, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, images_count, cost, currency, created_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO usage_logs(user_id, conversation_id, message_id, model_id, purpose, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, images_count, cost, currency, credits, created_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		u.UserID, nullable(u.ConversationID), nullable(u.MessageID), u.ModelID, u.Purpose,
 		u.InputTokens, u.OutputTokens, u.CacheReadTokens, u.CacheWriteTokens, u.ImagesCount,
-		u.Cost, u.Currency, time.Now().Unix())
+		u.Cost, u.Currency, u.Credits, time.Now().Unix())
 	return err
+}
+
+// CreditsUsedInWindow sums the timed credits a user has spent since the given
+// window start — used to seed the cold credit-window cache and compute remaining
+// timed credits (§ credits). usage_logs.credits holds ONLY the timed portion of a
+// charge; permanent-credit debits live on the user row, so this is purely the
+// timed-window consumption.
+func CreditsUsedInWindow(ctx context.Context, db *sql.DB, userID string, sinceUnix int64) (float64, error) {
+	var c sql.NullFloat64
+	err := db.QueryRowContext(ctx,
+		`SELECT COALESCE(SUM(credits),0) FROM usage_logs WHERE user_id=? AND created_at>=?`,
+		userID, sinceUnix).Scan(&c)
+	return c.Float64, err
 }
 
 func nullable(s string) any {

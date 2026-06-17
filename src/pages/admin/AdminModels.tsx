@@ -11,7 +11,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { Plus, Settings as SettingsIcon, Trash2, ArrowUp, ArrowDown, GripVertical } from 'lucide-react'
+import { Plus, Settings as SettingsIcon, Trash2, ArrowUp, ArrowDown, GripVertical, Tags as TagsIcon } from 'lucide-react'
 import { adminApi, ApiError } from '@/api'
 import type { ApiChannel, ApiModel } from '@/api/types'
 import { Button } from '@/components/ui/button'
@@ -203,9 +203,18 @@ export default function AdminModels() {
           <h1 className="font-serif text-3xl tracking-tight text-[var(--color-fg)]">{t('admin:models.title')}</h1>
           <p className="mt-2 text-[var(--color-fg-muted)] text-sm max-w-2xl">{t('admin:models.lead')}</p>
         </div>
-        <Button leadingIcon={<Plus size={15} aria-hidden />} onClick={openNew}>
-          {t('admin:models.new')}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="secondary"
+            leadingIcon={<TagsIcon size={15} aria-hidden />}
+            onClick={() => navigate('/admin/model-tags')}
+          >
+            {t('admin:modelTags.manage', { defaultValue: 'Manage tags' })}
+          </Button>
+          <Button leadingIcon={<Plus size={15} aria-hidden />} onClick={openNew}>
+            {t('admin:models.new')}
+          </Button>
+        </div>
       </header>
 
       <section className="mt-8">

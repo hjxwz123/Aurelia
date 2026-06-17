@@ -5,6 +5,14 @@
   "currentPlan": "Groupe actuel",
   "free": "Gratuit",
   "allPlans": "Tous les groupes",
+  "credits": {
+    "timedTitle": "Crédits temporaires",
+    "permanentTitle": "Crédits permanents",
+    "permanentHint": "Les crédits achetés n’expirent jamais et sont utilisés une fois vos crédits temporaires épuisés.",
+    "resetsOn": "Renouvellement le {{date}}",
+    "topUp": "Recharger des crédits",
+    "topUpUnavailable": "La recharge n’est pas disponible pour le moment."
+  },
   "current": "Actuel",
   "youreOnThis": "Vous êtes dans ce groupe",
   "switchCta": "Changer",

@@ -5,6 +5,14 @@
   "currentPlan": "当前用户组",
   "free": "免费",
   "allPlans": "全部用户组",
+  "credits": {
+    "timedTitle": "限时积分",
+    "permanentTitle": "永久积分",
+    "permanentHint": "购买的积分永不过期，会在限时积分用完后才扣除。",
+    "resetsOn": "{{date}} 刷新",
+    "topUp": "补充积分",
+    "topUpUnavailable": "暂不支持补充。"
+  },
   "current": "当前",
   "youreOnThis": "你正在使用此用户组",
   "switchCta": "切换",

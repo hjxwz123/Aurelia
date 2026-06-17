@@ -5,6 +5,14 @@
   "currentPlan": "現在のグループ",
   "free": "無料",
   "allPlans": "すべてのグループ",
+  "credits": {
+    "timedTitle": "期間限定クレジット",
+    "permanentTitle": "永久クレジット",
+    "permanentHint": "購入したクレジットは失効せず、期間限定クレジットを使い切った後に消費されます。",
+    "resetsOn": "{{date}} に更新",
+    "topUp": "クレジットを補充",
+    "topUpUnavailable": "現在、補充はご利用いただけません。"
+  },
   "current": "現在",
   "youreOnThis": "現在このグループです",
   "switchCta": "切り替える",

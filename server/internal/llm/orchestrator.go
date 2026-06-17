@@ -298,7 +298,8 @@ func (o *Orchestrator) Run(ctx context.Context, req RunRequest, onEvent func(Sse
 	// 2b. Per-model group quota (§ user groups): if the user's group can't use
 	//     this model, or its window quota is exhausted, persist a refusal and
 	//     stop before generating.
-	if msg, ok := o.checkModelQuota(ctx, conv.UserID, model); !ok {
+	msg, ok, payWithCredits := o.checkModelQuota(ctx, conv.UserID, model)
+	if !ok {
 		refusalBlocks, _ := json.Marshal([]UnifiedBlock{{Kind: "text", Text: msg}})
 		_ = store.FinishMessage(ctx, o.db, assistantMsg.ID, store.MessageFinishPatch{
 			Blocks: refusalBlocks, Citations: []byte("[]"), StopReason: "quota_exceeded", Status: "complete",
@@ -730,6 +731,14 @@ func (o *Orchestrator) Run(ctx context.Context, req RunRequest, onEvent func(Sse
 	if extra := tallyTurnSideCosts(ctx, o.db, conv.ID, assistantMsg.ID); extra > 0 {
 		turnTotal += extra
 	}
+	// §credits: when this turn is past the group's free allotment, convert the
+	// full USD spend to credits and debit timed-first-then-permanent. The timed
+	// portion is recorded in usage_logs.credits below so the window survives
+	// restarts.
+	var timedCredits float64
+	if payWithCredits {
+		timedCredits = o.chargeTurnCredits(ctx, conv.UserID, turnTotal)
+	}
 	_ = store.FinishMessage(ctx, o.db, assistantMsg.ID, store.MessageFinishPatch{
 		Blocks:           blocksJSON,
 		Raw:              result.Raw,
@@ -755,6 +764,7 @@ func (o *Orchestrator) Run(ctx context.Context, req RunRequest, onEvent func(Sse
 		CacheWriteTokens: result.Usage.CacheWriteTokens,
 		Cost:             chatCost,
 		Currency:         model.Currency,
+		Credits:          timedCredits,
 	})
 	// Update the fixed-window quota counter for this user+model (§ user groups).
 	o.recordQuotaUsage(ctx, conv.UserID, model, chatCost)

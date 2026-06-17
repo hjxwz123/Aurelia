@@ -56,6 +56,7 @@ export default function AdminUsers() {
   const [editRole, setEditRole] = useState<Role>('user')
   const [editGroup, setEditGroup] = useState('')
   const [editPassword, setEditPassword] = useState('')
+  const [editCredits, setEditCredits] = useState(0)
   const [saving, setSaving] = useState(false)
   // Delete-user confirmation.
   const [deleteRow, setDeleteRow] = useState<ApiUser | null>(null)
@@ -174,6 +175,7 @@ export default function AdminUsers() {
     setEditRole(u.role)
     setEditGroup(u.group_id || (groups.find((g) => g.is_default)?.id ?? ''))
     setEditPassword('')
+    setEditCredits(u.credits_permanent ?? 0)
   }
 
   async function submitEdit() {
@@ -195,6 +197,10 @@ export default function AdminUsers() {
       if (editPassword) {
         await adminApi.setUserPassword(editRow.id, editPassword)
         toast.success(t('admin:users.passwordSet'))
+      }
+      if (editCredits !== (editRow.credits_permanent ?? 0)) {
+        await adminApi.setUserCredits(editRow.id, Math.max(0, editCredits))
+        toast.success(t('admin:users.creditsSaved'))
       }
       setEditRow(null)
       await load()
@@ -423,6 +429,19 @@ export default function AdminUsers() {
                   onChange={(e) => setEditPassword(e.target.value)}
                   placeholder="••••••••"
                   autoComplete="new-password"
+                />
+              </Field>
+              <Field
+                label={t('admin:users.fields.permanentCredits')}
+                htmlFor="e-credits"
+                hint={t('admin:users.fields.permanentCreditsHint')}
+              >
+                <Input
+                  id="e-credits"
+                  type="number"
+                  min={0}
+                  value={String(editCredits)}
+                  onChange={(e) => setEditCredits(Math.max(0, Number(e.target.value) || 0))}
                 />
               </Field>
             </div>

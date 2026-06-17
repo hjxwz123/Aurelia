@@ -31,6 +31,8 @@ export interface ApiUser {
   has_password?: boolean
   /** Unix seconds of last authenticated activity. Drives admin online status. */
   last_seen_at?: number
+  /** Non-expiring credit balance (§ credits) — admin-editable on the users page. */
+  credits_permanent?: number
   /** Capability flags from the user's group (e.g. "research"). Populated on the
    *  /api/me response so the client can gate features. */
   features?: string[]
@@ -127,6 +129,12 @@ export interface ApiUserGroup {
   /** Max projects / knowledge bases a member may create. 0 = unlimited. */
   max_projects: number
   max_kbs: number
+  /** Credit system (§ credits): USD→credit ratio, timed allowance + refresh
+   *  cycle (unused voided), and the top-up link for permanent credits. */
+  credits_per_usd: number
+  credit_allowance: number
+  credit_period_seconds: number
+  credit_buy_url: string
   created_at: number
   updated_at: number
 }
@@ -264,8 +272,11 @@ export interface ApiModel {
   currency: string
   dim: number
   updated_at: number
-  /** True when the model is restricted and the user's group has no grant (§ user groups). */
-  locked?: boolean
+  /** True when the model has no free allotment left for the user's group, so it's
+   *  charged in credits (§ credits). The picker shows the multiplier, not a lock. */
+  uses_credits?: boolean
+  /** Relative credit rate = (price_input + price_output) / 5, one decimal (§ credits). */
+  multiplier?: number
 }
 
 export interface ApiSkill {
@@ -317,6 +328,14 @@ export interface ApiDocument {
   error: string
   chunk_count: number
   created_at: number
+}
+
+/** Credit balance for the subscription page (§ credits). */
+export interface ApiCredits {
+  enabled: boolean
+  timed?: { remaining: number; allowance: number; period_seconds: number; resets_at: number }
+  permanent: number
+  buy_url?: string
 }
 
 /** A file referenced by a conversation (§ conversation files drawer). */

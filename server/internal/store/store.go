@@ -113,6 +113,14 @@ func Migrate(db *sql.DB) error {
 	// create. 0 = unlimited.
 	addGroupMaxProjects := `ALTER TABLE user_groups ADD COLUMN max_projects INTEGER NOT NULL DEFAULT 0`
 	addGroupMaxKBs := `ALTER TABLE user_groups ADD COLUMN max_kbs INTEGER NOT NULL DEFAULT 0`
+	// Credit system (§ credits): per-group USD↔credit ratio, timed allowance +
+	// refresh cycle, top-up link; per-user non-expiring balance; per-row charge.
+	addGroupCreditsPerUSD := `ALTER TABLE user_groups ADD COLUMN credits_per_usd REAL NOT NULL DEFAULT 0`
+	addGroupCreditAllowance := `ALTER TABLE user_groups ADD COLUMN credit_allowance REAL NOT NULL DEFAULT 0`
+	addGroupCreditPeriod := `ALTER TABLE user_groups ADD COLUMN credit_period_seconds INTEGER NOT NULL DEFAULT 0`
+	addGroupCreditBuyURL := `ALTER TABLE user_groups ADD COLUMN credit_buy_url TEXT NOT NULL DEFAULT ''`
+	addUserPermCredits := `ALTER TABLE users ADD COLUMN credits_permanent REAL NOT NULL DEFAULT 0`
+	addUsageCredits := `ALTER TABLE usage_logs ADD COLUMN credits REAL NOT NULL DEFAULT 0`
 	if usePostgres {
 		schema = schemaPGSQL
 		addImageRef = `ALTER TABLE chunks ADD COLUMN IF NOT EXISTS image_ref TEXT`
@@ -139,6 +147,12 @@ func Migrate(db *sql.DB) error {
 		addModelTags = `ALTER TABLE models ADD COLUMN IF NOT EXISTS tags TEXT NOT NULL DEFAULT '[]'`
 		addGroupMaxProjects = `ALTER TABLE user_groups ADD COLUMN IF NOT EXISTS max_projects INTEGER NOT NULL DEFAULT 0`
 		addGroupMaxKBs = `ALTER TABLE user_groups ADD COLUMN IF NOT EXISTS max_kbs INTEGER NOT NULL DEFAULT 0`
+		addGroupCreditsPerUSD = `ALTER TABLE user_groups ADD COLUMN IF NOT EXISTS credits_per_usd REAL NOT NULL DEFAULT 0`
+		addGroupCreditAllowance = `ALTER TABLE user_groups ADD COLUMN IF NOT EXISTS credit_allowance REAL NOT NULL DEFAULT 0`
+		addGroupCreditPeriod = `ALTER TABLE user_groups ADD COLUMN IF NOT EXISTS credit_period_seconds INTEGER NOT NULL DEFAULT 0`
+		addGroupCreditBuyURL = `ALTER TABLE user_groups ADD COLUMN IF NOT EXISTS credit_buy_url TEXT NOT NULL DEFAULT ''`
+		addUserPermCredits = `ALTER TABLE users ADD COLUMN IF NOT EXISTS credits_permanent REAL NOT NULL DEFAULT 0`
+		addUsageCredits = `ALTER TABLE usage_logs ADD COLUMN IF NOT EXISTS credits REAL NOT NULL DEFAULT 0`
 	}
 	if _, err := db.Exec(schema); err != nil {
 		return fmt.Errorf("apply schema: %w", err)
@@ -156,6 +170,8 @@ func Migrate(db *sql.DB) error {
 		addInlineSource, addInlineParent, addInlineQuote,
 		addModelTags,
 		addGroupMaxProjects, addGroupMaxKBs,
+		addGroupCreditsPerUSD, addGroupCreditAllowance, addGroupCreditPeriod, addGroupCreditBuyURL,
+		addUserPermCredits, addUsageCredits,
 	} {
 		_, _ = db.Exec(ddl)
 	}

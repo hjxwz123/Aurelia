@@ -84,6 +84,31 @@ func setUserGroupAdmin(d Deps, w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]bool{"ok": true})
 }
 
+// setUserCreditsAdmin overwrites a user's permanent (non-expiring) credit balance
+// (§ credits) — the admin edits it on the users page.
+func setUserCreditsAdmin(d Deps, w http.ResponseWriter, r *http.Request) {
+	id := pathParam(r, "id")
+	var req struct {
+		CreditsPermanent float64 `json:"credits_permanent"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, 400, errInvalidInput)
+		return
+	}
+	if req.CreditsPermanent < 0 {
+		req.CreditsPermanent = 0
+	}
+	if _, err := store.FindUserByID(r.Context(), d.DB, id); err != nil {
+		writeError(w, 404, errNotFound)
+		return
+	}
+	if err := store.SetPermanentCredits(r.Context(), d.DB, id, req.CreditsPermanent); err != nil {
+		writeError(w, 500, err)
+		return
+	}
+	writeJSON(w, 200, map[string]any{"ok": true, "credits_permanent": req.CreditsPermanent})
+}
+
 // ===== Per-model group quotas =====
 
 func listModelQuotasAdmin(d Deps, w http.ResponseWriter, r *http.Request) {
