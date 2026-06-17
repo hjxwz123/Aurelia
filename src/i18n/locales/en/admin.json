@@ -336,7 +336,7 @@
       "memoryEnabled": "Memories enabled",
       "signupOpen": "New signups open",
       "registerCaptcha": "Require registration captcha",
-      "registerCaptchaHint": "New sign-ups must solve a short arithmetic question (text only — no image to read).",
+      "registerCaptchaHint": "New sign-ups must solve a slider puzzle (drag the piece into the gap — no text to read).",
       "registerIpDailyLimit": "Daily registrations per IP",
       "registerIpDailyLimitHint": "Max accounts one IP address can create per day. 0 = unlimited.",
       "dailyMessageLimit": "Daily message limit",

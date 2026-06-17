@@ -36,8 +36,17 @@ import type {
 
 export const authApi = {
   signupOpen: () => api<{ open: boolean; captcha_required: boolean }>('/public/signup-open'),
-  /** Fetch a fresh arithmetic captcha (text math question, no image). */
-  captcha: () => api<{ id: string; question: string }>('/public/captcha'),
+  /** Fetch a fresh slider-puzzle captcha (drag the piece into the gap). */
+  captcha: () =>
+    api<{
+      id: string
+      background: string
+      piece: string
+      w: number
+      h: number
+      piece_size: number
+      piece_y: number
+    }>('/public/captcha'),
   /** Whether the deployment still needs its first-run setup (zero users). */
   needsSetup: () => api<{ needs_setup: boolean }>('/public/needs-setup'),
   /** Create the first account (admin) on a fresh deployment, then sign in. */

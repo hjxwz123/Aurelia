@@ -17,8 +17,8 @@ import (
 )
 
 // signupOpenHandler reports whether new registrations are accepted, and whether
-// the registration form must solve the arithmetic captcha. The client reads both
-// up front so it can render the captcha field only when needed.
+// the registration form must solve the slider-puzzle captcha. The client reads
+// both up front so it can render the captcha only when needed.
 func signupOpenHandler(d Deps, w http.ResponseWriter, _ *http.Request) {
 	open := true
 	if raw, err := store.GetSetting(d.DB, "signup_open"); err == nil {
@@ -31,34 +31,7 @@ func signupOpenHandler(d Deps, w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, 200, map[string]bool{"open": open, "captcha_required": captcha})
 }
 
-// captchaHandler issues a fresh arithmetic captcha: a small "a + b" / "a × b"
-// question (text only — deliberately NOT an image/OCR challenge). The answer is
-// cached under a random id for 10 minutes and consumed on first use by the
-// register handler.
-func captchaHandler(d Deps, w http.ResponseWriter, _ *http.Request) {
-	a := randN(9) + 1
-	b := randN(9) + 1
-	op, ans := "+", a+b
-	if randN(2) == 0 {
-		op, ans = "×", a*b
-	}
-	id := randToken(12)
-	d.Cache.Set("captcha:"+id, fmt.Sprintf("%d", ans), 10*time.Minute)
-	writeJSON(w, 200, map[string]string{"id": id, "question": fmt.Sprintf("%d %s %d", a, op, b)})
-}
-
-// randN returns a crypto-random int in [0, n). Falls back to 0 only if the OS
-// entropy source is unavailable (the captcha stays well-formed, just weaker).
-func randN(n int) int {
-	if n <= 0 {
-		return 0
-	}
-	v, err := rand.Int(rand.Reader, big.NewInt(int64(n)))
-	if err != nil {
-		return 0
-	}
-	return int(v.Int64())
-}
+// The slider-puzzle captcha (generation + verification) lives in captcha.go.
 
 // needsSetupHandler reports whether the deployment still needs its first-run
 // setup — i.e. there are zero user accounts. The client routes to the setup
@@ -185,9 +158,7 @@ func registerHandler(d Deps, w http.ResponseWriter, r *http.Request) {
 		_ = json.Unmarshal(raw, &captchaRequired)
 	}
 	if captchaRequired {
-		saved, ok := d.Cache.Get("captcha:" + req.CaptchaID)
-		d.Cache.Delete("captcha:" + req.CaptchaID)
-		if !ok || strings.TrimSpace(req.CaptchaAnswer) != saved {
+		if !verifyPuzzleCaptcha(d, req.CaptchaID, req.CaptchaAnswer) {
 			writeError(w, 400, errCaptcha)
 			return
 		}
