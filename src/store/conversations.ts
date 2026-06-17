@@ -663,6 +663,7 @@ export const useConversations = create<ConversationStore>((set, get) => ({
             updateAssistant(set, input.conversationId, serverAssistantId, (m) => ({
               ...m,
               streaming: false,
+              credits: ev.credits && ev.credits > 0 ? ev.credits : m.credits,
               moderation: ev.stop_reason === 'content_moderation' ? true : m.moderation,
               quotaExceeded: ev.stop_reason === 'quota_exceeded' ? true : m.quotaExceeded,
             }))
@@ -1193,6 +1194,7 @@ export function toLocalMessage(m: ApiMessage): Message {
     createdAt: m.created_at * 1000,
     streaming: m.status === 'streaming',
     cost: m.cost > 0 ? m.cost : undefined,
+    credits: m.credits && m.credits > 0 ? m.credits : undefined,
     genMs: m.gen_ms && m.gen_ms > 0 ? m.gen_ms : undefined,
     currency: m.currency || undefined,
     citations:

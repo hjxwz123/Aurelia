@@ -429,6 +429,8 @@ export interface ApiMessage {
   cache_write_tokens: number
   cost: number
   currency: string
+  /** Credits charged for this turn (user-facing; 0 = free / credits disabled). */
+  credits?: number
   status: 'streaming' | 'complete' | 'error'
   error: string
   /** User rating on an assistant message: "" | "like" | "dislike". */
@@ -489,7 +491,7 @@ export type ApiSseEvent =
   | { type: 'rag'; status?: string; summary?: string }
   | { type: 'refusal'; message_id?: string; message?: string }
   | { type: 'error'; message: string }
-  | { type: 'done'; stop_reason?: string; usage?: { input_tokens: number; output_tokens: number } }
+  | { type: 'done'; stop_reason?: string; usage?: { input_tokens: number; output_tokens: number }; credits?: number }
   // Deep Research progress (§ deep-research mode).
   | { type: 'research_plan'; message_id?: string; text?: string; summary?: string }
   | { type: 'research_task'; id: string; text?: string; status?: string; name?: string }

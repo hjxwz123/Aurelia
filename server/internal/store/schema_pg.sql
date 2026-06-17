@@ -234,6 +234,7 @@ CREATE TABLE IF NOT EXISTS messages (
   cache_write_tokens BIGINT NOT NULL DEFAULT 0,
   cost               DOUBLE PRECISION NOT NULL DEFAULT 0,
   currency           TEXT NOT NULL DEFAULT 'USD',
+  credits            DOUBLE PRECISION NOT NULL DEFAULT 0,
   status             TEXT NOT NULL DEFAULT 'complete',
   error              TEXT NOT NULL DEFAULT '',
   gen_ms             BIGINT NOT NULL DEFAULT 0,

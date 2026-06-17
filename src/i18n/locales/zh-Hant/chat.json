@@ -47,6 +47,7 @@
   "actions": {
     "copy": "複製",
     "copied": "已複製",
+    "creditsUsed": "消耗 {{credits}} 點數",
     "regenerate": "重新生成",
     "helpful": "有幫助",
     "notHelpful": "無幫助",

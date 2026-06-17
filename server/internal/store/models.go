@@ -234,6 +234,10 @@ type Message struct {
 	CacheWriteTokens int             `json:"cache_write_tokens"`
 	Cost             float64         `json:"cost"`
 	Currency         string          `json:"currency"`
+	// Credits charged to the user for this turn (0 = free / credits disabled).
+	// Unlike Cost (USD spend, admin-only), credits ARE the user-facing currency,
+	// so this is surfaced to the user and not redacted.
+	Credits          float64         `json:"credits"`
 	Status           string          `json:"status"`
 	Error            string          `json:"error"`
 	Feedback         string          `json:"feedback"` // "" | "like" | "dislike" (§ message feedback)
