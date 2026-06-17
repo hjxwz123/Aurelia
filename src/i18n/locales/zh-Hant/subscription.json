@@ -5,6 +5,7 @@
   "currentPlan": "當前使用者組",
   "free": "免費",
   "allPlans": "全部使用者組",
+  "planCount": "{{count}} 個方案",
   "credits": {
     "timedTitle": "限時積分",
     "permanentTitle": "永久積分",

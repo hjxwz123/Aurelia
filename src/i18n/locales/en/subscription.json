@@ -5,6 +5,7 @@
   "currentPlan": "Current group",
   "free": "Free",
   "allPlans": "All groups",
+  "planCount": "{{count}} plans",
   "credits": {
     "timedTitle": "Timed credits",
     "permanentTitle": "Permanent credits",

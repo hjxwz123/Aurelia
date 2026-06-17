@@ -5,6 +5,7 @@
   "currentPlan": "現在のグループ",
   "free": "無料",
   "allPlans": "すべてのグループ",
+  "planCount": "{{count}} 件のプラン",
   "credits": {
     "timedTitle": "期間限定クレジット",
     "permanentTitle": "永久クレジット",
