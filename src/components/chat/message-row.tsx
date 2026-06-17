@@ -20,6 +20,7 @@ import {
   FileSpreadsheet,
   Sparkles,
   BookText,
+  Coins,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import type { Message, Attachment } from '@/types/chat'
@@ -84,6 +85,12 @@ function formatGenMs(ms: number): string {
   const m = Math.floor(ms / 60_000)
   const s = Math.round((ms % 60_000) / 1000)
   return `${m}m${s}s`
+}
+
+// Credits charged for a turn — show up to 2 decimals, trimming trailing zeros so
+// whole amounts read "12" not "12.00".
+function formatCredits(credits: number): string {
+  return credits.toLocaleString(undefined, { maximumFractionDigits: 2 })
 }
 
 export function MessageRow({ message, userName, onRegenerate, onEdit, onSaveEdit, onLike, onDislike, onBranchSwitch, onFork, onDelete }: MessageRowProps) {
@@ -612,6 +619,15 @@ export function MessageRow({ message, userName, onRegenerate, onEdit, onSaveEdit
                     )}
                   </DropdownMenuContent>
                 </DropdownMenu>
+
+                {/* Credits spent on this turn — shown after the action icons for
+                    credit-charged replies (§ credits). Sage = an AI-status moment. */}
+                {!isUser && message.credits && message.credits > 0 ? (
+                  <span className="ml-1.5 inline-flex items-center gap-1 text-[11px] text-[var(--color-secondary)] tabular-nums">
+                    <Coins size={11} aria-hidden />
+                    {t('actions.creditsUsed', { credits: formatCredits(message.credits) })}
+                  </span>
+                ) : null}
           </div>
         ) : null}
         {isUser && (

@@ -47,6 +47,7 @@
   "actions": {
     "copy": "Copy",
     "copied": "Copied",
+    "creditsUsed": "{{credits}} credits used",
     "regenerate": "Regenerate",
     "helpful": "Helpful",
     "notHelpful": "Not helpful",

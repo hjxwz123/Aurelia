@@ -144,6 +144,9 @@ type SseEvent struct {
 	Message    string          `json:"message,omitempty"`
 	ToolID     string          `json:"tool_id,omitempty"`
 	Status     string          `json:"status,omitempty"`
+	// Credits charged for this turn (emitted on the `done` event so the UI can
+	// show "credits used"). 0 = free / credits disabled.
+	Credits float64 `json:"credits,omitempty"`
 }
 
 // ArtifactRef is a file a tool produced (sandbox output, generated image). The

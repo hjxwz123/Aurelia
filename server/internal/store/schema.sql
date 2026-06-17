@@ -247,6 +247,7 @@ CREATE TABLE IF NOT EXISTS messages (
   cache_write_tokens INTEGER NOT NULL DEFAULT 0,
   cost               REAL NOT NULL DEFAULT 0,
   currency           TEXT NOT NULL DEFAULT 'USD',
+  credits            REAL NOT NULL DEFAULT 0,           -- credits charged for this turn (0 = free / credits disabled)
   status             TEXT NOT NULL DEFAULT 'complete', -- complete | streaming | error
   error              TEXT NOT NULL DEFAULT '',
   gen_ms             INTEGER NOT NULL DEFAULT 0,        -- wall-clock generation time (ms)

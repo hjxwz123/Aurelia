@@ -735,9 +735,9 @@ func (o *Orchestrator) Run(ctx context.Context, req RunRequest, onEvent func(Sse
 	// full USD spend to credits and debit timed-first-then-permanent. The timed
 	// portion is recorded in usage_logs.credits below so the window survives
 	// restarts.
-	var timedCredits float64
+	var timedCredits, turnCredits float64
 	if payWithCredits {
-		timedCredits = o.chargeTurnCredits(ctx, conv.UserID, turnTotal)
+		timedCredits, turnCredits = o.chargeTurnCredits(ctx, conv.UserID, turnTotal)
 	}
 	_ = store.FinishMessage(ctx, o.db, assistantMsg.ID, store.MessageFinishPatch{
 		Blocks:           blocksJSON,
@@ -749,6 +749,7 @@ func (o *Orchestrator) Run(ctx context.Context, req RunRequest, onEvent func(Sse
 		CacheReadTokens:  result.Usage.CacheReadTokens,
 		CacheWriteTokens: result.Usage.CacheWriteTokens,
 		Cost:             turnTotal,
+		Credits:          turnCredits,
 		Status:           "complete",
 		GenMs:            time.Since(turnStart).Milliseconds(),
 	})
@@ -794,6 +795,7 @@ func (o *Orchestrator) Run(ctx context.Context, req RunRequest, onEvent func(Sse
 	onEvent(SseEvent{
 		Type: "done", MessageID: assistantMsg.ID,
 		StopReason: result.StopReason, Usage: &usage,
+		Credits: turnCredits,
 	})
 
 	// 13. Async memory extraction (§4.16) — runs after the user has the reply.

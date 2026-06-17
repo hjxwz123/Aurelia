@@ -120,16 +120,18 @@ func (o *Orchestrator) creditDecision(ctx context.Context, userID, groupID strin
 
 // chargeTurnCredits debits a credit-charged turn: timed credits first (so the
 // expiring balance is spent before the permanent one), then permanent. Returns
-// the timed portion charged, which the caller records in usage_logs.credits so
-// the timed window can be reseeded across restarts.
-func (o *Orchestrator) chargeTurnCredits(ctx context.Context, userID string, usdCost float64) float64 {
+// (timed, total): the timed portion — which the caller records in
+// usage_logs.credits so the timed window can be reseeded across restarts — and
+// the total credits charged this turn (timed + permanent), which the caller
+// surfaces to the user as "credits used".
+func (o *Orchestrator) chargeTurnCredits(ctx context.Context, userID string, usdCost float64) (float64, float64) {
 	if usdCost <= 0 {
-		return 0
+		return 0, 0
 	}
 	g, err := store.GetUserGroup(ctx, o.db, o.userGroupID(ctx, userID))
 	ratio := o.creditsPerUSD()
 	if err != nil || g == nil || ratio <= 0 {
-		return 0
+		return 0, 0
 	}
 	credits := usdCost * ratio
 	// Timed credits only exist with an explicit refresh period; otherwise charge
@@ -154,7 +156,7 @@ func (o *Orchestrator) chargeTurnCredits(ctx context.Context, userID string, usd
 	if fromPermanent := credits - fromTimed; fromPermanent > 0 {
 		_ = store.AddPermanentCredits(ctx, o.db, userID, -fromPermanent)
 	}
-	return fromTimed
+	return fromTimed, credits
 }
 
 // creditWindow computes the fixed-window start + ttl for the credit refresh cycle.

@@ -46,6 +46,7 @@
   "actions": {
     "copy": "复制",
     "copied": "已复制",
+    "creditsUsed": "消耗 {{credits}} 积分",
     "regenerate": "重新生成",
     "helpful": "有帮助",
     "notHelpful": "无帮助",
