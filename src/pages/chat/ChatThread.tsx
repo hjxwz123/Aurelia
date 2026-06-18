@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { MoreHorizontal, Pencil, Share2, Star, Trash2, Archive, ArrowDown, FolderKanban, Copy, Check, Globe, Loader2, Menu, Files } from 'lucide-react'
@@ -149,11 +149,32 @@ export default function ChatThread() {
     positionedFor.current = null
   }, [id])
 
-  // Keep the newest message in view. On the FIRST load of a conversation we jump
-  // instantly to the bottom and re-pin across the next few frames — late-laying-out
-  // content (code blocks, math, images) grows the transcript after the effect
-  // fires, and a one-shot smooth scroll would otherwise strand the view near the
-  // top (showing the oldest message). Afterwards we follow the tail smoothly.
+  // Hard-pin the scroller to the bottom across the next few frames. Late-laying-out
+  // content (an empty assistant bubble that fills in, code blocks, math, images)
+  // grows the transcript after the first jump, and a one-shot scroll would strand
+  // the view part-way up — which, with the lazy window, reads as the oldest message.
+  const pinToBottom = useCallback(() => {
+    const el = scrollRef.current
+    if (!el) return () => {}
+    const pin = () => {
+      el.scrollTop = el.scrollHeight
+    }
+    pin()
+    const raf = requestAnimationFrame(() => {
+      pin()
+      requestAnimationFrame(pin)
+    })
+    const tmo = window.setTimeout(pin, 150)
+    return () => {
+      cancelAnimationFrame(raf)
+      clearTimeout(tmo)
+    }
+  }, [])
+
+  // Keep the newest message in view. The first load of a conversation pins
+  // instantly; afterwards we follow the tail smoothly while the user is parked at
+  // the bottom (autoFollow). Sending forces a pin in `submit` directly, so it
+  // never depends on this effect's timing.
   useEffect(() => {
     if (!autoFollow) return
     const el = scrollRef.current
@@ -162,22 +183,10 @@ export default function ChatThread() {
     const firstLoad = positionedFor.current !== conversation.id
     if (firstLoad) {
       positionedFor.current = conversation.id
-      const pin = () => {
-        el.scrollTop = el.scrollHeight
-      }
-      pin()
-      const raf = requestAnimationFrame(() => {
-        pin()
-        requestAnimationFrame(pin)
-      })
-      const tmo = window.setTimeout(pin, 150)
-      return () => {
-        cancelAnimationFrame(raf)
-        clearTimeout(tmo)
-      }
+      return pinToBottom()
     }
     el.scrollTo({ top: el.scrollHeight, behavior: streaming ? 'auto' : 'smooth' })
-  }, [conversation?.id, conversation?.messages, autoFollow, streaming])
+  }, [conversation?.id, conversation?.messages, autoFollow, streaming, pinToBottom])
 
   function handleScroll(e: React.UIEvent<HTMLDivElement>) {
     const el = e.currentTarget
@@ -215,7 +224,12 @@ export default function ChatThread() {
       mode: opts.mode,
       params: opts.params,
     })
+    // Force the view to the freshly appended turn now — don't rely on the
+    // auto-follow effect, whose scroll a content reflow or a stale autoFollow
+    // can defeat (leaving the lazy list parked on the oldest message).
     setAutoFollow(true)
+    setShowJump(false)
+    pinToBottom()
   }
 
   function stopAll() {
