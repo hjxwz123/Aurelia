@@ -29,6 +29,20 @@ type AnthropicProvider struct {
 // ID returns "anthropic".
 func (p *AnthropicProvider) ID() string { return "anthropic" }
 
+// anthropicSupportsThinking reports whether the model's request id is an
+// extended-thinking model. Thinking ships on Claude 3.7 and every Claude 4
+// model; Claude 3.5 and earlier reject the `thinking` field with a 400, so we
+// only default it on for the families that accept it.
+func anthropicSupportsThinking(requestID string) bool {
+	id := strings.ToLower(requestID)
+	for _, p := range []string{"claude-3-7", "claude-3.7", "claude-sonnet-4", "claude-opus-4", "claude-haiku-4", "claude-4"} {
+		if strings.Contains(id, p) {
+			return true
+		}
+	}
+	return false
+}
+
 // Stream runs the Anthropic chat turn (with up to 12 tool iterations).
 func (p *AnthropicProvider) Stream(ctx context.Context, req UnifiedChatRequest, tools ToolRunner, onEvent func(SseEvent)) (*UnifiedResult, error) {
 	if req.Model.APIKey == "" {
@@ -84,12 +98,26 @@ func (p *AnthropicProvider) Stream(ctx context.Context, req UnifiedChatRequest, 
 		}
 		// Apply the model's param_controls (thinking/effort/etc).
 		body = MergeParamControls(body, req.ParamControls, req.ParamOverrides)
-		// Pitfall D6: thinking defaults to display:"omitted" on recent models —
-		// without an explicit "summarized" the streamed thinking text is empty.
-		if th, ok := body["thinking"].(map[string]any); ok {
-			if _, has := th["display"]; !has {
-				th["display"] = "summarized"
+		// Extended thinking (§4.3): on models that support it, request the reasoning
+		// trace by default so the chain-of-thought streams — unless param_controls
+		// already configured `thinking`. Official Anthropic schema is exactly
+		// {type:"enabled", budget_tokens:N}; any extra field (e.g. a "display" key)
+		// is rejected with 400, so we send nothing else.
+		if _, has := body["thinking"]; !has && anthropicSupportsThinking(req.Model.RequestID) {
+			budget := 2048
+			// max_tokens must exceed budget_tokens (thinking spends from the same
+			// budget); give the visible answer headroom on top of the trace.
+			if maxTok < budget+2048 {
+				maxTok = budget + 2048
+				body["max_tokens"] = maxTok
 			}
+			body["thinking"] = map[string]any{"type": "enabled", "budget_tokens": budget}
+			// With thinking on, Anthropic forbids temperature / top_p / top_k
+			// modifications — drop any param_controls may have set so the request
+			// isn't rejected.
+			delete(body, "temperature")
+			delete(body, "top_p")
+			delete(body, "top_k")
 		}
 		buf, _ := json.Marshal(body)
 		httpReq, err := http.NewRequestWithContext(ctx, "POST", base+"/v1/messages", bytes.NewReader(buf))
