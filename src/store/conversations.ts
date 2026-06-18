@@ -696,12 +696,15 @@ export const useConversations = create<ConversationStore>((set, get) => ({
         if (am?.streaming) {
           const hasOutput =
             Boolean(am.content?.trim()) || (am.reasoning?.length ?? 0) > 0 || (am.artifacts?.length ?? 0) > 0
+          // A user-initiated stop is a deliberate halt, not a failure — keep the
+          // partial reply and never show the retry banner.
+          const stopped = abort.signal.aborted
           updateAssistant(set, input.conversationId, serverAssistantId, (m) => ({
             ...m,
             streaming: false,
-            error: hasOutput ? m.error : m.error || 'The reply ended unexpectedly. Please try again.',
+            error: stopped || hasOutput ? m.error : m.error || 'The reply ended unexpectedly. Please try again.',
           }))
-          if (!hasOutput) errored = true
+          if (!hasOutput && !stopped) errored = true
         }
       }
       // Stream finished cleanly — reconcile to the canonical tree path so the
@@ -711,13 +714,15 @@ export const useConversations = create<ConversationStore>((set, get) => ({
       if (!errored) await get().reloadActivePath(input.conversationId)
     } catch (e) {
       // Target the CURRENT server id so the patch lands even after the
-      // message_start re-key; always clear streaming so the spinner stops, and
-      // mark the turn as failed so the bubble shows the red retry banner. We do
+      // message_start re-key; always clear streaming so the spinner stops. A
+      // user-initiated stop aborts the local reader before the terminal `done`
+      // frame arrives — that AbortError is NOT a failure, so keep the partial
+      // reply and skip the retry banner. Otherwise mark the turn failed. We do
       // NOT reconcile here — that would wipe the (client-only) error flag.
       updateAssistant(set, input.conversationId, serverAssistantId, (m) => ({
         ...m,
         streaming: false,
-        error: errorMessage(e),
+        error: abort.signal.aborted ? m.error : errorMessage(e),
       }))
     } finally {
       streamControllers.delete(assistantId)
@@ -902,17 +907,25 @@ export const useConversations = create<ConversationStore>((set, get) => ({
       // siblings with a `< n/m >` picker instead of two stacked bubbles (§4.15).
       await get().reloadActivePath(conversationId)
     } catch (e) {
-      // A mid-stream drop on regenerate must clear the placeholder's
-      // streaming state (by its CURRENT id) so the spinner stops, surface a
-      // toast, and reconcile to the canonical path — mirroring sendMessage
-      // (§ stream-error E7).
-      updateAssistant(set, conversationId, serverAssistantId, (m) => ({
-        ...m,
-        streaming: false,
-        content: m.content + (m.content ? '\n\n' : '') + `*Regeneration interrupted: ${errorMessage(e)}*`,
-      }))
-      toast.error(errorMessage(e, 'Regeneration failed'))
-      await get().reloadActivePath(conversationId)
+      // A user-initiated stop aborts the reader before the terminal frame — keep
+      // the partial reply and reconcile to the server's persisted stopped turn,
+      // without the interrupted note or error toast.
+      if (abort.signal.aborted) {
+        updateAssistant(set, conversationId, serverAssistantId, (m) => ({ ...m, streaming: false }))
+        await get().reloadActivePath(conversationId)
+      } else {
+        // A mid-stream drop on regenerate must clear the placeholder's
+        // streaming state (by its CURRENT id) so the spinner stops, surface a
+        // toast, and reconcile to the canonical path — mirroring sendMessage
+        // (§ stream-error E7).
+        updateAssistant(set, conversationId, serverAssistantId, (m) => ({
+          ...m,
+          streaming: false,
+          content: m.content + (m.content ? '\n\n' : '') + `*Regeneration interrupted: ${errorMessage(e)}*`,
+        }))
+        toast.error(errorMessage(e, 'Regeneration failed'))
+        await get().reloadActivePath(conversationId)
+      }
     } finally {
       streamControllers.delete(assistantId + '-regen')
     }
@@ -1270,7 +1283,11 @@ function errorFromApiMessage(
     m.stop_reason === 'content_filter' ||
     m.stop_reason === 'refusal' ||
     m.stop_reason === 'safety' ||
-    m.stop_reason === 'quota_exceeded'
+    m.stop_reason === 'quota_exceeded' ||
+    // A user-stopped turn is a deliberate halt, not a failure — even if it
+    // produced no content before the stop, never show the retry banner.
+    m.stop_reason === 'stopped' ||
+    m.status === 'stopped'
   const emptyAssistant =
     m.role === 'assistant' &&
     m.status !== 'streaming' &&

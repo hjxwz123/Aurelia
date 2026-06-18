@@ -431,7 +431,7 @@ export interface ApiMessage {
   currency: string
   /** Credits charged for this turn (user-facing; 0 = free / credits disabled). */
   credits?: number
-  status: 'streaming' | 'complete' | 'error'
+  status: 'streaming' | 'complete' | 'error' | 'stopped'
   error: string
   /** User rating on an assistant message: "" | "like" | "dislike". */
   feedback?: string
