@@ -308,6 +308,12 @@ var (
 	ErrRedeemCodeExpired  = errors.New("redeem code expired")
 	ErrRedeemCodeDisabled = errors.New("redeem code disabled")
 	ErrRedeemAlreadyOwned = errors.New("you already redeemed this code")
+	// ErrRedeemNeedsConfirm is returned (with the preview redemption + current
+	// user state, and the transaction rolled back) when the code grants a group
+	// DIFFERENT from the user's current one and the caller didn't pass confirm.
+	// Switching groups overrides the current membership immediately (resets the
+	// window from now — it is NOT a renewal), so the UI must confirm first.
+	ErrRedeemNeedsConfirm = errors.New("redeem needs confirmation")
 )
 
 // RedeemCodeForUser atomically validates the code and grants the configured
@@ -317,7 +323,7 @@ var (
 //
 // If the user is already on a non-default tier, that tier becomes
 // previous_group_id so it can be restored after expiry.
-func RedeemCodeForUser(ctx context.Context, db *sql.DB, userID, raw string) (*RedeemRedemption, *User, error) {
+func RedeemCodeForUser(ctx context.Context, db *sql.DB, userID, raw string, confirm bool) (*RedeemRedemption, *User, error) {
 	code := NormalizeRedeemCode(raw)
 	if code == "" {
 		return nil, nil, ErrRedeemCodeInvalid
@@ -417,7 +423,6 @@ func RedeemCodeForUser(ctx context.Context, db *sql.DB, userID, raw string) (*Re
 		prevGroup = ""
 	}
 
-	// Insert the redemption row.
 	red := RedeemRedemption{
 		ID:              genID("rd"),
 		CodeID:          rc.ID,
@@ -427,6 +432,17 @@ func RedeemCodeForUser(ctx context.Context, db *sql.DB, userID, raw string) (*Re
 		GrantedAt:       now,
 		ExpiresAt:       newExpiresAt,
 	}
+
+	// Switching to a DIFFERENT group overrides the current membership and starts
+	// the window from now (not a renewal). Require explicit confirmation so the
+	// user doesn't unknowingly forfeit time left on their current group. The tx
+	// rolls back here, so nothing is consumed; we return the preview + current
+	// state for the confirm dialog. Same-group redemptions renew/stack silently.
+	if rc.GroupID != u.GroupID && !confirm {
+		return &red, &u, ErrRedeemNeedsConfirm
+	}
+
+	// Insert the redemption row.
 	if _, err := tx.ExecContext(ctx,
 		`INSERT INTO redeem_redemptions(id, code_id, user_id, group_id, previous_group_id, granted_at, expires_at) VALUES(?,?,?,?,?,?,?)`,
 		red.ID, red.CodeID, red.UserID, red.GroupID, red.PreviousGroupID, red.GrantedAt, red.ExpiresAt); err != nil {
