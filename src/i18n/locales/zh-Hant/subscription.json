@@ -35,6 +35,12 @@
     "success": "兌換成功",
     "successBody": "你已加入 {{group}}。",
     "successBodyUntil": "你已加入 {{group}}，有效期至 {{date}}。",
+    "override": {
+      "title": "確認切換方案？",
+      "body": "此兌換碼對應「{{granted}}」，與你目前的「{{current}}」不同。兌換後將立即覆蓋目前方案，並從現在開始重新計算有效期，而不是在原方案上續期。",
+      "bodyUntil": "此兌換碼對應「{{granted}}」，與你目前的「{{current}}」不同。兌換後將立即覆蓋目前方案，並從現在開始重新計算有效期（有效期至 {{date}}），而不是在原方案上續期。",
+      "confirm": "立即切換"
+    },
     "errors": {
       "empty": "請輸入兌換碼",
       "invalid": "該兌換碼無效。",

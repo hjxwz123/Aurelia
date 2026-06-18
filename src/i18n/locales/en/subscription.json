@@ -35,6 +35,12 @@
     "success": "Code redeemed",
     "successBody": "You're now on {{group}}.",
     "successBodyUntil": "You're now on {{group}} — valid until {{date}}.",
+    "override": {
+      "title": "Switch your plan?",
+      "body": "This code is for {{granted}}, which is different from your current {{current}}. Redeeming replaces your current plan immediately and starts a fresh term from now — it does not extend your existing one.",
+      "bodyUntil": "This code is for {{granted}}, which is different from your current {{current}}. Redeeming replaces your current plan immediately and starts a fresh term from now (valid until {{date}}) — it does not extend your existing one.",
+      "confirm": "Switch now"
+    },
     "errors": {
       "empty": "Enter a code",
       "invalid": "This code isn't valid.",

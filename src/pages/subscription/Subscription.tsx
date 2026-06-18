@@ -8,7 +8,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { motion, useReducedMotion, type Variants } from 'framer-motion'
-import { Check, Sparkles, Ticket, Clock, Wallet, Plus, RefreshCw, ArrowUpRight } from 'lucide-react'
+import { Check, Sparkles, Ticket, Clock, Wallet, Plus, RefreshCw, ArrowUpRight, AlertTriangle } from 'lucide-react'
 import { groupsApi, redeemApi, authApi, ApiError } from '@/api'
 import type { ApiUserGroup, ApiCredits } from '@/api/types'
 import { useAuth } from '@/store/auth'
@@ -43,6 +43,9 @@ export default function Subscription() {
   const [redeemCode, setRedeemCode] = useState('')
   const [redeeming, setRedeeming] = useState(false)
   const [redeemSuccess, setRedeemSuccess] = useState<{ group: string; date: string } | null>(null)
+  // Set when the typed code grants a group different from the current one — the
+  // override (immediate, not a renewal) must be confirmed before it applies.
+  const [confirmOverride, setConfirmOverride] = useState<{ code: string; current: string; granted: string; date: string } | null>(null)
 
   useEffect(() => {
     let active = true
@@ -96,26 +99,36 @@ export default function Subscription() {
     return t('subscription:redeem.errors.generic')
   }
 
-  async function submitRedeem() {
-    const code = redeemCode.trim()
-    if (!code) {
-      toast.error(t('subscription:redeem.errors.empty'))
-      return
-    }
+  async function applyRedeem(code: string, confirm: boolean) {
     setRedeeming(true)
     try {
-      const res = await redeemApi.redeem(code)
-      setUser(res.user)
+      const res = await redeemApi.redeem(code, confirm)
+      const date = res.expires_at > 0 ? formatAbsoluteDate(res.expires_at * 1000) : ''
+      // The code grants a different group — confirm the immediate override first.
+      if (res.requires_confirmation) {
+        setConfirmOverride({ code, current: res.current_group_name || '', granted: res.group_name, date })
+        return
+      }
+      if (res.user) setUser(res.user)
       groupsApi.list().then(setGroups).catch(() => undefined)
       authApi.credits().then(setCredits).catch(() => undefined)
       setRedeemCode('')
-      const date = res.expires_at > 0 ? formatAbsoluteDate(res.expires_at * 1000) : ''
+      setConfirmOverride(null)
       setRedeemSuccess({ group: res.group_name, date })
     } catch (e) {
       toast.error(redeemErrorMessage(e))
     } finally {
       setRedeeming(false)
     }
+  }
+
+  function submitRedeem() {
+    const code = redeemCode.trim()
+    if (!code) {
+      toast.error(t('subscription:redeem.errors.empty'))
+      return
+    }
+    void applyRedeem(code, false)
   }
 
   const reduce = useReducedMotion()
@@ -293,6 +306,44 @@ export default function Subscription() {
           <DialogFooter>
             <Button className="w-full" onClick={() => setRedeemSuccess(null)}>
               {t('common:actions.gotIt')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Group-override confirm — the code grants a different tier, which replaces
+          the current one immediately (not a renewal). Require an explicit OK. */}
+      <Dialog open={Boolean(confirmOverride)} onOpenChange={(o) => !o && !redeeming && setConfirmOverride(null)}>
+        <DialogContent size="sm">
+          <DialogHeader>
+            <div className="mx-auto mb-1 inline-flex size-12 items-center justify-center rounded-full bg-[var(--color-warning-soft)] text-[var(--color-warning)]">
+              <AlertTriangle size={22} aria-hidden />
+            </div>
+            <DialogTitle className="text-center">{t('subscription:redeem.override.title')}</DialogTitle>
+            <DialogDescription className="text-center">
+              {confirmOverride
+                ? confirmOverride.date
+                  ? t('subscription:redeem.override.bodyUntil', {
+                      current: confirmOverride.current,
+                      granted: confirmOverride.granted,
+                      date: confirmOverride.date,
+                    })
+                  : t('subscription:redeem.override.body', {
+                      current: confirmOverride.current,
+                      granted: confirmOverride.granted,
+                    })
+                : ''}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" disabled={redeeming} onClick={() => setConfirmOverride(null)}>
+              {t('common:actions.cancel')}
+            </Button>
+            <Button
+              loading={redeeming}
+              onClick={() => confirmOverride && void applyRedeem(confirmOverride.code, true)}
+            >
+              {t('subscription:redeem.override.confirm')}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -173,13 +173,24 @@ export interface ApiRedeemRedemption {
   expires_at: number
 }
 
-/** Result of POST /api/me/redeem. */
+/** Result of POST /api/me/redeem.
+ *
+ *  On a successful redemption `ok` is true and `user` is the updated account.
+ *  When the code grants a group different from the current one and `confirm`
+ *  wasn't passed, the server applies nothing and returns
+ *  `requires_confirmation: true` with both group names so the UI can warn that
+ *  redeeming overrides the current group immediately (not a renewal). */
 export interface ApiRedeemResult {
-  ok: true
-  user: ApiUser
+  ok?: true
+  user?: ApiUser
   group_id: string
   group_name: string
   expires_at: number
+  /** Set when the code would switch groups and needs an explicit confirm. */
+  requires_confirmation?: boolean
+  /** The group the user is currently on (only on the confirmation preview). */
+  current_group_id?: string
+  current_group_name?: string
 }
 
 export interface ApiAuthResponse {

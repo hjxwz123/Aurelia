@@ -35,6 +35,12 @@
     "success": "Code utilisé",
     "successBody": "Vous êtes maintenant dans {{group}}.",
     "successBodyUntil": "Vous êtes maintenant dans {{group}} — valide jusqu’au {{date}}.",
+    "override": {
+      "title": "Changer de forfait ?",
+      "body": "Ce code concerne {{granted}}, différent de votre forfait actuel {{current}}. L’utiliser remplace immédiatement votre forfait et démarre une nouvelle période dès maintenant — il ne prolonge pas l’actuel.",
+      "bodyUntil": "Ce code concerne {{granted}}, différent de votre forfait actuel {{current}}. L’utiliser remplace immédiatement votre forfait et démarre une nouvelle période dès maintenant (valide jusqu’au {{date}}) — il ne prolonge pas l’actuel.",
+      "confirm": "Changer maintenant"
+    },
     "errors": {
       "empty": "Saisissez un code",
       "invalid": "Ce code n’est pas valide.",

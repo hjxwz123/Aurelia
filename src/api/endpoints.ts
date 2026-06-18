@@ -155,9 +155,14 @@ export const groupsApi = {
 export const redeemApi = {
   /** Apply a code on behalf of the signed-in user. Throws ApiError on failure
    *  with `error` field one of: code_invalid | code_expired | code_used |
-   *  code_already_owned | code_disabled. */
-  redeem: (code: string) =>
-    api<ApiRedeemResult>('/me/redeem', { method: 'POST', body: { code } }),
+   *  code_already_owned | code_disabled.
+   *
+   *  When the code grants a group DIFFERENT from the user's current one, the
+   *  first call (confirm omitted) returns `{ requires_confirmation: true, … }`
+   *  WITHOUT applying anything — call again with `confirm: true` to override the
+   *  current group immediately (not a renewal). */
+  redeem: (code: string, confirm = false) =>
+    api<ApiRedeemResult>('/me/redeem', { method: 'POST', body: { code, confirm } }),
 }
 
 // ----- Audio (speech-to-text) ----------------------------------------------
