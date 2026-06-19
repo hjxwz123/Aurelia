@@ -17,6 +17,31 @@ import { toast as _sseToast } from '@/hooks/use-toast'
 
 const API_BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? '/api'
 
+// Per-request HMAC signing. The frontend derives an intermediate key from the
+// JWT + a slow-rotating epoch (changes every hour), then signs ts:nonce:path
+// with it. Every request produces a unique token; the path is bound into the
+// signature so a token captured from one endpoint is invalid on another.
+async function _dk(jwt: string): Promise<CryptoKey> {
+  const raw = new TextEncoder().encode(jwt)
+  const base = await crypto.subtle.importKey('raw', raw, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
+  const epoch = Math.floor(Date.now() / 1000 / 3600)
+  const derived = await crypto.subtle.sign('HMAC', base, new TextEncoder().encode(String(epoch)))
+  return crypto.subtle.importKey('raw', derived, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
+}
+
+async function _sign(jwt: string, ts: number, nonce: string, path: string): Promise<string> {
+  const key = await _dk(jwt)
+  const msg = new TextEncoder().encode(`${ts}\x00${nonce}\x00${path}`)
+  const sig = await crypto.subtle.sign('HMAC', key, msg)
+  return btoa(String.fromCharCode(...new Uint8Array(sig)))
+}
+
+function _nonce(): string {
+  const b = new Uint8Array(16)
+  crypto.getRandomValues(b)
+  return btoa(String.fromCharCode(...b)).replace(/[+/=]/g, (c) => ({ '+': '-', '/': '_', '=': '' })[c]!)
+}
+
 let memoryToken: string | null = null
 
 /** Set or clear the in-memory access token. */
@@ -76,6 +101,13 @@ async function apiRequest<T>(path: string, opts: ApiOptions, retried: boolean): 
     ...(isForm ? {} : { 'content-type': 'application/json' }),
     ...(memoryToken ? { authorization: `Bearer ${memoryToken}` } : {}),
     ...opts.headers,
+  }
+  if (memoryToken) {
+    const ts = Math.floor(Date.now() / 1000)
+    const nonce = _nonce()
+    headers['x-req-ts'] = String(ts)
+    headers['x-req-nonce'] = nonce
+    headers['x-req-token'] = await _sign(memoryToken, ts, nonce, path)
   }
   const res = await fetch(API_BASE + path, {
     method: opts.method ?? 'GET',
@@ -155,6 +187,9 @@ export async function* streamSSE(
   body: unknown,
   signal?: AbortSignal,
 ): AsyncGenerator<{ event: string; data: unknown }> {
+  const sseTs = Math.floor(Date.now() / 1000)
+  const sseNonce = _nonce()
+  const sseSig = memoryToken ? await _sign(memoryToken, sseTs, sseNonce, path) : ''
   const open = () =>
     fetch(API_BASE + path, {
       method: 'POST',
@@ -163,6 +198,7 @@ export async function* streamSSE(
         accept: 'text/event-stream',
         'content-type': 'application/json',
         ...(memoryToken ? { authorization: `Bearer ${memoryToken}` } : {}),
+        ...(memoryToken ? { 'x-req-ts': String(sseTs), 'x-req-nonce': sseNonce, 'x-req-token': sseSig } : {}),
       },
       body: JSON.stringify(body),
       signal,
