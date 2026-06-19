@@ -2,10 +2,14 @@ package api
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
 	"errors"
 	"net"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -327,4 +331,53 @@ func checkDailyTokenQuota(d Deps, userID string) bool {
 		`SELECT COALESCE(SUM(input_tokens+output_tokens),0) FROM usage_logs WHERE user_id=? AND created_at>=?`,
 		userID, dayStart).Scan(&used)
 	return used < limit
+}
+
+// requireReqSig wraps a handler to validate the per-request HMAC signature.
+//
+// Scheme (mirrors client.ts):
+//  1. Derive an intermediate key: HMAC-SHA256(jwt, hourly_epoch)
+//  2. Sign the message ts\x00nonce\x00path with the derived key
+//  3. Compare base64(sig) with X-Req-Token
+//
+// The hourly epoch makes the derived key rotate every hour; binding the path
+// into the signed message means a token captured from one endpoint is invalid
+// on any other. X-Req-Ts must be within ±5 minutes to prevent replay.
+func requireReqSig(h handler) handler {
+	return func(d Deps, w http.ResponseWriter, r *http.Request) {
+		raw := readAccessToken(r)
+		ts := r.Header.Get("X-Req-Ts")
+		nonce := r.Header.Get("X-Req-Nonce")
+		token := r.Header.Get("X-Req-Token")
+		if raw == "" || ts == "" || nonce == "" || token == "" {
+			writeError(w, http.StatusForbidden, errors.New("missing request signature"))
+			return
+		}
+		tsInt, err := strconv.ParseInt(ts, 10, 64)
+		if err != nil {
+			writeError(w, http.StatusForbidden, errors.New("invalid request signature"))
+			return
+		}
+		diff := time.Now().Unix() - tsInt
+		if diff > 300 || diff < -60 {
+			writeError(w, http.StatusForbidden, errors.New("request signature expired"))
+			return
+		}
+		// Step 1: derive hourly key from jwt + epoch.
+		epoch := tsInt / 3600
+		base := hmac.New(sha256.New, []byte(raw))
+		base.Write([]byte(strconv.FormatInt(epoch, 10)))
+		derivedKey := base.Sum(nil)
+		// Step 2: sign ts\x00nonce\x00path with derived key.
+		path := r.URL.Path
+		msg := ts + "\x00" + nonce + "\x00" + path
+		mac := hmac.New(sha256.New, derivedKey)
+		mac.Write([]byte(msg))
+		expected := base64.StdEncoding.EncodeToString(mac.Sum(nil))
+		if !hmac.Equal([]byte(expected), []byte(token)) {
+			writeError(w, http.StatusForbidden, errors.New("invalid request signature"))
+			return
+		}
+		h(d, w, r)
+	}
 }
