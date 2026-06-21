@@ -13,6 +13,7 @@
   "composer": {
     "placeholder": "隨便問點什麼——或把你的思考粘進來。",
     "attach": "新增附件",
+    "dropHint": "拖放檔案以上傳",
     "addImage": "新增圖片",
     "voice": "語音輸入",
     "voiceStop": "停止錄音",
