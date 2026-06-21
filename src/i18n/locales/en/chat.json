@@ -13,6 +13,7 @@
   "composer": {
     "placeholder": "Ask anything — or paste your thinking.",
     "attach": "Attach files",
+    "dropHint": "Drop files to attach",
     "addImage": "Add image",
     "voice": "Voice input",
     "voiceStop": "Stop recording",

@@ -110,6 +110,8 @@ export function Composer({
   const [mode, setMode] = useState<'default' | 'deep-research' | 'canvas'>('default')
   const [paramValues, setParamValues] = useState<Record<string, unknown>>({})
   const [kbList, setKBList] = useState<{ id: string; name: string }[]>([])
+  // Drag-and-drop file upload over the composer surface.
+  const [dragOver, setDragOver] = useState(false)
   const loadKBList = async () => {
     try {
       const rows = await kbsApi.list()
@@ -392,13 +394,40 @@ export function Composer({
 
   return (
     <div
+      onDragOver={(e) => {
+        // Only react to file drags; let text/selection drags pass through.
+        if (!Array.from(e.dataTransfer.types).includes('Files')) return
+        e.preventDefault()
+        setDragOver(true)
+      }}
+      onDragLeave={(e) => {
+        // Ignore leave events fired when crossing into a child element.
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragOver(false)
+      }}
+      onDrop={(e) => {
+        if (!Array.from(e.dataTransfer.types).includes('Files')) return
+        e.preventDefault()
+        setDragOver(false)
+        if (e.dataTransfer.files?.length) void handleAttach(e.dataTransfer.files)
+      }}
       className={cn(
         'group/composer relative w-full',
         'rounded-[16px] border border-[var(--color-border)] bg-[var(--color-surface)]',
         'shadow-[var(--shadow-sm)] transition-[border-color,box-shadow] duration-200',
         'focus-within:border-[var(--color-border-strong)] focus-within:shadow-[var(--shadow-md)]',
+        dragOver && 'border-[var(--color-accent)] shadow-[var(--shadow-md)]',
       )}
     >
+      {/* Drag-and-drop overlay — shown while a file is dragged over the composer. */}
+      {dragOver && (
+        <div className="pointer-events-none absolute inset-0 z-[var(--z-raised)] grid place-items-center rounded-[16px] bg-[var(--color-accent-soft)]/80 backdrop-blur-[1px]">
+          <span className="inline-flex items-center gap-2 text-sm font-medium text-[var(--color-accent)]">
+            <Paperclip size={15} aria-hidden />
+            {t('composer.dropHint', { defaultValue: 'Drop files to attach' })}
+          </span>
+        </div>
+      )}
+
       {/* Attachments preview. The armed-mode (research) state is shown by the
           toolbar button below, so we don't repeat a chip above the input. */}
       {attachments.length > 0 && (
