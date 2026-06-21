@@ -13,6 +13,7 @@ import {
   AlertTriangle,
 } from 'lucide-react'
 import type { ReasoningItem, ToolCall } from '@/types/chat'
+import { Markdown } from './markdown'
 import { cn } from '@/lib/utils'
 
 interface ReasoningTraceProps {
@@ -111,26 +112,23 @@ export function ReasoningTrace({ reasoning, streaming = false, settled = false }
         <div className="overflow-hidden">
           <div className="space-y-2 ml-[6px] mt-1.5 pl-3.5 border-l border-[var(--color-divider)]">
             {items.map((it) => {
-              if (it.kind === 'thinking') {
+              if (it.kind === 'thinking' || it.kind === 'narration') {
+                // Render the model's chain-of-thought / narration as full
+                // markdown + LaTeX (reusing the answer renderer) — kept visually
+                // quieter than the final answer: smaller type, muted tone, and a
+                // tighter prose rhythm so it still reads as an aside.
                 return (
-                  <div
+                  <Markdown
                     key={it.id}
-                    className="whitespace-pre-wrap font-mono text-[12px] leading-relaxed text-[var(--color-fg-faint)]"
-                  >
-                    {it.text}
-                  </div>
-                )
-              }
-              if (it.kind === 'narration') {
-                // Pre-tool narration: render as prose (distinct from mono
-                // chain-of-thought) so it reads like the aside it is.
-                return (
-                  <div
-                    key={it.id}
-                    className="whitespace-pre-wrap text-[12.5px] leading-relaxed text-[var(--color-fg-muted)]"
-                  >
-                    {it.text}
-                  </div>
+                    content={it.text}
+                    live={streaming}
+                    className={cn(
+                      '!max-w-none text-[12.5px] !leading-relaxed text-[var(--color-fg-muted)]',
+                      '[&_p]:!mt-1.5 [&_>*+*]:!mt-1.5 [&_p]:text-[var(--color-fg-muted)]',
+                      '[&_li]:text-[var(--color-fg-muted)] [&_h1]:!text-base [&_h2]:!text-[15px] [&_h3]:!text-sm',
+                      '[&_h1]:!mt-2.5 [&_h2]:!mt-2.5 [&_h3]:!mt-2',
+                    )}
+                  />
                 )
               }
               return <ToolStep key={it.id} toolCall={it.tool} />
