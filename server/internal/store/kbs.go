@@ -415,7 +415,14 @@ type Chunk struct {
 // ListChunksInScope returns chunks whose kb_id ∈ kbIDs OR conversation_id =
 // convID. Filename is joined for citation rendering.
 func ListChunksInScope(ctx context.Context, db *sql.DB, kbIDs []string, convID string) ([]Chunk, error) {
-	parts := []string{}
+	// The kb-scope and conv-scope legs are UNION ALL'd rather than OR'd: a chunk
+	// has either kb_id OR conversation_id (promoting a conv doc to a KB nulls the
+	// other), so the legs are disjoint (no duplicates) and each can use its own
+	// index (idx_chunks_kb / idx_chunks_conv) — an `OR` across the two columns
+	// would force a full scan.
+	const cols = `c.id, c.document_id, COALESCE(c.kb_id,''), COALESCE(c.conversation_id,''), c.seq, COALESCE(c.parent_id,''), c.chunk_type, c.content, COALESCE(c.image_ref,''), c.meta, c.embedding, c.embedding_model, d.filename`
+	const from = ` FROM chunks c JOIN documents d ON d.id = c.document_id WHERE `
+	legs := []string{}
 	args := []any{}
 	if len(kbIDs) > 0 {
 		ph := []string{}
@@ -423,17 +430,16 @@ func ListChunksInScope(ctx context.Context, db *sql.DB, kbIDs []string, convID s
 			ph = append(ph, "?")
 			args = append(args, id)
 		}
-		parts = append(parts, "c.kb_id IN ("+strings.Join(ph, ",")+")")
+		legs = append(legs, `SELECT `+cols+from+`c.kb_id IN (`+strings.Join(ph, ",")+`)`)
 	}
 	if convID != "" {
-		parts = append(parts, "c.conversation_id=?")
+		legs = append(legs, `SELECT `+cols+from+`c.conversation_id=?`)
 		args = append(args, convID)
 	}
-	if len(parts) == 0 {
+	if len(legs) == 0 {
 		return nil, nil
 	}
-	q := `SELECT c.id, c.document_id, COALESCE(c.kb_id,''), COALESCE(c.conversation_id,''), c.seq, COALESCE(c.parent_id,''), c.chunk_type, c.content, COALESCE(c.image_ref,''), c.meta, c.embedding, c.embedding_model, d.filename
-		FROM chunks c JOIN documents d ON d.id = c.document_id WHERE ` + strings.Join(parts, " OR ")
+	q := strings.Join(legs, " UNION ALL ")
 	rows, err := db.QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, err

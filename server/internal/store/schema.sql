@@ -228,6 +228,7 @@ CREATE TABLE IF NOT EXISTS conversations (
 );
 CREATE INDEX IF NOT EXISTS idx_conv_user ON conversations(user_id);
 CREATE INDEX IF NOT EXISTS idx_conv_project ON conversations(project_id);
+CREATE INDEX IF NOT EXISTS idx_conv_user_updated ON conversations(user_id, archived, pinned DESC, updated_at DESC);
 
 CREATE TABLE IF NOT EXISTS messages (
   id                 TEXT PRIMARY KEY,
@@ -252,10 +253,16 @@ CREATE TABLE IF NOT EXISTS messages (
   status             TEXT NOT NULL DEFAULT 'complete', -- complete | streaming | error
   error              TEXT NOT NULL DEFAULT '',
   gen_ms             INTEGER NOT NULL DEFAULT 0,        -- wall-clock generation time (ms)
+  -- Plain visible text (the `text` blocks only) projected at write time, so
+  -- content search scans a small column instead of LOWER()-ing the whole blocks
+  -- JSON (which also holds large thinking/tool text). Excludes reasoning/tool/
+  -- image data on purpose.
+  search_text        TEXT NOT NULL DEFAULT '',
   created_at         INTEGER NOT NULL DEFAULT (strftime('%s','now'))
 );
 CREATE INDEX IF NOT EXISTS idx_messages_conv ON messages(conversation_id);
 CREATE INDEX IF NOT EXISTS idx_messages_parent ON messages(parent_id);
+CREATE INDEX IF NOT EXISTS idx_messages_conv_created ON messages(conversation_id, created_at);
 
 -- Public read-only conversation shares. id is the public token used in the
 -- /share/:id link. snapshot is a frozen, cost-stripped JSON copy of the active
