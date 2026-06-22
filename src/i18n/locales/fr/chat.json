@@ -154,6 +154,18 @@
     "previewSandboxHint": "Rendu dans un bac à sable isolé — les scripts de la page ne peuvent pas accéder à vos données.",
     "mermaidFailed": "Impossible d'afficher ce diagramme — affichage de la source."
   },
+  "diagram": {
+    "title": "Diagramme",
+    "hint": "Faites défiler pour zoomer, glissez pour déplacer.",
+    "zoomIn": "Zoom avant",
+    "zoomOut": "Zoom arrière",
+    "reset": "Ajuster à la vue",
+    "fullscreen": "Plein écran",
+    "close": "Fermer",
+    "download": "Télécharger",
+    "downloadPng": "Télécharger en PNG",
+    "downloadSvg": "Télécharger en SVG"
+  },
   "modePill": {
     "deepResearch": "Recherche approfondie",
     "canvas": "Canvas"

@@ -154,6 +154,18 @@
     "previewSandboxHint": "在隔離沙箱中渲染 — 頁面指令碼無法訪問你的資料。",
     "mermaidFailed": "無法渲染該圖表，已顯示原始碼。"
   },
+  "diagram": {
+    "title": "圖表",
+    "hint": "滾輪縮放，拖曳平移。",
+    "zoomIn": "放大",
+    "zoomOut": "縮小",
+    "reset": "符合視窗",
+    "fullscreen": "全螢幕",
+    "close": "關閉",
+    "download": "下載",
+    "downloadPng": "下載 PNG",
+    "downloadSvg": "下載 SVG"
+  },
   "modePill": {
     "deepResearch": "深度研究",
     "canvas": "畫布"

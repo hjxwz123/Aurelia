@@ -154,6 +154,18 @@
     "previewSandboxHint": "隔離されたサンドボックスでレンダリング — ページのスクリプトはあなたのデータにアクセスできません。",
     "mermaidFailed": "この図をレンダリングできませんでした — ソースを表示しています。"
   },
+  "diagram": {
+    "title": "図",
+    "hint": "スクロールで拡大縮小、ドラッグで移動。",
+    "zoomIn": "拡大",
+    "zoomOut": "縮小",
+    "reset": "全体表示",
+    "fullscreen": "全画面",
+    "close": "閉じる",
+    "download": "ダウンロード",
+    "downloadPng": "PNG をダウンロード",
+    "downloadSvg": "SVG をダウンロード"
+  },
   "modePill": {
     "deepResearch": "ディープリサーチ",
     "canvas": "キャンバス"
