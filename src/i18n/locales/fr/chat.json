@@ -220,6 +220,7 @@
   },
   "thread": {
     "loadingEarlier": "Chargement des messages précédents…",
+    "jumpOtherBranch": "Ce message se trouve sur une autre branche de cette conversation.",
     "modelSwitched": "Modèle changé",
     "modelSwitchedBody": "Les prochains messages utiliseront le nouveau modèle.",
     "renamed": "Renommé",
@@ -250,10 +251,12 @@
   "commandMenu": {
     "placeholder": "Rechercher des conversations, lancer une commande…",
     "noMatch": "Aucun résultat.",
+    "searching": "Recherche…",
     "groups": {
       "actions": "Actions",
       "theme": "Thème",
       "conversations": "Conversations",
+      "messages": "Dans les messages",
       "help": "Aide",
       "language": "Langue"
     },

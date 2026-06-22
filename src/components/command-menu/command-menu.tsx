@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
@@ -14,6 +14,7 @@ import {
   HelpCircle,
   Languages,
   FolderKanban,
+  TextSearch,
 } from 'lucide-react'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
 import {
@@ -28,7 +29,8 @@ import {
 } from '@/components/ui/command'
 import { NewProjectDialog } from '@/components/projects/new-project-dialog'
 import { useCommandMenu } from '@/hooks/use-command-menu'
-import { useConversations } from '@/store/conversations'
+import { searchApi, type SearchHit } from '@/api'
+import { useConversations, sameConvListShape } from '@/store/conversations'
 import { useProjects } from '@/store/projects'
 import { useTheme } from '@/store/theme'
 import { useSettings } from '@/store/settings'
@@ -42,7 +44,8 @@ export function CommandMenu() {
   const setOpen = useCommandMenu((s) => s.setOpen)
   const navigate = useNavigate()
   const { t } = useTranslation(['chat', 'projects'])
-  const allConversations = useConversations((s) => s.conversations)
+  // Summary-only subscription (see sidebar): don't re-render per streamed token.
+  const allConversations = useConversations((s) => s.conversations, sameConvListShape)
   const conversations = useMemo(
     () => allConversations.filter((c) => !c.archived && !c.inline),
     [allConversations],
@@ -64,6 +67,64 @@ export function CommandMenu() {
   const currentLang = useLanguage((s) => s.lang)
   const setLang = useLanguage((s) => s.setLang)
   const [newProjectOpen, setNewProjectOpen] = useState(false)
+
+  // ── Content search ────────────────────────────────────────────────────────
+  // The typed query, debounced, drives a backend search over message CONTENT
+  // (not just titles) so a word that only appears deep inside a conversation is
+  // still findable. Title matches still come from cmdk's local filter above.
+  const [query, setQuery] = useState('')
+  const [msgHits, setMsgHits] = useState<SearchHit[]>([])
+  // Backend title hits cover conversations not in the local cache (a heavy user
+  // has only the first page loaded), which cmdk's local title filter can't see.
+  const [titleHits, setTitleHits] = useState<SearchHit[]>([])
+  const [searching, setSearching] = useState(false)
+  const seq = useRef(0)
+  useEffect(() => {
+    const q = query.trim()
+    if (q.length < 2) {
+      setMsgHits([])
+      setTitleHits([])
+      setSearching(false)
+      return
+    }
+    const mine = ++seq.current
+    setSearching(true)
+    const tmo = setTimeout(() => {
+      void searchApi
+        .query(q)
+        .then((res) => {
+          // Ignore out-of-order responses (a newer keystroke already fired).
+          if (mine !== seq.current) return
+          setMsgHits(res.messages)
+          setTitleHits(res.titles)
+          setSearching(false)
+        })
+        .catch(() => {
+          if (mine !== seq.current) return
+          setMsgHits([])
+          setTitleHits([])
+          setSearching(false)
+        })
+    }, 200)
+    return () => clearTimeout(tmo)
+  }, [query])
+  // Reset the query whenever the menu closes so it reopens clean.
+  useEffect(() => {
+    if (!open) {
+      setQuery('')
+      setMsgHits([])
+      setTitleHits([])
+      setSearching(false)
+    }
+  }, [open])
+
+  // Title hits for conversations NOT already shown in the local list (dedupe),
+  // so >200-conversation users can still find chats by title.
+  const extraTitleHits = useMemo(() => {
+    if (titleHits.length === 0) return []
+    const localIds = new Set(conversations.map((c) => c.id))
+    return titleHits.filter((h) => !localIds.has(h.conversation_id))
+  }, [titleHits, conversations])
 
   function run(fn: () => void | Promise<void>) {
     setOpen(false)
@@ -96,9 +157,22 @@ export function CommandMenu() {
         >
           <DialogPrimitive.Title className="sr-only">{t('chat:commandMenu.title')}</DialogPrimitive.Title>
           <Command>
-            <CommandInput placeholder={t('chat:commandMenu.placeholder')} autoFocus />
+            <CommandInput
+              placeholder={t('chat:commandMenu.placeholder')}
+              autoFocus
+              value={query}
+              onValueChange={setQuery}
+            />
             <CommandList>
-              <CommandEmpty>{t('chat:commandMenu.noMatch')}</CommandEmpty>
+              {/* While a content search is in flight, don't flash "No results" —
+                  cmdk would otherwise show it during the debounce + request. */}
+              {searching ? (
+                <div className="px-3 py-10 text-center text-sm text-[var(--color-fg-muted)]">
+                  {t('chat:commandMenu.searching', { defaultValue: 'Searching…' })}
+                </div>
+              ) : (
+                <CommandEmpty>{t('chat:commandMenu.noMatch')}</CommandEmpty>
+              )}
               <CommandGroup heading={t('chat:commandMenu.groups.actions')}>
                 <CommandItem onSelect={() => run(() => navigate('/'))}>
                   <Plus size={14} aria-hidden />
@@ -192,6 +266,61 @@ export function CommandMenu() {
                         <Sparkles size={14} className="text-[var(--color-secondary)]" aria-hidden />
                         {truncate(c.title, 60)}
                         <ArrowRight size={12} className="ml-auto text-[var(--color-fg-subtle)]" aria-hidden />
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </>
+              )}
+
+              {extraTitleHits.length > 0 && (
+                <>
+                  <CommandSeparator />
+                  <CommandGroup heading={t('chat:commandMenu.groups.conversations')}>
+                    {extraTitleHits.slice(0, 8).map((h) => (
+                      <CommandItem
+                        // Query embedded in value so cmdk's local filter keeps it.
+                        key={`title-${h.conversation_id}`}
+                        value={`title ${query} ${h.title} ${h.conversation_id}`}
+                        onSelect={() => run(() => navigate(`/chat/${h.conversation_id}`))}
+                      >
+                        <Sparkles size={14} className="text-[var(--color-secondary)]" aria-hidden />
+                        {truncate(h.title, 60)}
+                        <ArrowRight size={12} className="ml-auto text-[var(--color-fg-subtle)]" aria-hidden />
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </>
+              )}
+
+              {msgHits.length > 0 && (
+                <>
+                  <CommandSeparator />
+                  <CommandGroup heading={t('chat:commandMenu.groups.messages')}>
+                    {msgHits.slice(0, 8).map((h) => (
+                      <CommandItem
+                        // The query is embedded in `value` so cmdk's local filter
+                        // never hides a content hit whose title doesn't match the
+                        // typed text.
+                        key={`msg-${h.message_id}`}
+                        value={`msg ${query} ${h.title} ${h.snippet ?? ''} ${h.message_id}`}
+                        onSelect={() =>
+                          run(() =>
+                            // `j` nonce makes re-selecting the SAME result re-jump
+                            // (otherwise the unchanged ?m= URL is a no-op).
+                            navigate(
+                              `/chat/${h.conversation_id}?m=${encodeURIComponent(h.message_id ?? '')}&j=${Date.now()}`,
+                            ),
+                          )
+                        }
+                      >
+                        <TextSearch size={14} className="shrink-0 text-[var(--color-secondary)]" aria-hidden />
+                        <span className="flex min-w-0 flex-col">
+                          <span className="truncate text-[var(--color-fg)]">{truncate(h.title, 50)}</span>
+                          {h.snippet ? (
+                            <span className="truncate text-[12px] text-[var(--color-fg-muted)]">{h.snippet}</span>
+                          ) : null}
+                        </span>
+                        <ArrowRight size={12} className="ml-auto shrink-0 text-[var(--color-fg-subtle)]" aria-hidden />
                       </CommandItem>
                     ))}
                   </CommandGroup>

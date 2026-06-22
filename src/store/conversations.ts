@@ -12,7 +12,7 @@
  * `Conversation { id, title, modelId, projectId, messages, ... }`.
  * Inside the store we map ApiMessage / ApiConversation into these shapes.
  */
-import { create } from 'zustand'
+import { createWithEqualityFn } from 'zustand/traditional'
 import { ApiError, conversationsApi, streamSSE } from '@/api'
 import type {
   ApiAttachment,
@@ -34,14 +34,42 @@ import type {
 import { uid } from '@/lib/utils'
 import { toast } from '@/hooks/use-toast'
 
+// Sidebar conversation page size. Kept at the server default so users with ≤200
+// conversations load everything up front (no behaviour change); heavier users
+// page in older conversations on scroll via loadMore().
+const CONV_PAGE = 200
+
+// Server-side pagination cursor for the sidebar list. Tracked separately from the
+// cache size so that conversations PREPENDED out-of-order (loadOne of an old chat
+// opened by URL/search, createConversation, fork) can't corrupt the offset and
+// make loadMore skip a real server row. Only ever advances by the number of rows
+// the paged list endpoint actually returned.
+let convServerOffset = 0
+
+// Messages per page when opening a conversation. A bit above the render window
+// (INITIAL_WINDOW=24) so the first screen is full with a little buffer; older
+// pages are fetched on scroll-up via loadOlderMessages().
+export const MSG_PAGE = 40
+
 interface ConversationStore {
   conversations: Conversation[]
   loaded: boolean
   loading: boolean
+  /** True while a loadMore() page is in flight. */
+  loadingMore: boolean
+  /** True when the server reported more conversations beyond what's loaded. */
+  hasMore: boolean
   error: string | null
 
   load: () => Promise<void>
-  loadOne: (id: string) => Promise<Conversation | undefined>
+  /** Append the next page of (older) conversations — sidebar infinite scroll. */
+  loadMore: () => Promise<void>
+  /** Load a conversation. By default only the latest page of messages is
+   *  fetched (older loaded on scroll); pass {full:true} to load the whole active
+   *  path up front (used when jumping to a specific message). */
+  loadOne: (id: string, opts?: { full?: boolean }) => Promise<Conversation | undefined>
+  /** Prepend the next older page of messages to a conversation (scroll-up). */
+  loadOlderMessages: (id: string) => Promise<void>
 
   createConversation: (modelId?: string, projectId?: string) => Promise<Conversation>
   deleteConversation: (id: string) => Promise<void>
@@ -116,29 +144,56 @@ function stopConversationStreams(convId: string, messages: Message[]): void {
   }
 }
 
-export const useConversations = create<ConversationStore>((set, get) => ({
+export const useConversations = createWithEqualityFn<ConversationStore>((set, get) => ({
   conversations: [],
   loaded: false,
   loading: false,
+  loadingMore: false,
+  hasMore: false,
   error: null,
 
   async load() {
     if (get().loading) return
     set({ loading: true, error: null })
     try {
-      const { conversations: rows } = await conversationsApi.list()
+      const { conversations: rows, has_more } = await conversationsApi.list(undefined, CONV_PAGE, 0)
       const conversations = rows.map(toLocalConversation)
-      set({ conversations, loaded: true, loading: false })
+      convServerOffset = rows.length
+      set({ conversations, loaded: true, loading: false, hasMore: has_more })
     } catch (e) {
       set({ error: errorMessage(e, 'Failed to load conversations'), loading: false })
     }
   },
 
-  async loadOne(id) {
+  async loadMore() {
+    const { loading, loadingMore, hasMore } = get()
+    if (loading || loadingMore || !hasMore) return
+    set({ loadingMore: true })
     try {
-      const resp = await conversationsApi.get(id)
+      // Page from the tracked server cursor (NOT the cache size), so out-of-order
+      // prepends can't skip a real row. Advance the cursor by the rows the server
+      // returned; the `seen` filter only de-dupes what we add to the cache.
+      const { conversations: rows, has_more } = await conversationsApi.list(undefined, CONV_PAGE, convServerOffset)
+      convServerOffset += rows.length
+      set((s) => {
+        const seen = new Set(s.conversations.map((c) => c.id))
+        const fresh = rows.map(toLocalConversation).filter((c) => !seen.has(c.id))
+        return { conversations: [...s.conversations, ...fresh], loadingMore: false, hasMore: has_more }
+      })
+    } catch {
+      set({ loadingMore: false })
+    }
+  },
+
+  async loadOne(id, opts) {
+    try {
+      // Paginate by default (latest MSG_PAGE messages); load the whole path when
+      // a caller needs every message present up front (e.g. jump-to-message).
+      const resp = await conversationsApi.get(id, opts?.full ? undefined : { limit: MSG_PAGE })
       const conv = toLocalConversation(resp.conversation)
       conv.messages = resp.messages.map(toLocalMessage)
+      conv.hasOlder = !opts?.full && Boolean(resp.has_more)
+      conv.olderCursor = resp.next_before
       set((s) => {
         // Guard against a race where sendMessage already optimistically
         // appended messages (including a streaming assistant placeholder)
@@ -147,11 +202,14 @@ export const useConversations = create<ConversationStore>((set, get) => ({
         // up-to-date than what the backend returned.
         const existing = s.conversations.find((c) => c.id === id)
         if (existing && existing.messages.length > 0 && existing.messages.some((m) => m.streaming)) {
-          // Merge metadata (title, modelId, etc.) but keep local messages.
+          // Merge metadata (title, modelId, etc.) but keep local messages +
+          // whatever pagination state the local copy already had.
           const merged: Conversation = {
             ...conv,
             messages: existing.messages,
             lastParams: existing.lastParams,
+            hasOlder: existing.hasOlder,
+            olderCursor: existing.olderCursor,
           }
           return { conversations: replaceOrPrepend(s.conversations, merged) }
         }
@@ -160,6 +218,32 @@ export const useConversations = create<ConversationStore>((set, get) => ({
       return conv
     } catch {
       return undefined
+    }
+  },
+
+  async loadOlderMessages(id) {
+    const c = get().conversations.find((cv) => cv.id === id)
+    if (!c || !c.hasOlder || !c.olderCursor) return
+    try {
+      const resp = await conversationsApi.get(id, { limit: MSG_PAGE, before: c.olderCursor })
+      const older = resp.messages.map(toLocalMessage)
+      set((s) => ({
+        conversations: s.conversations.map((cv) => {
+          if (cv.id !== id) return cv
+          // Prepend, de-duping against what we already hold (a concurrent
+          // reconcile could have re-added some).
+          const seen = new Set(cv.messages.map((m) => m.id))
+          const fresh = older.filter((m) => !seen.has(m.id))
+          return {
+            ...cv,
+            messages: [...fresh, ...cv.messages],
+            hasOlder: Boolean(resp.has_more),
+            olderCursor: resp.next_before,
+          }
+        }),
+      }))
+    } catch {
+      /* non-fatal: older messages just stay unloaded */
     }
   },
 
@@ -320,10 +404,13 @@ export const useConversations = create<ConversationStore>((set, get) => ({
     stopConversationStreams(conversationId, cur?.messages ?? [])
     try {
       const resp = await conversationsApi.deleteMessage(conversationId, messageId)
-      // The response carries the refreshed active path; swap it in.
+      // The response carries the refreshed (full) active path; swap it in and
+      // clear pagination state since everything is loaded.
       set((s) => ({
         conversations: s.conversations.map((c) =>
-          c.id === conversationId ? { ...c, messages: resp.messages.map(toLocalMessage) } : c,
+          c.id === conversationId
+            ? { ...c, messages: resp.messages.map(toLocalMessage), hasOlder: false, olderCursor: undefined }
+            : c,
         ),
       }))
     } catch (e) {
@@ -382,15 +469,26 @@ export const useConversations = create<ConversationStore>((set, get) => ({
     const cur = get().conversations.find((c) => c.id === id)
     if (!cur || cur.messages.some((m) => m.streaming)) return
     try {
-      const resp = await conversationsApi.get(id)
+      // Post-turn reconcile fetches only the LATEST page (the just-finished turn
+      // is at the tail), so the cost is bounded by MSG_PAGE rather than the whole
+      // thread length. Older messages are re-fetched on scroll-up if needed.
+      const resp = await conversationsApi.get(id, { limit: MSG_PAGE })
       const messages = resp.messages.map(toLocalMessage)
       set((s) => ({
         conversations: s.conversations.map((c) =>
           c.id !== id
             ? c
-            : // Keep client-only fields (lastParams); swap in the canonical
-              // tree path + any freshly generated title.
-              { ...c, title: resp.conversation.title || c.title, messages },
+            : {
+                ...c,
+                title: resp.conversation.title || c.title,
+                // Adopt the server's fresh updated_at so a regenerated/edited
+                // conversation rises to the top of the sidebar (the optimistic
+                // path bumps it on send but NOT on regenerate).
+                updatedAt: resp.conversation.updated_at ? resp.conversation.updated_at * 1000 : c.updatedAt,
+                messages,
+                hasOlder: Boolean(resp.has_more),
+                olderCursor: resp.next_before,
+              },
         ),
       }))
     } catch {
@@ -783,7 +881,9 @@ export const useConversations = create<ConversationStore>((set, get) => ({
           const base = userParentId
             ? truncateToParent(c.messages, userParentId)
             : c.messages.filter((m) => m.id !== assistantId)
-          return { ...c, messages: [...base, placeholder] }
+          // Bump updatedAt so a regenerated conversation floats to the top of the
+          // sidebar immediately (parity with sendMessage).
+          return { ...c, messages: [...base, placeholder], updatedAt: Date.now() }
         }),
       }))
       const toolCallsById = new Map<string, ToolCall>()
@@ -1408,9 +1508,45 @@ function updateAssistant(
     conversations: s.conversations.map((c) =>
       c.id !== conversationId
         ? c
-        : { ...c, messages: c.messages.map((m) => (m.id === assistantId ? patch(m) : m)), updatedAt: Date.now() },
+        : // NOTE: do NOT bump updatedAt here. This runs on every streamed token;
+          // changing updatedAt would re-sort the sidebar and (via the summary
+          // equality below) force every list subscriber to re-render 60×/s. The
+          // conversation is already hoisted to the top by sendMessage/regenerate
+          // when the turn starts, which is the only time its position should move.
+          { ...c, messages: c.messages.map((m) => (m.id === assistantId ? patch(m) : m)) },
     ),
   }))
+}
+
+/**
+ * sameConvListShape is an equality fn for list subscribers (sidebar, command
+ * menu) that care about a conversation's SUMMARY — id, title, flags, position —
+ * but NOT its message content. Returning true skips the re-render. This is what
+ * stops the per-token streaming updates (which only mutate `messages`) from
+ * re-running the sidebar's filter/sort/bucket pipeline and reconciling every row.
+ * Pass it as the second arg to useConversations(selector, sameConvListShape).
+ */
+export function sameConvListShape(a: Conversation[], b: Conversation[]): boolean {
+  if (a === b) return true
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i]
+    const y = b[i]
+    if (x === y) continue
+    if (
+      x.id !== y.id ||
+      x.title !== y.title ||
+      x.updatedAt !== y.updatedAt ||
+      x.pinned !== y.pinned ||
+      x.starred !== y.starred ||
+      x.archived !== y.archived ||
+      x.projectId !== y.projectId ||
+      Boolean(x.inline) !== Boolean(y.inline)
+    ) {
+      return false
+    }
+  }
+  return true
 }
 
 /** Used by the legacy mock-data path; preserved so any seed-derived stuff

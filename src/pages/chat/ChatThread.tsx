@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { MoreHorizontal, Pencil, Share2, Star, Trash2, Archive, ArrowDown, FolderKanban, Copy, Check, Globe, Loader2, Menu, Files, GitBranch } from 'lucide-react'
 import { Composer } from '@/components/chat/composer'
@@ -43,6 +43,13 @@ import type { Attachment } from '@/types/chat'
 
 export default function ChatThread() {
   const { id } = useParams<{ id: string }>()
+  // `?m=<messageId>` (set by the command-menu content search) asks the thread to
+  // open scrolled to a specific message instead of pinned to the bottom.
+  const [searchParams] = useSearchParams()
+  const jumpTo = searchParams.get('m') || undefined
+  // Nonce that changes when the user re-selects the same search result, so the
+  // jump re-fires even though the message id (?m=) is unchanged.
+  const jumpKey = searchParams.get('j') || undefined
   const navigate = useNavigate()
   const { t } = useTranslation(['chat', 'common', 'projects'])
   const conversation = useConversations((s) => s.conversations.find((c) => c.id === id))
@@ -144,17 +151,23 @@ export default function ChatThread() {
   useEffect(() => {
     if (!id) return
     setLoadStatus('loading')
-    Promise.all([loadOne(id), loadInlineThreads(id)]).finally(() => {
+    // Jumping to a specific message needs the whole path loaded so the target is
+    // present; a normal open paginates (latest page, older on scroll-up).
+    Promise.all([loadOne(id, { full: Boolean(jumpTo) }), loadInlineThreads(id)]).finally(() => {
       setLoadStatus('done')
     })
-  }, [id, loadOne, loadInlineThreads])
+  }, [id, jumpTo, loadOne, loadInlineThreads])
 
   useEffect(() => {
-    setAutoFollow(true)
+    // When jumping to a specific message, don't auto-follow/pin to the bottom —
+    // MessageList scrolls to the target instead. Mark the conversation as already
+    // positioned so a later scroll-to-bottom follows the tail smoothly rather than
+    // snapping (the bottom-pin first-load path is for fresh opens, not jumps).
+    setAutoFollow(!jumpTo)
     setShowJump(false)
     setOutlineOpen(false)
-    positionedFor.current = null
-  }, [id])
+    positionedFor.current = jumpTo ? (id ?? null) : null
+  }, [id, jumpTo])
 
   // Hard-pin the scroller to the bottom across the next few frames. Late-laying-out
   // content (an empty assistant bubble that fills in, code blocks, math, images)
@@ -386,7 +399,7 @@ export default function ChatThread() {
         data-scroll-root
         className="flex-1 min-h-0 overflow-y-auto scrollbar-thin"
       >
-        <MessageList conversation={conversation} />
+        <MessageList conversation={conversation} scrollToMessageId={jumpTo} jumpKey={jumpKey} />
       </div>
       <InlineThreadLayer conversationId={conversation.id} scrollRef={scrollRef} />
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   Search,
@@ -18,6 +18,7 @@ import {
   ShieldCheck,
   Layers,
   Languages,
+  Loader2,
 } from 'lucide-react'
 import { Logo, LogoMark } from '@/components/brand/logo'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -49,7 +50,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { NewProjectDialog } from '@/components/projects/new-project-dialog'
 import { MoveToProjectSub } from '@/components/projects/move-to-project-menu'
-import { useConversations } from '@/store/conversations'
+import { useConversations, sameConvListShape } from '@/store/conversations'
 import { useProjects } from '@/store/projects'
 import { useSettings } from '@/store/settings'
 import { useAuth } from '@/store/auth'
@@ -79,7 +80,30 @@ export function Sidebar({ variant = 'desktop', onClose }: SidebarProps) {
   const { t: tCommon } = useTranslation('common')
   const { t: tProjects } = useTranslation('projects')
   const { t: tNav } = useTranslation('nav')
-  const allConversations = useConversations((s) => s.conversations)
+  // Gate re-renders on the conversation SUMMARY (title/flags/order), not message
+  // content — so a streaming turn's per-token message updates don't re-run the
+  // filter/sort/bucket pipeline below or reconcile every row (§ perf).
+  const allConversations = useConversations((s) => s.conversations, sameConvListShape)
+  const hasMore = useConversations((s) => s.hasMore)
+  const loadingMore = useConversations((s) => s.loadingMore)
+  const loadMore = useConversations((s) => s.loadMore)
+  // Infinite scroll: reveal older conversations when the sentinel nears view.
+  const listScrollRef = useRef<HTMLDivElement>(null)
+  const loadMoreRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!hasMore) return
+    const node = loadMoreRef.current
+    const root = listScrollRef.current
+    if (!node || !root) return
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) void loadMore()
+      },
+      { root, rootMargin: '300px 0px' },
+    )
+    io.observe(node)
+    return () => io.disconnect()
+  }, [hasMore, loadMore])
   const conversations = useMemo(
     // Sort by last-updated so a conversation jumps to the top the moment the
     // user sends/continues a message in it (sendMessage bumps updatedAt). The
@@ -283,7 +307,7 @@ export function Sidebar({ variant = 'desktop', onClose }: SidebarProps) {
 
       {/* Conversation list */}
       {!collapsed && (
-        <div className="mt-2 flex-1 min-h-0 overflow-y-auto scrollbar-thin">
+        <div ref={listScrollRef} className="mt-2 flex-1 min-h-0 overflow-y-auto scrollbar-thin">
           {starred.length > 0 && (
             <Group label={t('sidebar.starred')} items={starred} currentId={currentId} onSelect={onClose} t={t} />
           )}
@@ -292,6 +316,14 @@ export function Sidebar({ variant = 'desktop', onClose }: SidebarProps) {
               grouped[g].length > 0 && (
                 <Group key={g} label={t(`buckets.${g}`)} items={grouped[g]} currentId={currentId} onSelect={onClose} t={t} />
               ),
+          )}
+          {hasMore && (
+            <div
+              ref={loadMoreRef}
+              className="flex items-center justify-center py-3 text-[11px] text-[var(--color-fg-subtle)]"
+            >
+              {loadingMore ? <Loader2 size={13} className="animate-spin" aria-hidden /> : null}
+            </div>
           )}
           {conversations.length === 0 && (
             <p className="px-4 py-6 text-xs text-[var(--color-fg-subtle)] text-center">

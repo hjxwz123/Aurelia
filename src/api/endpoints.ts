@@ -208,6 +208,26 @@ export const projectsApi = {
     }),
 }
 
+// ----- Search --------------------------------------------------------------
+
+export interface SearchHit {
+  conversation_id: string
+  title: string
+  message_id?: string
+  role?: string
+  snippet?: string
+  created_at: number
+  updated_at: number
+}
+
+export const searchApi = {
+  /** Full-text search over the user's conversation titles + message content. */
+  query: (q: string) =>
+    api<{ query: string; titles: SearchHit[]; messages: SearchHit[] }>(
+      `/search?q=${encodeURIComponent(q)}`,
+    ),
+}
+
 // ----- Conversations + messages -------------------------------------------
 
 export const conversationsApi = {
@@ -219,8 +239,15 @@ export const conversationsApi = {
     api<{ conversations: ApiConversation[]; limit: number; offset: number; has_more: boolean }>(
       `/conversations?archived=only&limit=${limit}&offset=${offset}`,
     ),
-  get: (id: string) =>
-    api<{ conversation: ApiConversation; messages: ApiMessage[] }>(`/conversations/${encodeURIComponent(id)}`),
+  get: (id: string, opts?: { limit?: number; before?: string }) => {
+    const qs = new URLSearchParams()
+    if (opts?.limit) qs.set('limit', String(opts.limit))
+    if (opts?.before) qs.set('before', opts.before)
+    const q = qs.toString()
+    return api<{ conversation: ApiConversation; messages: ApiMessage[]; has_more?: boolean; next_before?: string }>(
+      `/conversations/${encodeURIComponent(id)}${q ? `?${q}` : ''}`,
+    )
+  },
   create: (body: { model_id?: string; project_id?: string; title?: string }) =>
     api<ApiConversation>('/conversations', { method: 'POST', body }),
   update: (id: string, patch: Partial<ApiConversation>) =>

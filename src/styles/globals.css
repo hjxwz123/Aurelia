@@ -265,6 +265,24 @@
   100% { transform: translateX(400%); }
 }
 
+/* Jump-to-message flash (content search → scroll to a specific message). A brief
+ * accent wash around the target row so the eye lands on it after the scroll. */
+@keyframes msg-jump-flash {
+  0%, 100% { background-color: transparent; box-shadow: 0 0 0 0 transparent; }
+  12%      { background-color: var(--color-accent-soft); box-shadow: 0 0 0 6px var(--color-accent-soft); }
+}
+.msg-jump-highlight {
+  border-radius: var(--radius-lg);
+  animation: msg-jump-flash 2.2s var(--ease-out);
+}
+@media (prefers-reduced-motion: reduce) {
+  .msg-jump-highlight {
+    animation: none;
+    outline: 2px solid var(--color-accent);
+    outline-offset: 4px;
+  }
+}
+
 /* Soft enter for new list items / messages. Respects prefers-reduced-motion. */
 @keyframes message-in {
   from { opacity: 0; transform: translateY(4px); }

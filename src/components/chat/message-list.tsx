@@ -1,13 +1,20 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Loader2 } from 'lucide-react'
 import { MessageRow } from './message-row'
-import { useConversations } from '@/store/conversations'
-import type { Attachment, Conversation, Message } from '@/types/chat'
+import { useConversations, MSG_PAGE } from '@/store/conversations'
+import { toast } from '@/hooks/use-toast'
+import type { Attachment, Conversation } from '@/types/chat'
 
 interface MessageListProps {
   conversation: Conversation
+  /** When set, expand the lazy window to include this message, scroll it into
+   *  view, and briefly highlight it (content-search jump). */
+  scrollToMessageId?: string
+  /** Changes when the user re-selects the same search result, forcing a re-jump
+   *  even though scrollToMessageId is unchanged. */
+  jumpKey?: string
 }
 
 // Long transcripts render lazily: only the latest INITIAL_WINDOW turns mount;
@@ -16,7 +23,7 @@ interface MessageListProps {
 const INITIAL_WINDOW = 24
 const BATCH = 24
 
-export function MessageList({ conversation }: MessageListProps) {
+export function MessageList({ conversation, scrollToMessageId, jumpKey }: MessageListProps) {
   const navigate = useNavigate()
   const { t } = useTranslation('chat')
   // Pull stable selectors only — keeps this component out of the per-token
@@ -28,17 +35,13 @@ export function MessageList({ conversation }: MessageListProps) {
   const editMessageInPlace = useConversations((s) => s.editMessageInPlace)
   const setFeedback = useConversations((s) => s.setFeedback)
   const deleteMessage = useConversations((s) => s.deleteMessage)
-
-  // Build an id → message lookup so we can find the parent of an edited
-  // message without scanning per-row.
-  const byId = useMemo(() => {
-    const m = new Map<string, Message>()
-    for (const msg of conversation.messages) m.set(msg.id, msg)
-    return m
-  }, [conversation.messages])
+  const loadOlderMessages = useConversations((s) => s.loadOlderMessages)
 
   // ── Lazy window over the active path ──────────────────────────────────────
   const total = conversation.messages.length
+  // Server has older messages beyond what's loaded (reverse pagination).
+  const hasOlder = Boolean(conversation.hasOlder)
+  const convId = conversation.id
   const [visible, setVisible] = useState(() => Math.min(INITIAL_WINDOW, total))
   // Reset the window whenever we switch conversations.
   useEffect(() => {
@@ -55,92 +58,164 @@ export function MessageList({ conversation }: MessageListProps) {
   const hasMore = start > 0
   const shown = hasMore ? conversation.messages.slice(start) : conversation.messages
 
-  // Reveal older turns when the top sentinel scrolls into view. rootMargin
-  // pre-loads a screen early so the user rarely sees the loader.
+  // Reveal older turns when the top sentinel scrolls into view. Two stages:
+  // first reveal messages already loaded but windowed out (cheap, client-side);
+  // once those are exhausted, fetch the next OLDER page from the server and
+  // reveal it. rootMargin pre-loads a screen early so the loader rarely shows.
   const sentinelRef = useRef<HTMLDivElement>(null)
+  const loadingOlderRef = useRef(false)
   useEffect(() => {
-    if (!hasMore) return
+    if (!hasMore && !hasOlder) return
     const node = sentinelRef.current
     if (!node) return
     const root = node.closest('[data-scroll-root]')
+    const scroller = root as HTMLElement | null
     const io = new IntersectionObserver(
       (entries) => {
-        if (entries[0]?.isIntersecting) setVisible((v) => Math.min(total, v + BATCH))
+        if (!entries[0]?.isIntersecting) return
+        if (hasMore) {
+          setVisible((v) => Math.min(total, v + BATCH))
+        } else if (hasOlder && !loadingOlderRef.current) {
+          // Fetch + reveal the next older page. Capture scroll height BEFORE the
+          // prepend so we can restore the viewport afterwards — this both keeps
+          // the user's reading position (no jump) AND pushes the sentinel out of
+          // the pre-load zone so it doesn't chain-load the whole history.
+          loadingOlderRef.current = true
+          const prevHeight = scroller ? scroller.scrollHeight : 0
+          const prevTop = scroller ? scroller.scrollTop : 0
+          void loadOlderMessages(convId).finally(() => {
+            setVisible((v) => v + MSG_PAGE)
+            // Two rAFs: let React commit the new rows, then anchor scroll.
+            requestAnimationFrame(() =>
+              requestAnimationFrame(() => {
+                if (scroller) scroller.scrollTop = prevTop + (scroller.scrollHeight - prevHeight)
+                loadingOlderRef.current = false
+              }),
+            )
+          })
+        }
       },
       { root, rootMargin: '600px 0px 0px 0px' },
     )
     io.observe(node)
     return () => io.disconnect()
-  }, [hasMore, total])
+  }, [hasMore, hasOlder, total, convId, loadOlderMessages])
 
-  function handleRegenerate(assistantId: string) {
-    void regenerate(conversation.id, assistantId, conversation.modelId)
-  }
-
-  function handleEdit(id: string, newContent: string, attachments?: Attachment[]) {
-    // §4.15 tree semantics: editing a past user message MUST open a NEW
-    // BRANCH under the same parent — not append to the active leaf. We pass
-    // the edited message's parent_id so the orchestrator creates a sibling.
-    // For the root message (no parent), parent_id stays empty and the
-    // orchestrator creates a sibling root.
-    const edited = byId.get(id)
-    const parentId = edited?.parentId ?? ''
-    // Use the edited row's surviving attachments when the editor passed them
-    // (so a removed image is dropped from the resend). Falling back to the
-    // original message preserves the previous behaviour for callers that
-    // didn't carry an attachments list.
-    const carryAtts = attachments ?? edited?.attachments
-    void sendMessage({
-      conversationId: conversation.id,
-      text: newContent,
-      modelId: conversation.modelId,
-      parentId,
-      attachments: carryAtts,
-      // §4.15: an edit always opens a sibling branch under the same parent —
-      // flag it so the store truncates the visible path (handles editing the
-      // ROOT question too, where parentId is empty and append would be wrong).
-      branch: true,
+  // ── Jump-to-message (content search) ──────────────────────────────────────
+  // The active path holds the message in conversation.messages; find its index so
+  // we can pull it inside the lazy window (it may be far above the initial 24).
+  const targetIdx = useMemo(
+    () => (scrollToMessageId ? conversation.messages.findIndex((m) => m.id === scrollToMessageId) : -1),
+    [scrollToMessageId, conversation.messages],
+  )
+  // Grow the window so the target — plus a little context above it — is mounted.
+  useEffect(() => {
+    if (targetIdx < 0) return
+    setVisible((v) => Math.max(v, Math.min(total, total - targetIdx + 3)))
+  }, [targetIdx, total])
+  // If the searched message isn't on the active path (it lives on a sibling
+  // branch the user created by editing/regenerating), the full load won't contain
+  // it — tell the user instead of silently landing nowhere.
+  const notFoundRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!scrollToMessageId || conversation.messages.length === 0 || targetIdx >= 0) return
+    if (notFoundRef.current === scrollToMessageId) return
+    notFoundRef.current = scrollToMessageId
+    toast.info(
+      t('thread.jumpOtherBranch', { defaultValue: 'That message is on a different branch of this conversation.' }),
+    )
+  }, [scrollToMessageId, targetIdx, conversation.messages.length, t])
+  // Once the target is actually in the DOM (window wide enough), scroll it to the
+  // centre and flash a highlight — once per target id.
+  const jumpedRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!scrollToMessageId || targetIdx < 0 || targetIdx < start) return
+    // Key on id + nonce so re-selecting the same result (new jumpKey) re-jumps.
+    const token = `${scrollToMessageId}@${jumpKey ?? ''}`
+    if (jumpedRef.current === token) return
+    const el = document.querySelector(`[data-message-id="${CSS.escape(scrollToMessageId)}"]`)
+    if (!el) return
+    jumpedRef.current = token
+    requestAnimationFrame(() => {
+      el.scrollIntoView({ block: 'center', behavior: 'smooth' })
+      el.classList.add('msg-jump-highlight')
+      window.setTimeout(() => el.classList.remove('msg-jump-highlight'), 2200)
     })
-  }
+  }, [scrollToMessageId, jumpKey, targetIdx, start])
 
-  // "Save" — overwrite the question text in place, then if it already has an
-  // answer, regenerate it (a new branch) so the transcript stays coherent: the
-  // old answer addressed the pre-edit question and would otherwise be orphaned.
-  // The previous answer remains reachable via the `< n/m >` branch switcher.
-  function handleSaveEdit(id: string, newContent: string) {
-    void editMessageInPlace(conversation.id, id, newContent).then(() => {
-      const child = conversation.messages.find((m) => m.parentId === id && m.role === 'assistant')
-      if (child) void regenerate(conversation.id, child.id, conversation.modelId)
-    })
-  }
+  // Handlers are memoised on stable deps (conversation id/model + store actions)
+  // so the per-token `messages` churn during streaming doesn't give MessageRow
+  // new function props — which would defeat its React.memo and re-render every
+  // visible row 60×/s. The two that need the latest message list read it from
+  // the store at call time (a user click) instead of closing over it. (convId is
+  // declared above with the window state.)
+  const modelId = conversation.modelId
 
-  function handleBranchSwitch(leafId: string) {
-    void setActiveLeaf(conversation.id, leafId)
-  }
+  const handleRegenerate = useCallback(
+    (assistantId: string) => void regenerate(convId, assistantId, modelId),
+    [convId, modelId, regenerate],
+  )
 
-  function handleFork(leafId: string) {
-    // §4.15 "fork to new conversation": copy the path ending at this node into a
-    // fresh conversation and take the user there, so the fork is immediately
-    // usable instead of silently appearing in the sidebar.
-    void fork(conversation.id, leafId).then((created) => {
-      if (created) navigate(`/chat/${created.id}`)
-    })
-  }
+  const handleEdit = useCallback(
+    (id: string, newContent: string, attachments?: Attachment[]) => {
+      // §4.15 tree semantics: editing a past user message MUST open a NEW BRANCH
+      // under the same parent. Read the current messages from the store so the
+      // closure stays stable across streamed tokens.
+      const msgs = useConversations.getState().conversations.find((c) => c.id === convId)?.messages
+      const edited = msgs?.find((m) => m.id === id)
+      const parentId = edited?.parentId ?? ''
+      const carryAtts = attachments ?? edited?.attachments
+      void sendMessage({
+        conversationId: convId,
+        text: newContent,
+        modelId,
+        parentId,
+        attachments: carryAtts,
+        branch: true,
+      })
+    },
+    [convId, modelId, sendMessage],
+  )
 
-  // MessageRow passes the desired NEXT state (toggle). An "off" click clears the
-  // rating (""), so a misclick can be undone. The store optimistically reflects
-  // it and reverts on failure.
-  function handleLike(id: string, liked: boolean) {
-    void setFeedback(conversation.id, id, liked ? 'like' : '')
-  }
+  const handleSaveEdit = useCallback(
+    (id: string, newContent: string) => {
+      void editMessageInPlace(convId, id, newContent).then(() => {
+        const msgs = useConversations.getState().conversations.find((c) => c.id === convId)?.messages
+        const child = msgs?.find((m) => m.parentId === id && m.role === 'assistant')
+        if (child) void regenerate(convId, child.id, modelId)
+      })
+    },
+    [convId, modelId, editMessageInPlace, regenerate],
+  )
 
-  function handleDislike(id: string, disliked: boolean) {
-    void setFeedback(conversation.id, id, disliked ? 'dislike' : '')
-  }
+  const handleBranchSwitch = useCallback(
+    (leafId: string) => void setActiveLeaf(convId, leafId),
+    [convId, setActiveLeaf],
+  )
 
-  function handleDelete(id: string) {
-    void deleteMessage(conversation.id, id)
-  }
+  const handleFork = useCallback(
+    (leafId: string) => {
+      void fork(convId, leafId).then((created) => {
+        if (created) navigate(`/chat/${created.id}`)
+      })
+    },
+    [convId, fork, navigate],
+  )
+
+  const handleLike = useCallback(
+    (id: string, liked: boolean) => void setFeedback(convId, id, liked ? 'like' : ''),
+    [convId, setFeedback],
+  )
+
+  const handleDislike = useCallback(
+    (id: string, disliked: boolean) => void setFeedback(convId, id, disliked ? 'dislike' : ''),
+    [convId, setFeedback],
+  )
+
+  const handleDelete = useCallback(
+    (id: string) => void deleteMessage(convId, id),
+    [convId, deleteMessage],
+  )
 
   return (
     <div
@@ -149,7 +224,7 @@ export function MessageList({ conversation }: MessageListProps) {
       aria-atomic="false"
       aria-relevant="additions text"
     >
-      {hasMore ? (
+      {hasMore || hasOlder ? (
         <div ref={sentinelRef} className="flex items-center justify-center py-2 text-[12px] text-[var(--color-fg-subtle)]">
           <Loader2 size={14} className="mr-2 animate-spin" aria-hidden />
           {t('thread.loadingEarlier', { defaultValue: 'Loading earlier messages…' })}
