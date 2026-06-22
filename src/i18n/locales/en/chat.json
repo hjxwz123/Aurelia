@@ -154,6 +154,18 @@
     "previewSandboxHint": "Rendered in an isolated sandbox — page scripts cannot reach your data.",
     "mermaidFailed": "Could not render this diagram — showing source."
   },
+  "diagram": {
+    "title": "Diagram",
+    "hint": "Scroll to zoom, drag to pan.",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "reset": "Fit to view",
+    "fullscreen": "Fullscreen",
+    "close": "Close",
+    "download": "Download",
+    "downloadPng": "Download PNG",
+    "downloadSvg": "Download SVG"
+  },
   "modePill": {
     "deepResearch": "Deep research",
     "canvas": "Canvas"

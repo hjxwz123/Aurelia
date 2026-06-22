@@ -41,12 +41,23 @@ func listConversationsHandler(d Deps, w http.ResponseWriter, r *http.Request) {
 		writeError(w, 500, err)
 		return
 	}
+	for i := range rows {
+		stripServerConvFields(&rows[i])
+	}
 	writeJSON(w, 200, map[string]any{
 		"conversations": rows,
 		"limit":         limit,
 		"offset":        offset,
 		"has_more":      len(rows) == limit,
 	})
+}
+
+// stripServerConvFields zeroes conversation fields that are server-internal and
+// never read by the client. summary_blocks (the §4.7 compaction state) can be
+// large and otherwise ships in every list row, wasting bandwidth and exposing
+// summarised content. Mutates in place; the store layer keeps the real value.
+func stripServerConvFields(c *store.Conversation) {
+	c.SummaryBlocks = json.RawMessage("[]")
 }
 
 // searchHandler runs full-text search over the user's own conversation titles
@@ -205,6 +216,7 @@ func getConversationHandler(d Deps, w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	window, hasMore, nextBefore := paginatePath(msgs, before, limit)
+	stripServerConvFields(conv)
 	// Enrich with sibling indexes so the active-path load carries branch_count /
 	// branch_index / siblings — without this the frontend never sees the
 	// `< n/m >` branch picker on a fresh load or post-stream reconcile (§4.15).
@@ -286,6 +298,7 @@ func updateConversationHandler(d Deps, w http.ResponseWriter, r *http.Request) {
 		writeError(w, 404, errNotFound)
 		return
 	}
+	stripServerConvFields(conv)
 	writeJSON(w, 200, conv)
 }
 
@@ -464,6 +477,7 @@ func setActiveLeafHandler(d Deps, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	msgs, _ := store.ListMessages(r.Context(), d.DB, id, conv.ActiveLeafID)
+	stripServerConvFields(conv)
 	writeJSON(w, 200, map[string]any{
 		"conversation": conv,
 		"messages":     redactCost(enrichWithSiblings(d, r, msgs)),

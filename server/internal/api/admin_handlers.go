@@ -740,6 +740,17 @@ func adminSettingsSet(d Deps, w http.ResponseWriter, r *http.Request) {
 			if json.Unmarshal(v, &s) == nil && s == "••••••" {
 				continue
 			}
+			// §4.7 compaction knobs must be non-negative integers — a negative
+			// token_trigger inverts the early-exit guard and a zero/negative
+			// summary length makes the tiered merge churn the cache every turn.
+			switch k {
+			case "keep_recent_rounds", "summary_max_tokens", "compaction_token_trigger":
+				var n int
+				if json.Unmarshal(v, &n) != nil || n < 0 {
+					writeError(w, 400, errInvalidInput)
+					return
+				}
+			}
 			if err := store.SetSetting(d.DB, k, json.RawMessage(v)); err != nil {
 				writeError(w, 500, err)
 				return

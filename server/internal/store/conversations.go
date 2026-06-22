@@ -530,9 +530,9 @@ type MessageFinishPatch struct {
 	CacheWriteTokens int
 	Cost             float64
 	// Credits charged for this turn (user-facing currency; 0 = free).
-	Credits          float64
-	Status           string
-	Error            string
+	Credits float64
+	Status  string
+	Error   string
 	// GenMs is the wall-clock generation time for the turn (ms), shown per-reply
 	// in the UI.
 	GenMs int64
@@ -730,10 +730,12 @@ func DeleteRound(ctx context.Context, db *sql.DB, convID, userID, msgID string) 
 	// Resolve the round's user message U (and its parent P). Clicking an answer
 	// walks up to its question; clicking the question uses it directly.
 	uID, uParent := m.ID, m.ParentID
+	uCreatedAt := m.CreatedAt
 	roundIsUser := m.Role == "user"
 	if !roundIsUser && m.ParentID != "" {
 		if pu, perr := GetMessage(ctx, db, m.ParentID); perr == nil && pu.Role == "user" {
 			uID, uParent, roundIsUser = pu.ID, pu.ParentID, true
+			uCreatedAt = pu.CreatedAt
 		}
 	}
 
@@ -770,6 +772,20 @@ func DeleteRound(ctx context.Context, db *sql.DB, convID, userID, msgID string) 
 		}
 	}
 
+	// §4.7 privacy/correctness: a summary block may have rolled up the round being
+	// deleted. Drop every block whose [from..anchor] range boundaries on or spans
+	// the deleted round, so deleted content stops being re-injected as a summary
+	// (the verbatim message is gone, but its summarised essence would otherwise
+	// persist and be fed to the model every turn). Re-summarisation happens lazily
+	// off the hot path on the next compacting turn.
+	deletedSet := make(map[string]bool, len(deletable))
+	for _, id := range deletable {
+		deletedSet[id] = true
+	}
+	if err := pruneSummaryBlocksForDeleteTx(ctx, tx, convID, deletedSet, uCreatedAt); err != nil {
+		return "", err
+	}
+
 	// Re-point the active leaf only if it disappeared with the round.
 	var curLeaf string
 	_ = tx.QueryRowContext(ctx, `SELECT COALESCE(active_leaf_id,'') FROM conversations WHERE id=?`, convID).Scan(&curLeaf)
@@ -787,6 +803,66 @@ func DeleteRound(ctx context.Context, db *sql.DB, convID, userID, msgID string) 
 		return "", err
 	}
 	return newLeaf, nil
+}
+
+// msgCreatedAtTx returns a surviving message's created_at within the tx.
+func msgCreatedAtTx(ctx context.Context, tx *sql.Tx, convID, id string) (int64, bool) {
+	if id == "" {
+		return 0, false
+	}
+	var ts int64
+	if err := tx.QueryRowContext(ctx, `SELECT created_at FROM messages WHERE conversation_id=? AND id=?`, convID, id).Scan(&ts); err != nil {
+		return 0, false
+	}
+	return ts, true
+}
+
+// pruneSummaryBlocksForDeleteTx drops §4.7 summary blocks whose [from..anchor]
+// range boundaries on (anchor/from deleted) or spans (deleted round falls inside
+// the range by created_at) a deleted message. Each surviving block is preserved
+// VERBATIM via json.RawMessage passthrough so unrelated blocks keep their
+// level/text/tokens fields intact. Best-effort: a decode failure leaves the
+// column untouched rather than blocking the delete.
+func pruneSummaryBlocksForDeleteTx(ctx context.Context, tx *sql.Tx, convID string, deleted map[string]bool, deletedAt int64) error {
+	var sbRaw string
+	if err := tx.QueryRowContext(ctx, `SELECT COALESCE(summary_blocks,'[]') FROM conversations WHERE id=?`, convID).Scan(&sbRaw); err != nil {
+		return nil
+	}
+	if sbRaw == "" || sbRaw == "[]" {
+		return nil
+	}
+	var raw []json.RawMessage
+	if json.Unmarshal([]byte(sbRaw), &raw) != nil || len(raw) == 0 {
+		return nil
+	}
+	kept := make([]json.RawMessage, 0, len(raw))
+	changed := false
+	for _, br := range raw {
+		var meta struct {
+			AnchorMessageID string `json:"anchor_message_id"`
+			FromMessageID   string `json:"from_message_id"`
+		}
+		_ = json.Unmarshal(br, &meta)
+		drop := deleted[meta.AnchorMessageID] || deleted[meta.FromMessageID]
+		if !drop {
+			fromAt, okF := msgCreatedAtTx(ctx, tx, convID, meta.FromMessageID)
+			anchorAt, okA := msgCreatedAtTx(ctx, tx, convID, meta.AnchorMessageID)
+			if okF && okA && fromAt <= deletedAt && deletedAt <= anchorAt {
+				drop = true // deleted round falls inside this block's summarised range
+			}
+		}
+		if drop {
+			changed = true
+			continue
+		}
+		kept = append(kept, br)
+	}
+	if !changed {
+		return nil
+	}
+	newRaw, _ := json.Marshal(kept)
+	_, err := tx.ExecContext(ctx, `UPDATE conversations SET summary_blocks=? WHERE id=?`, string(newRaw), convID)
+	return err
 }
 
 // childIDsTx lists the direct children of parentID, oldest first.

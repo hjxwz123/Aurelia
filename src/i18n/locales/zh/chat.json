@@ -154,6 +154,18 @@
     "previewSandboxHint": "在隔离沙箱中渲染 — 页面脚本无法访问你的数据。",
     "mermaidFailed": "无法渲染该图表，已显示源代码。"
   },
+  "diagram": {
+    "title": "图表",
+    "hint": "滚轮缩放，拖拽平移。",
+    "zoomIn": "放大",
+    "zoomOut": "缩小",
+    "reset": "适应窗口",
+    "fullscreen": "全屏",
+    "close": "关闭",
+    "download": "下载",
+    "downloadPng": "下载 PNG",
+    "downloadSvg": "下载 SVG"
+  },
   "modePill": {
     "deepResearch": "深度研究",
     "canvas": "画布"

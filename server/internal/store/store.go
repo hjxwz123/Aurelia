@@ -221,6 +221,7 @@ func Seed(db *sql.DB, cfg config.Config) error {
 		"task_model_id":               `""`,
 		"keep_recent_rounds":          `6`,
 		"summary_max_tokens":          `2048`,
+		"compaction_token_trigger":    `32000`,
 		"compaction_enabled":          `true`,
 		"memory_enabled":              `true`,
 		"daily_message_limit":         fmt.Sprintf("%d", cfg.DailyMessages),

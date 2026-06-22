@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
+	"sync"
 	"testing"
 
 	"aurelia/server/internal/store"
@@ -178,5 +180,177 @@ func mustSet(t *testing.T, db *sql.DB, key, jsonVal string) {
 	t.Helper()
 	if _, err := db.Exec(`INSERT INTO settings(key, value) VALUES(?, ?)`, key, jsonVal); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// TestMaybeCompactConcurrentNoDuplicate locks in the lost-update fix: two turns
+// that both read the SAME stale (empty) summary_blocks snapshot — the race from
+// a double-send / regenerate-while-streaming — must not append a duplicate
+// summary for the same message range. The CAS re-read + coverage guard catches it.
+func TestMaybeCompactConcurrentNoDuplicate(t *testing.T) {
+	db, err := sql.Open("sqlite3", ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if _, err := db.Exec(`CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT, updated_at INTEGER)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`CREATE TABLE conversations (id TEXT PRIMARY KEY, summary_blocks TEXT, updated_at INTEGER)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`INSERT INTO conversations(id, summary_blocks) VALUES('c1','[]')`); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SetSetting(db, "compaction_token_trigger", 0); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SetSetting(db, "keep_recent_rounds", 6); err != nil {
+		t.Fatal(err)
+	}
+	hist := buildHistory(16) // cut=4 → summarise m0..m3
+
+	convA := &store.Conversation{ID: "c1", UserID: "u1", SummaryBlocks: json.RawMessage("[]")}
+	if _, b1, err := MaybeCompact(context.Background(), db, nil, convA, hist); err != nil || len(b1) != 1 {
+		t.Fatalf("first compaction: blocks=%v err=%v", b1, err)
+	}
+	// convB read the empty snapshot BEFORE convA wrote — the stale concurrent turn.
+	convB := &store.Conversation{ID: "c1", UserID: "u1", SummaryBlocks: json.RawMessage("[]")}
+	_, b2, err := MaybeCompact(context.Background(), db, nil, convB, hist)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(b2) != 1 {
+		t.Fatalf("stale second compaction duplicated the range: got %d blocks, want 1", len(b2))
+	}
+	var raw string
+	if err := db.QueryRow(`SELECT summary_blocks FROM conversations WHERE id='c1'`).Scan(&raw); err != nil {
+		t.Fatal(err)
+	}
+	var blks []SummaryBlock
+	_ = json.Unmarshal([]byte(raw), &blks)
+	if len(blks) != 1 {
+		t.Fatalf("conversations.summary_blocks has %d blocks, want 1 (lost-update not prevented)", len(blks))
+	}
+}
+
+// TestMaybeCompactConcurrentDeeperCutNoOverlap locks in the overlap fix: a stale
+// concurrent turn that computes a DEEPER cut (it saw more history) than the turn
+// that already wrote must NOT append an OVERLAPPING block (the same early rounds
+// summarised twice). The range-aware coverage check adopts the current blocks and
+// keeps the uncovered tail verbatim instead.
+func TestMaybeCompactConcurrentDeeperCutNoOverlap(t *testing.T) {
+	db, err := sql.Open("sqlite3", ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if _, err := db.Exec(`CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT, updated_at INTEGER)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`CREATE TABLE conversations (id TEXT PRIMARY KEY, summary_blocks TEXT, updated_at INTEGER)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`INSERT INTO conversations(id, summary_blocks) VALUES('c1','[]')`); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SetSetting(db, "compaction_token_trigger", 0); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SetSetting(db, "keep_recent_rounds", 6); err != nil {
+		t.Fatal(err)
+	}
+
+	// Turn A: 16 messages → cut=4 → summarise m0..m3, persisted to the DB.
+	convA := &store.Conversation{ID: "c1", UserID: "u1", SummaryBlocks: json.RawMessage("[]")}
+	if _, b1, err := MaybeCompact(context.Background(), db, nil, convA, buildHistory(16)); err != nil || len(b1) != 1 {
+		t.Fatalf("turn A: blocks=%v err=%v", b1, err)
+	}
+	// Turn B read the empty snapshot but sees 18 messages → a DEEPER cut (m0..m5).
+	convB := &store.Conversation{ID: "c1", UserID: "u1", SummaryBlocks: json.RawMessage("[]")}
+	keepB, b2, err := MaybeCompact(context.Background(), db, nil, convB, buildHistory(18))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(b2) != 1 {
+		t.Fatalf("deeper concurrent cut created overlapping blocks: got %d, want 1", len(b2))
+	}
+	if b2[0].FromMessageID != "m0" || b2[0].AnchorMessageID != "m3" {
+		t.Fatalf("block range = %s..%s, want m0..m3 (not the deeper m0..m5)", b2[0].FromMessageID, b2[0].AnchorMessageID)
+	}
+	// The uncovered tail (m4, m5) must be kept VERBATIM, not silently dropped.
+	if len(keepB) == 0 || keepB[0].ID != "m4" {
+		t.Fatalf("uncovered tail not kept verbatim: keep starts at %+v", keepB)
+	}
+	var raw string
+	if err := db.QueryRow(`SELECT summary_blocks FROM conversations WHERE id='c1'`).Scan(&raw); err != nil {
+		t.Fatal(err)
+	}
+	var blks []SummaryBlock
+	_ = json.Unmarshal([]byte(raw), &blks)
+	if len(blks) != 1 {
+		t.Fatalf("DB has %d blocks, want 1 (overlap persisted)", len(blks))
+	}
+}
+
+// TestPlanCompactionHotPath verifies the synchronous planner makes NO task-model
+// call: it keeps the recent tail verbatim and only signals how to advance.
+func TestPlanCompactionHotPath(t *testing.T) {
+	db, err := sql.Open("sqlite3", ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	conv := &store.Conversation{ID: "c1", UserID: "u1", SummaryBlocks: json.RawMessage("[]")}
+
+	// Short conversation (< keepMsgs=12) → nothing to summarise.
+	keep, blocks, action := PlanCompaction(db, conv, buildHistory(8))
+	if action != compactNone || len(keep) != 8 || len(blocks) != 0 {
+		t.Fatalf("short conv: action=%d keep=%d blocks=%d, want none/8/0", action, len(keep), len(blocks))
+	}
+	// Overflow (> 12, ≤ 36) → advance asynchronously, keep all verbatim this turn.
+	keep2, _, action2 := PlanCompaction(db, conv, buildHistory(20))
+	if action2 != compactAsync || len(keep2) != 20 {
+		t.Fatalf("overflow conv: action=%d keep=%d, want async/20", action2, len(keep2))
+	}
+	// Large cold-start backlog (> 36) → summarise inline to bound the prompt.
+	if _, _, action3 := PlanCompaction(db, conv, buildHistory(40)); action3 != compactInline {
+		t.Fatalf("large backlog: action=%d, want inline", action3)
+	}
+}
+
+// TestEstimateMsgTokensConcurrent exercises the memo under concurrent access so
+// `go test -race` proves the size-bound reset no longer races Load/Store (the
+// previous build reassigned a sync.Map under a bare Load — a data race).
+func TestEstimateMsgTokensConcurrent(t *testing.T) {
+	msgs := make([]store.Message, 64)
+	for i := range msgs {
+		b, _ := json.Marshal([]UnifiedBlock{{Kind: "text", Text: fmt.Sprintf("content %d %d", i, i*7)}})
+		msgs[i] = store.Message{ID: fmt.Sprintf("cm%d", i), Role: "user", Blocks: b}
+	}
+	var wg sync.WaitGroup
+	for g := 0; g < 16; g++ {
+		wg.Add(1)
+		go func(g int) {
+			defer wg.Done()
+			for k := 0; k < 500; k++ {
+				_ = estimateMsgTokens(msgs[(g+k)%len(msgs)])
+			}
+		}(g)
+	}
+	wg.Wait()
+}
+
+// TestEstimateTokensNonLatin guards the estimator against the catastrophic
+// undercount of whitespace-free non-Latin runs (emoji, CJK Ext-B, punctuation).
+func TestEstimateTokensNonLatin(t *testing.T) {
+	if got := estimateTokens(strings.Repeat("😀", 50)); got < 20 {
+		t.Fatalf("50 emoji estimated %d tokens, want ≥20 (was ~2 before the fix)", got)
+	}
+	if got := estimateTokens("、。「」"); got < 4 {
+		t.Fatalf("CJK punctuation estimated %d, want ≥4", got)
+	}
+	if got := estimateTokens(strings.Repeat("\U00020000", 40)); got < 30 {
+		t.Fatalf("40 CJK Ext-B ideographs estimated %d, want ≥30", got)
 	}
 }
