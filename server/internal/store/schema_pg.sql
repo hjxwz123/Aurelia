@@ -215,6 +215,7 @@ CREATE TABLE IF NOT EXISTS conversations (
 );
 CREATE INDEX IF NOT EXISTS idx_conv_user ON conversations(user_id);
 CREATE INDEX IF NOT EXISTS idx_conv_project ON conversations(project_id);
+CREATE INDEX IF NOT EXISTS idx_conv_user_updated ON conversations(user_id, archived, pinned DESC, updated_at DESC);
 
 CREATE TABLE IF NOT EXISTS messages (
   id                 TEXT PRIMARY KEY,
@@ -239,10 +240,12 @@ CREATE TABLE IF NOT EXISTS messages (
   status             TEXT NOT NULL DEFAULT 'complete',
   error              TEXT NOT NULL DEFAULT '',
   gen_ms             BIGINT NOT NULL DEFAULT 0,
+  search_text        TEXT NOT NULL DEFAULT '',
   created_at         BIGINT NOT NULL DEFAULT (extract(epoch from now())::bigint)
 );
 CREATE INDEX IF NOT EXISTS idx_messages_conv ON messages(conversation_id);
 CREATE INDEX IF NOT EXISTS idx_messages_parent ON messages(parent_id);
+CREATE INDEX IF NOT EXISTS idx_messages_conv_created ON messages(conversation_id, created_at);
 
 -- Public read-only conversation shares (cost-stripped snapshot; revoke = delete).
 CREATE TABLE IF NOT EXISTS conversation_shares (

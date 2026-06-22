@@ -122,6 +122,7 @@ func Migrate(db *sql.DB) error {
 	// Model label snapshot — preserves the human-readable model name on each
 	// message so it remains visible even after the model is deleted from the catalog.
 	addMsgModelLabel := `ALTER TABLE messages ADD COLUMN model_label TEXT NOT NULL DEFAULT ''`
+	addMsgSearchText := `ALTER TABLE messages ADD COLUMN search_text TEXT NOT NULL DEFAULT ''`
 	if usePostgres {
 		schema = schemaPGSQL
 		addImageRef = `ALTER TABLE chunks ADD COLUMN IF NOT EXISTS image_ref TEXT`
@@ -153,6 +154,7 @@ func Migrate(db *sql.DB) error {
 		addUsageCredits = `ALTER TABLE usage_logs ADD COLUMN IF NOT EXISTS credits REAL NOT NULL DEFAULT 0`
 		addMsgCredits = `ALTER TABLE messages ADD COLUMN IF NOT EXISTS credits DOUBLE PRECISION NOT NULL DEFAULT 0`
 		addMsgModelLabel = `ALTER TABLE messages ADD COLUMN IF NOT EXISTS model_label TEXT NOT NULL DEFAULT ''`
+		addMsgSearchText = `ALTER TABLE messages ADD COLUMN IF NOT EXISTS search_text TEXT NOT NULL DEFAULT ''`
 	}
 	if _, err := db.Exec(schema); err != nil {
 		return fmt.Errorf("apply schema: %w", err)
@@ -171,7 +173,7 @@ func Migrate(db *sql.DB) error {
 		addGroupMaxProjects, addGroupMaxKBs,
 		addGroupCreditAllowance, addGroupCreditPeriod,
 		addUserPermCredits, addUsageCredits, addMsgCredits,
-		addMsgModelLabel,
+		addMsgModelLabel, addMsgSearchText,
 	} {
 		_, _ = db.Exec(ddl)
 	}
@@ -181,6 +183,8 @@ func Migrate(db *sql.DB) error {
 	_, _ = db.Exec(`CREATE INDEX IF NOT EXISTS idx_conv_inline ON conversations(inline_source_conv)`)
 	_, _ = db.Exec(`CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_id ON refresh_tokens(user_id)`)
 	_, _ = db.Exec(`CREATE INDEX IF NOT EXISTS idx_files_conversation_id ON files(conversation_id)`)
+	_, _ = db.Exec(`CREATE INDEX IF NOT EXISTS idx_messages_conv_created ON messages(conversation_id, created_at)`)
+	_, _ = db.Exec(`CREATE INDEX IF NOT EXISTS idx_conv_user_updated ON conversations(user_id, archived, pinned DESC, updated_at DESC)`)
 	// One-time backfill: accounts that exist only because of an OAuth login were
 	// created with a random password they never chose, so mark them as
 	// password-unset to force them through the set-password gate. Guarded by a
@@ -191,6 +195,14 @@ func Migrate(db *sql.DB) error {
 	if pwBackfill == "" {
 		_, _ = db.Exec(`UPDATE users SET password_set=0 WHERE id IN (SELECT user_id FROM oauth_identities)`)
 		_, _ = db.Exec(`INSERT INTO settings(key, value) VALUES('oauth_pwset_backfill_v1', '1') ON CONFLICT(key) DO NOTHING`)
+	}
+	// One-time backfill of messages.search_text for rows that predate the column,
+	// so existing history is searchable. Keyset-paged, best-effort, runs once.
+	var stBackfill string
+	_ = db.QueryRow(`SELECT value FROM settings WHERE key='msg_search_text_backfill_v1'`).Scan(&stBackfill)
+	if stBackfill == "" {
+		backfillSearchText(db)
+		_, _ = db.Exec(`INSERT INTO settings(key, value) VALUES('msg_search_text_backfill_v1', '1') ON CONFLICT(key) DO NOTHING`)
 	}
 	return nil
 }

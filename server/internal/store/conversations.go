@@ -380,15 +380,34 @@ func ListMessages(ctx context.Context, db *sql.DB, convID, leafID string) ([]Mes
 			return nil, err
 		}
 	}
-	// Walk up.
+	// Fetch the conversation's messages once, then walk the parent chain from the
+	// leaf in memory. (Previously this issued one GetMessage query per node — an
+	// N+1 that made a 200-message thread 200 round-trips.) Output is identical:
+	// the active path, root → leaf, chronological.
+	all, err := ListAllMessages(ctx, db, convID)
+	if err != nil {
+		return nil, err
+	}
+	byID := make(map[string]Message, len(all))
+	for _, m := range all {
+		byID[m.ID] = m
+	}
+	// If active_leaf_id dangles (points at a since-deleted message) the walk would
+	// otherwise return an empty path and the conversation would render as blank.
+	// Fall back to the newest message, mirroring the empty-leaf branch above.
+	if _, ok := byID[leafID]; !ok && len(all) > 0 {
+		leafID = all[len(all)-1].ID // ListAllMessages is ORDER BY created_at ASC
+	}
 	current := leafID
+	seen := make(map[string]bool, len(all)) // cycle guard against corrupt parent links
 	out := []Message{}
-	for current != "" {
-		m, err := GetMessage(ctx, db, current)
-		if err != nil {
-			return nil, err
+	for current != "" && !seen[current] {
+		m, ok := byID[current]
+		if !ok {
+			break
 		}
-		out = append([]Message{*m}, out...)
+		seen[current] = true
+		out = append([]Message{m}, out...)
 		current = m.ParentID
 	}
 	return out, nil
@@ -484,11 +503,11 @@ func CreateMessage(ctx context.Context, db *sql.DB, m Message) (*Message, error)
 	}
 	_, err := db.ExecContext(ctx, `INSERT INTO messages(
 		id, conversation_id, parent_id, role, provider, model_id, model_label, blocks, raw, stop_reason, attachments, citations,
-		input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, cost, currency, status, error, created_at
-	) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, cost, currency, status, error, search_text, created_at
+	) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		m.ID, m.ConversationID, parent, m.Role, m.Provider, m.ModelID, m.ModelLabel, string(m.Blocks), raw, m.StopReason,
 		string(m.Attachments), string(m.Citations),
-		m.InputTokens, m.OutputTokens, m.CacheReadTokens, m.CacheWriteTokens, m.Cost, m.Currency, m.Status, m.Error, m.CreatedAt)
+		m.InputTokens, m.OutputTokens, m.CacheReadTokens, m.CacheWriteTokens, m.Cost, m.Currency, m.Status, m.Error, searchTextFromBlocks(m.Blocks), m.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -527,9 +546,9 @@ func FinishMessage(ctx context.Context, db *sql.DB, id string, p MessageFinishPa
 		raw = nil
 	}
 	_, err := db.ExecContext(ctx,
-		`UPDATE messages SET blocks=?, raw=?, citations=?, stop_reason=?, input_tokens=?, output_tokens=?, cache_read_tokens=?, cache_write_tokens=?, cost=?, credits=?, status=?, error=?, gen_ms=? WHERE id=?`,
+		`UPDATE messages SET blocks=?, raw=?, citations=?, stop_reason=?, input_tokens=?, output_tokens=?, cache_read_tokens=?, cache_write_tokens=?, cost=?, credits=?, status=?, error=?, gen_ms=?, search_text=? WHERE id=?`,
 		string(p.Blocks), raw, string(p.Citations), p.StopReason,
-		p.InputTokens, p.OutputTokens, p.CacheReadTokens, p.CacheWriteTokens, p.Cost, p.Credits, p.Status, p.Error, p.GenMs, id)
+		p.InputTokens, p.OutputTokens, p.CacheReadTokens, p.CacheWriteTokens, p.Cost, p.Credits, p.Status, p.Error, p.GenMs, searchTextFromBlocks(p.Blocks), id)
 	return err
 }
 
@@ -537,7 +556,7 @@ func FinishMessage(ctx context.Context, db *sql.DB, id string, p MessageFinishPa
 // user "save edit" action that edits a question WITHOUT branching. The caller
 // must verify ownership (conversation belongs to the user) first.
 func UpdateMessageContent(ctx context.Context, db *sql.DB, id string, blocks json.RawMessage) error {
-	_, err := db.ExecContext(ctx, `UPDATE messages SET blocks=? WHERE id=?`, string(blocks), id)
+	_, err := db.ExecContext(ctx, `UPDATE messages SET blocks=?, search_text=? WHERE id=?`, string(blocks), searchTextFromBlocks(blocks), id)
 	return err
 }
 
