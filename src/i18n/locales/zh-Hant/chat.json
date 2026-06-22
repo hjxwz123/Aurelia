@@ -220,6 +220,7 @@
   },
   "thread": {
     "loadingEarlier": "正在載入較早的訊息…",
+    "jumpOtherBranch": "該訊息位於此對話的另一個分支。",
     "modelSwitched": "已切換模型",
     "modelSwitchedBody": "之後的訊息將使用新模型。",
     "renamed": "已重新命名",
@@ -250,10 +251,12 @@
   "commandMenu": {
     "placeholder": "搜尋會話，或執行命令…",
     "noMatch": "沒有匹配項。",
+    "searching": "搜尋中…",
     "groups": {
       "actions": "操作",
       "theme": "主題",
       "conversations": "會話",
+      "messages": "訊息內容",
       "help": "幫助",
       "language": "語言"
     },

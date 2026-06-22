@@ -17,7 +17,7 @@ import {
 import type { Attachment, Conversation } from '@/types/chat'
 import type { ProjectAccent } from '@/types/project'
 import { useProjects } from '@/store/projects'
-import { useConversations } from '@/store/conversations'
+import { useConversations, sameConvListShape } from '@/store/conversations'
 import { useModels } from '@/store/models'
 import { useSettings } from '@/store/settings'
 import { accentClasses, fileKindIcon, formatFileSize, PROJECT_ACCENT_OPTIONS } from '@/lib/project-helpers'
@@ -73,7 +73,9 @@ export default function ProjectDetail() {
     if (id) void loadOne(id)
   }, [id, loadOne])
 
-  const allConversations = useConversations((s) => s.conversations)
+  // Summary-only subscription so a streaming conversation's per-token updates
+  // don't re-render this page (same fix as sidebar/command-menu).
+  const allConversations = useConversations((s) => s.conversations, sameConvListShape)
   const createConversation = useConversations((s) => s.createConversation)
   const defaultModelId = useModels((s) => s.defaultId)
 

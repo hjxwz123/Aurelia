@@ -35,7 +35,9 @@ export function InlineThreadPanel() {
     // (the stuck "thinking…" bubble).
     const conv = useConversations.getState().conversations.find((c) => c.id === childId)
     if (conv && (conv.messages.length > 0 || conv.messages.some((m) => m.streaming))) return
-    void loadOne(childId)
+    // Inline threads render without the scroll-up older-fetch UI, so load the
+    // whole (short) sub-conversation up front.
+    void loadOne(childId, { full: true })
   }, [open, childId, loadOne])
 
   // Leaving the conversation closes the drawer.

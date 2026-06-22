@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { memo, useState, useRef, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   Copy,
@@ -93,7 +93,7 @@ function formatCredits(credits: number): string {
   return credits.toLocaleString(undefined, { maximumFractionDigits: 2 })
 }
 
-export function MessageRow({ message, userName, onRegenerate, onEdit, onSaveEdit, onLike, onDislike, onBranchSwitch, onFork, onDelete }: MessageRowProps) {
+function MessageRowImpl({ message, userName, onRegenerate, onEdit, onSaveEdit, onLike, onDislike, onBranchSwitch, onFork, onDelete }: MessageRowProps) {
   const isUser = message.role === 'user'
   // §7.2-6: assistant 气泡标注生成它的模型名 + 图标。
   const model = useModels((s) => (message.modelId ? s.getById(message.modelId) : undefined))
@@ -686,6 +686,12 @@ export function MessageRow({ message, userName, onRegenerate, onEdit, onSaveEdit
     </div>
   )
 }
+
+// Memoised: with stable callback props from MessageList, only the row whose
+// `message` object actually changed (the streaming one) re-renders per token —
+// the rest of the visible window bails out. Default shallow prop comparison is
+// exactly right here (message is a fresh object only when it truly changed).
+export const MessageRow = memo(MessageRowImpl)
 
 /**
  * BranchSwitcher — the `<  2/3  >` chip shown when the current message has

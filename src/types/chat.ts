@@ -187,6 +187,11 @@ export interface Conversation {
    *  excerpt of a message in another conversation. Such conversations are hidden
    *  from the sidebar / search and rendered in the inline-thread drawer. */
   inline?: { sourceConvId: string; messageId: string; quote: string }
+  /** Reverse-pagination state for the active path: true while older messages
+   *  remain on the server (loaded latest-first; older fetched on scroll-up). */
+  hasOlder?: boolean
+  /** Cursor (oldest loaded message id) for the next older page. */
+  olderCursor?: string
   messages: Message[]
 }
 
