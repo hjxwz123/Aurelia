@@ -423,7 +423,7 @@ function ConversationItem({
             )}
           >
             {conversation.starred ? '☆ ' : ''}
-            {truncate(conversation.title, 50)}
+            {truncate(conversation.title || t('untitled'), 50)}
           </span>
         </Link>
         <div className="absolute right-1.5 top-1/2 -translate-y-1/2">

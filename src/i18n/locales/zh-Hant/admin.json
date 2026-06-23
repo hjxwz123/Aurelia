@@ -67,7 +67,8 @@
       "behaviour": "對話行為",
       "pricing": "計費",
       "permissions": "許可權",
-      "tags": "標籤"
+      "tags": "標籤",
+      "skills": "技能"
     },
     "fields": {
       "channel": "渠道",
@@ -135,7 +136,8 @@
       "fragment": "合併進請求體",
       "showIfKey": "僅當（鍵）顯示 · 可選",
       "showIfValue": "等於（值）"
-    }
+    },
+    "skillsHint": "勾選的技能會列入該模型的系統提示；模型在需要時透過 use_skill 按需載入其完整說明。"
   },
   "skills": {
     "title": "技能",
@@ -149,7 +151,10 @@
       "instructions": "完整指令(Markdown)",
       "enabled": "啟用",
       "importMd": "從 SKILL.md 匯入",
-      "importMdHint": "貼上符合官方格式的 SKILL.md(含 name / description 的 frontmatter),自動填充下方欄位。"
+      "importMdHint": "貼上符合官方格式的 SKILL.md(含 name / description 的 frontmatter),自動填充下方欄位。",
+      "assets": "資產（範本 / 指令稿）",
+      "assetsHint": "技能載入（use_skill）時，這些檔案會被複製到沙箱的 /workspace/skills/<名稱>/ 下。",
+      "assetsUpload": "上傳資產"
     },
     "editorTitle": "編輯技能",
     "newTitle": "新建技能",
@@ -163,7 +168,9 @@
     "importFailed": "無法解析,請檢查 SKILL.md 格式(需含 --- frontmatter ---)。",
     "errors": {
       "missingFields": "請填寫名稱、描述和指令。"
-    }
+    },
+    "disabledTag": "已停用",
+    "manage": "管理技能"
   },
   "oauth": {
     "title": "登入方式",

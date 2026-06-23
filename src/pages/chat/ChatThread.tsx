@@ -291,7 +291,7 @@ export default function ChatThread() {
         ) : null}
         <div className="flex-1 min-w-0 flex flex-col">
           <h1 className="font-medium text-[var(--color-fg)] text-[14px] sm:text-[15px] truncate">
-            {truncate(conversation.title, 80)}
+            {truncate(conversation.title || t('untitled'), 80)}
           </h1>
           {project ? (
             <Link

@@ -67,7 +67,8 @@
       "behaviour": "Chat behaviour",
       "pricing": "Pricing",
       "permissions": "Permissions",
-      "tags": "Tags"
+      "tags": "Tags",
+      "skills": "Skills"
     },
     "fields": {
       "channel": "Channel",
@@ -135,7 +136,8 @@
       "fragment": "Merged into request body",
       "showIfKey": "Show only when (key) — optional",
       "showIfValue": "Equals (value)"
-    }
+    },
+    "skillsHint": "Checked skills are listed in this model’s system prompt; the model loads each one’s full instructions on demand via use_skill."
   },
   "skills": {
     "title": "Skills",
@@ -149,7 +151,10 @@
       "instructions": "Instructions (Markdown)",
       "enabled": "Enabled",
       "importMd": "Import from SKILL.md",
-      "importMdHint": "Paste an official-format SKILL.md (frontmatter with name / description) to auto-fill the fields below."
+      "importMdHint": "Paste an official-format SKILL.md (frontmatter with name / description) to auto-fill the fields below.",
+      "assets": "Assets (templates / scripts)",
+      "assetsHint": "Files staged into the sandbox at /workspace/skills/<name>/ when use_skill loads this skill.",
+      "assetsUpload": "Upload asset"
     },
     "editorTitle": "Edit skill",
     "newTitle": "New skill",
@@ -163,7 +168,9 @@
     "importFailed": "Couldn't parse — check the SKILL.md format (needs --- frontmatter ---).",
     "errors": {
       "missingFields": "Name, description and instructions are required."
-    }
+    },
+    "disabledTag": "disabled",
+    "manage": "Manage skills"
   },
   "oauth": {
     "title": "Login methods",

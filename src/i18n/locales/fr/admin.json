@@ -67,7 +67,8 @@
       "behaviour": "Comportement du chat",
       "pricing": "Tarification",
       "permissions": "Permissions",
-      "tags": "Étiquettes"
+      "tags": "Étiquettes",
+      "skills": "Compétences"
     },
     "fields": {
       "channel": "Canal",
@@ -135,7 +136,8 @@
       "fragment": "Fusionné dans le corps de la requête",
       "showIfKey": "Afficher si (clé) · facultatif",
       "showIfValue": "Égale (valeur)"
-    }
+    },
+    "skillsHint": "Les compétences cochées figurent dans le prompt système de ce modèle ; le modèle charge leurs instructions complètes à la demande via use_skill."
   },
   "skills": {
     "title": "Compétences",
@@ -149,7 +151,10 @@
       "instructions": "Instructions (Markdown)",
       "enabled": "Activé",
       "importMd": "Importer depuis SKILL.md",
-      "importMdHint": "Collez un SKILL.md au format officiel (frontmatter avec name / description) pour remplir automatiquement les champs ci-dessous."
+      "importMdHint": "Collez un SKILL.md au format officiel (frontmatter avec name / description) pour remplir automatiquement les champs ci-dessous.",
+      "assets": "Ressources (modèles / scripts)",
+      "assetsHint": "Fichiers déployés dans le bac à sable sous /workspace/skills/<name>/ lorsque use_skill charge cette compétence.",
+      "assetsUpload": "Téléverser une ressource"
     },
     "editorTitle": "Modifier la compétence",
     "newTitle": "Nouvelle compétence",
@@ -163,7 +168,9 @@
     "importFailed": "Analyse impossible — vérifiez le format du SKILL.md (nécessite un frontmatter --- ---).",
     "errors": {
       "missingFields": "Le nom, la description et les instructions sont requis."
-    }
+    },
+    "disabledTag": "désactivée",
+    "manage": "Gérer les compétences"
   },
   "oauth": {
     "title": "Méthodes de connexion",

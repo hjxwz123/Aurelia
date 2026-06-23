@@ -206,6 +206,9 @@ export const useConversations = createWithEqualityFn<ConversationStore>((set, ge
           // whatever pagination state the local copy already had.
           const merged: Conversation = {
             ...conv,
+            // Keep the optimistic first-message title if the backend hasn't
+            // committed its own (clip/model) title yet — don't flash back to blank.
+            title: conv.title || existing.title,
             messages: existing.messages,
             lastParams: existing.lastParams,
             hasOlder: existing.hasOlder,
@@ -584,9 +587,15 @@ export const useConversations = createWithEqualityFn<ConversationStore>((set, ge
           updatedAt: Date.now(),
           // Remember the param_controls selection so regenerate reuses it.
           lastParams: input.params ?? c.lastParams,
+          // Give a brand-new conversation an immediate default title from the
+          // first message (first line, clipped) — so the sidebar/header never
+          // shows an empty title in the window before the title model (or the
+          // backend's deterministic clip) lands. Applies whenever there's no
+          // meaningful title yet: empty (the backend creates conversations with
+          // a blank title) OR the placeholder, regardless of locale.
           title:
-            c.messages.length === 0 && c.title === 'New conversation'
-              ? input.text.replace(/\n+/g, ' ').slice(0, 60)
+            c.messages.length === 0 && (!c.title.trim() || c.title === 'New conversation')
+              ? input.text.replace(/\s+/g, ' ').trim().slice(0, 60) || c.title
               : c.title,
         }
       }),
