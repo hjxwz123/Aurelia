@@ -1,12 +1,11 @@
-name: Build & push API + Web images
+name: Build & push app image
 
-# Builds the two application images and pushes them to GitHub Container
+# Builds the single application image and pushes it to GitHub Container
 # Registry (ghcr.io) on every push to main and on semver tags. The sandbox
 # images have their own workflow (sandbox-image.yml).
 #
-# Images produced:
-#   ghcr.io/<owner>/aurelia-api:latest     ← Go HTTP API server
-#   ghcr.io/<owner>/aurelia-web:latest     ← built SPA served by nginx
+# Image produced:
+#   ghcr.io/<owner>/aurelia-app:latest   ← Go API serving the built SPA (one container)
 #
 # Tagging strategy (handled by docker/metadata-action):
 #   - push to main          → :latest        + :sha-<short>
@@ -47,11 +46,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: aurelia-api
-            dockerfile: deploy/Dockerfile.server
-            context: .
-          - name: aurelia-web
-            dockerfile: deploy/Dockerfile.web
+          - name: aurelia-app
+            dockerfile: deploy/Dockerfile.app
             context: .
     steps:
       - name: Checkout

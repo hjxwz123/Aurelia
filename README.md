@@ -16,8 +16,7 @@
 
 <p align="center">
   <a href="https://github.com/hjxwz123/Aurelia/actions/workflows/docker-images.yml"><img alt="Build" src="https://github.com/hjxwz123/Aurelia/actions/workflows/docker-images.yml/badge.svg"></a>
-  <a href="https://github.com/hjxwz123/Aurelia/pkgs/container/aurelia-api"><img alt="API image" src="https://img.shields.io/badge/ghcr.io-aurelia--api-blue?logo=docker"></a>
-  <a href="https://github.com/hjxwz123/Aurelia/pkgs/container/aurelia-web"><img alt="Web image" src="https://img.shields.io/badge/ghcr.io-aurelia--web-blue?logo=docker"></a>
+  <a href="https://github.com/hjxwz123/Aurelia/pkgs/container/aurelia-app"><img alt="App image" src="https://img.shields.io/badge/ghcr.io-aurelia--app-blue?logo=docker"></a>
   <img alt="Go 1.22" src="https://img.shields.io/badge/Go-1.22-00ADD8?logo=go">
   <img alt="React 19" src="https://img.shields.io/badge/React-19-61DAFB?logo=react">
   <img alt="TypeScript 5" src="https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript">
@@ -191,8 +190,8 @@ Five containers come up:
 | `postgres` | `postgres:16-alpine` | Users, conversations, KBs, settings, usage |
 | `redis` | `redis:7-alpine` | Cache, rate limits, kill-signal pub/sub |
 | `qdrant` | `qdrant/qdrant:v1.12.4` | Vector search for RAG |
-| `api` | `ghcr.io/hjxwz123/aurelia-api:latest` | Go HTTP + SSE server |
-| `web` | `ghcr.io/hjxwz123/aurelia-web:latest` | nginx — SPA + `/api` reverse proxy |
+| `sandbox` | `ghcr.io/hjxwz123/aurelia-sandbox-sidecar:latest` | Bundled code-execution sandbox (internal-only) |
+| `app` | `ghcr.io/hjxwz123/aurelia-app:latest` | One container: Go HTTP + SSE server **and** the built SPA, same origin |
 
 Postgres / Redis / Qdrant use named volumes (`pgdata`, `redisdata`, `qdrantdata`). Uploads and artifacts are bind-mounted from `DATA_DIR` (default `./data`) — files land directly on the host, no container access needed.
 
@@ -224,13 +223,13 @@ Open `http://localhost:5173`. First launch shows the setup screen.
                │  Browser (SPA, SSE streaming)  │
                └─────────────┬──────────────────┘
                              │ HTTPS
-                 ┌───────────▼────────────┐
-                 │ nginx (web container)  │
-                 │ /        → static SPA  │
-                 │ /api/*   → api:8787    │
-                 └───────────┬────────────┘
+                 ┌───────────▼────────────────────────────┐
+                 │  app container (one process, :8787)     │
+                 │  /       → built SPA (static files)     │
+                 │  /api/*  → Go API below                 │
+                 └───────────┬────────────────────────────┘
                              │
-            ┌────────────────▼───────────────────────────┐
+            ┌────────────────▼────────────────────────────┐
             │  Go API — REST + SSE orchestrator           │
             │  ┌──────────────────────────────────────┐   │
             │  │ Provider registry                    │   │
@@ -270,7 +269,7 @@ The env file only holds boot-time essentials:
 | Group | Keys | Purpose |
 |-------|------|---------|
 | **Image** | `IMAGE_OWNER`, `IMAGE_TAG` | GHCR namespace / tag to pull |
-| **Network** | `WEB_PORT`, `PUBLIC_ORIGIN` | nginx host port + CORS allowlist |
+| **Network** | *(none)* | App serves SPA + `/api` on one origin; host port is the `80:8787` mapping in compose. No domain/CORS env. |
 | **Postgres** | `POSTGRES_USER/PASSWORD/DB` | Database credentials |
 | **Redis** | `REDIS_PASSWORD` | Cache auth |
 | **Auth** | `JWT_SECRET` | Required; ≥ 32 chars |
@@ -314,8 +313,7 @@ The env file only holds boot-time essentials:
 │       └── storage/          S3 / OSS presign client
 ├── deploy/                   Production Docker stack
 │   ├── docker-compose.prod.yml
-│   ├── Dockerfile.server
-│   ├── Dockerfile.web
+│   ├── Dockerfile.app          Multi-stage: SPA build + Go build → one runtime
 │   └── .env.example
 └── docs/screenshots/         Screenshots referenced in this README
 ```
@@ -326,7 +324,7 @@ The env file only holds boot-time essentials:
 
 | Workflow | Trigger | Output |
 |----------|---------|--------|
-| `docker-images.yml` | push to `main`, `v*.*.*` tags, manual dispatch | `ghcr.io/<owner>/aurelia-api` and `aurelia-web` — multi-arch (amd64 + arm64) |
+| `docker-images.yml` | push to `main`, `v*.*.*` tags, manual dispatch | `ghcr.io/<owner>/aurelia-app` — multi-arch (amd64 + arm64) |
 
 - `main` → `:latest` + `:sha-<short>`
 - `v1.2.3` → `:1.2.3` + `:1.2` + `:1` + `:latest`

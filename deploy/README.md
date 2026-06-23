@@ -7,8 +7,8 @@ This folder deploys the full stack with Docker Compose:
 | `postgres` | `postgres:16-alpine`       | Relational store (users, conversations, KBs, usage). |
 | `redis`    | `redis:7-alpine`           | Cache, rate-limit counters, cross-process stop-stream pub/sub. |
 | `qdrant`   | `qdrant/qdrant:v1.12.4`    | Vector search for RAG.                  |
-| `api`      | `ghcr.io/hjxwz123/aurelia-api` *(or local build via `Dockerfile.server`)* | The HTTP API (`/api/*`). |
-| `web`      | `ghcr.io/hjxwz123/aurelia-web` *(or local build via `Dockerfile.web`)* | Serves the built SPA, proxies `/api` to `api`. |
+| `sandbox`  | `ghcr.io/hjxwz123/aurelia-sandbox-sidecar` | Bundled code-execution sandbox (internal-only). |
+| `app`      | `ghcr.io/hjxwz123/aurelia-app` *(or local build via `Dockerfile.app`)* | One container serving BOTH the built SPA and the `/api` backend on the same origin. |
 
 See the [root README](../README.md) for the full project overview; this file is
 just the deployment cheat-sheet.
@@ -37,15 +37,18 @@ points from Qdrant too.
 ```bash
 cd deploy
 cp .env.example .env
-# edit .env: set POSTGRES_PASSWORD, REDIS_PASSWORD, JWT_SECRET,
-# SEED_ADMIN_PASSWORD, and PUBLIC_ORIGIN at minimum.
+# edit .env: set POSTGRES_PASSWORD, REDIS_PASSWORD, and JWT_SECRET at minimum.
+# There is NO domain/CORS/port env to set — the app serves the SPA and /api on
+# one origin, so whatever host it's reached on works (multiple domains included).
 docker compose -f docker-compose.prod.yml pull
 docker compose -f docker-compose.prod.yml up -d
 ```
 
-The app is then on `http://<host>:${WEB_PORT}` (default 80). Log in with
-`SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD`, then add real provider channels in
-**/admin** (their API keys are stored in the database).
+The app is then on `http://<host>` (host port 80 by default; change the
+`"80:8787"` mapping in `docker-compose.prod.yml` if 80 is taken). On first launch
+the deployment has zero users — the FIRST account you create via the setup screen
+becomes the administrator. Then add real provider channels in **/admin** (their
+API keys are stored in the database).
 
 `store.Migrate()` runs automatically on boot and creates the Postgres schema
 (`schema_pg.sql`) if the tables don't exist — no manual SQL step.
@@ -71,11 +74,14 @@ configure a real embedding model, set `EMBEDDING_DIM` (and/or the model's `dim`
 in the admin UI) to match — otherwise the local 256-dim embedder is used and
 its collection won't match a 1536-dim model's vectors.
 
-## TLS
+## TLS & domains
 
-This compose terminates plain HTTP on `WEB_PORT`. For public deployments put a
-TLS terminator (Caddy, Traefik, or a cloud LB) in front of the `web` service and
-set `PUBLIC_ORIGIN=https://your-domain`.
+The `app` container serves plain HTTP on host port 80. For public deployments put
+a TLS terminator (Caddy, Traefik, or a cloud LB) in front of it. Because the SPA
+and `/api` share one origin, there is **nothing to configure per domain** — point
+as many domains as you like at the proxy and each one works, as long as the proxy
+forwards the `Host` header (every reverse proxy does by default). No
+`PUBLIC_ORIGIN` / `ALLOWED_ORIGINS`.
 
 ## Backups
 
