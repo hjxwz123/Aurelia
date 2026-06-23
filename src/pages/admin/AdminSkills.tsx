@@ -191,7 +191,7 @@ export default function AdminSkills() {
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-medium text-[var(--color-fg)] truncate">{s.name}</span>
-                    {!s.enabled ? <Badge size="xs" variant="neutral">disabled</Badge> : null}
+                    {!s.enabled ? <Badge size="xs" variant="neutral">{t('admin:skills.disabledTag')}</Badge> : null}
                   </div>
                   <div className="mt-0.5 text-[12px] text-[var(--color-fg-subtle)] line-clamp-2">{s.description}</div>
                 </div>
@@ -275,7 +275,7 @@ export default function AdminSkills() {
                           <button
                             type="button"
                             onClick={() => removeAsset(i)}
-                            aria-label={t('common:actions.remove', { defaultValue: 'Remove' })}
+                            aria-label={t('admin:common.remove')}
                             className="inline-flex items-center justify-center size-6 rounded-[6px] text-[var(--color-fg-subtle)] hover:bg-[var(--color-danger-soft)] hover:text-[var(--color-danger)] interactive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
                           >
                             <X size={13} aria-hidden />

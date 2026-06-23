@@ -67,7 +67,8 @@
       "behaviour": "チャットの動作",
       "pricing": "料金",
       "permissions": "権限",
-      "tags": "タグ"
+      "tags": "タグ",
+      "skills": "スキル"
     },
     "fields": {
       "channel": "チャネル",
@@ -135,7 +136,8 @@
       "fragment": "リクエストボディに統合",
       "showIfKey": "表示条件（キー）· 省略可",
       "showIfValue": "等しい（値）"
-    }
+    },
+    "skillsHint": "チェックしたスキルはこのモデルのシステムプロンプトに一覧表示され、モデルは必要に応じて use_skill で完全な手順を読み込みます。"
   },
   "skills": {
     "title": "スキル",
@@ -149,7 +151,10 @@
       "instructions": "手順（Markdown）",
       "enabled": "有効",
       "importMd": "SKILL.mdからインポート",
-      "importMdHint": "公式フォーマットのSKILL.md（name／descriptionを含むフロントマター）を貼り付けると、下のフィールドを自動入力します。"
+      "importMdHint": "公式フォーマットのSKILL.md（name／descriptionを含むフロントマター）を貼り付けると、下のフィールドを自動入力します。",
+      "assets": "アセット（テンプレート / スクリプト）",
+      "assetsHint": "use_skill でこのスキルを読み込むと、これらのファイルがサンドボックスの /workspace/skills/<name>/ に配置されます。",
+      "assetsUpload": "アセットをアップロード"
     },
     "editorTitle": "スキルを編集",
     "newTitle": "新規スキル",
@@ -163,7 +168,9 @@
     "importFailed": "解析できませんでした。SKILL.mdのフォーマット（--- フロントマター --- が必要）を確認してください。",
     "errors": {
       "missingFields": "名前、説明、手順は必須です。"
-    }
+    },
+    "disabledTag": "無効",
+    "manage": "スキルを管理"
   },
   "oauth": {
     "title": "ログイン方法",

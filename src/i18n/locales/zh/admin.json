@@ -67,7 +67,8 @@
       "behaviour": "对话行为",
       "pricing": "计费",
       "permissions": "权限",
-      "tags": "标签"
+      "tags": "标签",
+      "skills": "技能"
     },
     "fields": {
       "channel": "渠道",
@@ -135,7 +136,8 @@
       "fragment": "合并进请求体",
       "showIfKey": "仅当(键)显示 · 可选",
       "showIfValue": "等于(值)"
-    }
+    },
+    "skillsHint": "勾选的技能会列入该模型的系统提示；模型在需要时通过 use_skill 按需加载其完整说明。"
   },
   "skills": {
     "title": "技能",
@@ -149,7 +151,10 @@
       "instructions": "完整指令(Markdown)",
       "enabled": "启用",
       "importMd": "从 SKILL.md 导入",
-      "importMdHint": "粘贴符合官方格式的 SKILL.md(含 name / description 的 frontmatter),自动填充下方字段。"
+      "importMdHint": "粘贴符合官方格式的 SKILL.md(含 name / description 的 frontmatter),自动填充下方字段。",
+      "assets": "资产（模板 / 脚本）",
+      "assetsHint": "技能加载（use_skill）时，这些文件会被拷贝到沙箱的 /workspace/skills/<名称>/ 下。",
+      "assetsUpload": "上传资产"
     },
     "editorTitle": "编辑技能",
     "newTitle": "新建技能",
@@ -163,7 +168,9 @@
     "importFailed": "无法解析,请检查 SKILL.md 格式(需含 --- frontmatter ---)。",
     "errors": {
       "missingFields": "请填写名称、描述和指令。"
-    }
+    },
+    "disabledTag": "已禁用",
+    "manage": "管理技能"
   },
   "oauth": {
     "title": "登录方式",

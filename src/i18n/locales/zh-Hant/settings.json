@@ -59,7 +59,13 @@
       "emailBody": "用於登入和重要通知。",
       "emailLocked": "用於登入，如需修改請聯絡管理員。"
     },
-    "avatar": { "upload": "上傳", "change": "更換", "remove": "移除", "updated": "頭像已更新", "failed": "頭像更新失敗" },
+    "avatar": {
+      "upload": "上傳",
+      "change": "更換",
+      "remove": "移除",
+      "updated": "頭像已更新",
+      "failed": "頭像更新失敗"
+    },
     "security": "安全",
     "securityRows": {
       "password": "密碼",
@@ -218,7 +224,10 @@
     "clearAllConfirm": "清除全部會話？",
     "clearAllConfirmBody": "將刪除存檔中的每一段會話。我們不會再次詢問。",
     "clearAllConfirmAction": "全部清除",
-    "cleared": "全部會話已清除（模擬）。"
+    "cleared": "全部會話已清除（模擬）。",
+    "dataStorage": "資料儲存",
+    "dataStorageBody": "你的對話安全儲存在我們的伺服器上。如需刪除資料，請聯絡支援。",
+    "exportDone": "匯出已下載"
   },
   "shortcuts": {
     "title": "鍵盤快捷鍵",

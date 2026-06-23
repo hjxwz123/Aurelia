@@ -59,7 +59,13 @@
       "emailBody": "Utilisé pour la connexion et les avis importants.",
       "emailLocked": "Utilisé pour la connexion. Contactez un administrateur pour la modifier."
     },
-    "avatar": { "upload": "Téléverser", "change": "Changer", "remove": "Retirer", "updated": "Avatar mis à jour", "failed": "Impossible de mettre à jour l’avatar" },
+    "avatar": {
+      "upload": "Téléverser",
+      "change": "Changer",
+      "remove": "Retirer",
+      "updated": "Avatar mis à jour",
+      "failed": "Impossible de mettre à jour l’avatar"
+    },
     "security": "Sécurité",
     "securityRows": {
       "password": "Mot de passe",
@@ -218,7 +224,10 @@
     "clearAllConfirm": "Effacer toutes les conversations ?",
     "clearAllConfirmBody": "Cela supprime toutes les conversations de votre archive. Nous ne redemanderons pas.",
     "clearAllConfirmAction": "Tout effacer",
-    "cleared": "Toutes les conversations effacées (simulation)."
+    "cleared": "Toutes les conversations effacées (simulation).",
+    "dataStorage": "Stockage des données",
+    "dataStorageBody": "Vos conversations sont stockées en toute sécurité sur nos serveurs. Pour demander leur suppression, contactez le support.",
+    "exportDone": "Export téléchargé"
   },
   "shortcuts": {
     "title": "Raccourcis clavier",
