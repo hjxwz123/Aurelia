@@ -23,6 +23,7 @@ type Config struct {
 	AccessTTL        time.Duration
 	RefreshTTL       time.Duration
 	AllowedOrigins   []string
+	StaticDir        string
 	UploadDir        string
 	ArtifactDir      string
 	MaxUploadBytes   int64
@@ -45,20 +46,25 @@ type Config struct {
 // server starts in development with zero configuration.
 func Load() Config {
 	cfg := Config{
-		Listen:           getenv("AURELIA_LISTEN", ":8787"),
-		Env:              getenv("AURELIA_ENV", "development"),
-		DatabaseURL:      getenv("DATABASE_URL", "./data/aurelia.db?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)"),
-		RedisURL:         getenv("REDIS_URL", ""),
-		QdrantURL:        getenv("QDRANT_URL", ""),
-		QdrantAPIKey:     getenv("QDRANT_API_KEY", ""),
-		JWTSecret:        getenv("JWT_SECRET", defaultDevJWTSecret),
+		Listen:       getenv("AURELIA_LISTEN", ":8787"),
+		Env:          getenv("AURELIA_ENV", "development"),
+		DatabaseURL:  getenv("DATABASE_URL", "./data/aurelia.db?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)"),
+		RedisURL:     getenv("REDIS_URL", ""),
+		QdrantURL:    getenv("QDRANT_URL", ""),
+		QdrantAPIKey: getenv("QDRANT_API_KEY", ""),
+		JWTSecret:    getenv("JWT_SECRET", defaultDevJWTSecret),
 		// Short-lived access tokens limit the damage window if a token is stolen:
 		// the stolen token expires quickly even without explicit revocation.
 		// 30 minutes is the recommended ceiling; operators may lower it further
 		// via ACCESS_TTL without touching RefreshTTL (7–30 days is fine there).
-		AccessTTL:        getenvDuration("ACCESS_TTL", 30*time.Minute),
-		RefreshTTL:       getenvDuration("REFRESH_TTL", 30*24*time.Hour),
-		AllowedOrigins:   getenvList("ALLOWED_ORIGINS", []string{"http://localhost:5173", "http://127.0.0.1:5173"}),
+		AccessTTL:      getenvDuration("ACCESS_TTL", 30*time.Minute),
+		RefreshTTL:     getenvDuration("REFRESH_TTL", 30*24*time.Hour),
+		AllowedOrigins: getenvList("ALLOWED_ORIGINS", []string{"http://localhost:5173", "http://127.0.0.1:5173"}),
+		// STATIC_DIR points at the built SPA (dist/). When set, the API process
+		// also serves the frontend from the SAME origin (single-container deploy),
+		// so there is no cross-origin and any domain the server is reached on just
+		// works. Empty = API-only (dev with the Vite proxy, or a separate web tier).
+		StaticDir:        getenv("STATIC_DIR", ""),
 		UploadDir:        getenv("UPLOAD_DIR", "./data/uploads"),
 		ArtifactDir:      getenv("ARTIFACT_DIR", "./data/artifacts"),
 		MaxUploadBytes:   getenvInt64("MAX_UPLOAD_BYTES", 50*1024*1024),

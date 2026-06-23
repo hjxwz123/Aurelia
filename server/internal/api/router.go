@@ -9,6 +9,9 @@ import (
 	"log"
 	"log/slog"
 	"net/http"
+	"os"
+	"path"
+	"path/filepath"
 	"runtime/debug"
 	"strings"
 	"time"
@@ -251,9 +254,44 @@ func NewRouter(d Deps) http.Handler {
 	// validated image content, so there's nothing sensitive to protect.
 	mux.handle("GET", "/api/icons/:filename", wrap(d, serveIcon))
 
-	// CORS wrapper, with panic recovery as the outermost layer so any handler
-	// panic is caught before it tears down the server process (§ FIX-7).
-	return recoverMiddleware(corsMiddleware(d.Config.AllowedOrigins, mux))
+	// CORS wrapper around the API. When STATIC_DIR is set, the same process also
+	// serves the built SPA (single-container deploy) — front + back share one
+	// origin, so there's no cross-origin and any domain the server answers on
+	// works without configuring PUBLIC_ORIGIN/ALLOWED_ORIGINS. Panic recovery is
+	// the outermost layer so any handler panic is caught (§ FIX-7).
+	var handler http.Handler = corsMiddleware(d.Config.AllowedOrigins, mux)
+	if d.Config.StaticDir != "" {
+		handler = spaHandler(d.Config.StaticDir, handler)
+	}
+	return recoverMiddleware(handler)
+}
+
+// spaHandler serves the built SPA from dir and routes /api/* to the API. Any
+// path that doesn't resolve to a real file falls back to index.html so the
+// client-side router (deep links, refreshes) keeps working. Fingerprinted build
+// assets under /assets/ get a long immutable cache; index.html stays fresh.
+func spaHandler(dir string, api http.Handler) http.Handler {
+	indexPath := filepath.Join(dir, "index.html")
+	fileServer := http.FileServer(http.Dir(dir))
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api" || strings.HasPrefix(r.URL.Path, "/api/") {
+			api.ServeHTTP(w, r)
+			return
+		}
+		// path.Clean collapses any ../ so the join can't escape dir.
+		rel := path.Clean("/" + r.URL.Path)
+		fp := filepath.Join(dir, filepath.FromSlash(rel))
+		if info, err := os.Stat(fp); err == nil && !info.IsDir() {
+			if strings.HasPrefix(rel, "/assets/") {
+				w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+			}
+			fileServer.ServeHTTP(w, r)
+			return
+		}
+		// SPA fallback — serve index.html for unknown (client-routed) paths.
+		w.Header().Set("Cache-Control", "no-cache")
+		http.ServeFile(w, r, indexPath)
+	})
 }
 
 // recoverMiddleware catches any handler panic, logs the stack trace, and
@@ -285,7 +323,12 @@ func corsMiddleware(allowed []string, next http.Handler) http.Handler {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Vary", "Origin")
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
-			w.Header().Set("Access-Control-Allow-Headers", "content-type, authorization, x-aurelia-csrf")
+			// Must list every custom request header the client actually sends, or
+			// a cross-origin preflight fails. The signed-request headers
+			// (x-req-ts/nonce/token, see verifyReqToken middleware) are on every
+			// authenticated call — omitting them breaks all cross-origin API use
+			// (i.e. serving the app on a domain other than the API's origin).
+			w.Header().Set("Access-Control-Allow-Headers", "content-type, authorization, x-req-ts, x-req-nonce, x-req-token")
 			w.Header().Set("Access-Control-Allow-Methods", "GET,POST,PATCH,PUT,DELETE,OPTIONS")
 			w.Header().Set("Access-Control-Max-Age", "600")
 		}
