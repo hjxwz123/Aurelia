@@ -72,12 +72,14 @@ func setUserGroupAdmin(d Deps, w http.ResponseWriter, r *http.Request) {
 	id := pathParam(r, "id")
 	var req struct {
 		GroupID string `json:"group_id"`
+		// Unix-seconds expiry; 0/absent = permanent (downgrades to default on expiry).
+		GroupExpiresAt int64 `json:"group_expires_at"`
 	}
 	if err := decodeJSON(r, &req); err != nil || req.GroupID == "" {
 		writeError(w, 400, errInvalidInput)
 		return
 	}
-	if err := store.SetUserGroup(r.Context(), d.DB, id, req.GroupID); err != nil {
+	if err := store.SetUserGroup(r.Context(), d.DB, id, req.GroupID, req.GroupExpiresAt); err != nil {
 		writeError(w, 400, err)
 		return
 	}

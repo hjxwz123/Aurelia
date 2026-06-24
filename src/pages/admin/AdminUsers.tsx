@@ -3,14 +3,21 @@
  * ban / unban (realtime via the cache kill channel). Each row links to the
  * per-user conversation drill-down used for support / abuse triage (§8.1).
  */
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link } from 'react-router-dom'
-import { MessageSquare, Plus, Pencil, Trash2, Search } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
+import { MessageSquare, Plus, Pencil, Trash2, Search, Info, Ban, ShieldCheck, Library, MoreHorizontal } from 'lucide-react'
 import { adminApi, ApiError } from '@/api'
 import type { ApiUser, ApiUserGroup } from '@/api/types'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Tooltip } from '@/components/ui/tooltip'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Pagination } from '@/components/ui/pagination'
 import { Field } from '@/components/ui/label'
@@ -36,6 +43,7 @@ type Role = 'user' | 'admin'
 
 export default function AdminUsers() {
   const { t } = useTranslation(['admin', 'common'])
+  const navigate = useNavigate()
   const me = useAuth((s) => s.user)
   const [rows, setRows] = useState<ApiUser[]>([])
   const [total, setTotal] = useState(0)
@@ -56,9 +64,13 @@ export default function AdminUsers() {
   const [editRow, setEditRow] = useState<ApiUser | null>(null)
   const [editRole, setEditRole] = useState<Role>('user')
   const [editGroup, setEditGroup] = useState('')
+  // Membership expiry as a yyyy-mm-dd date input value ('' = permanent).
+  const [editExpiry, setEditExpiry] = useState('')
   const [editPassword, setEditPassword] = useState('')
   const [editCredits, setEditCredits] = useState(0)
   const [saving, setSaving] = useState(false)
+  // Read-only user info dialog.
+  const [infoRow, setInfoRow] = useState<ApiUser | null>(null)
   // Delete-user confirmation.
   const [deleteRow, setDeleteRow] = useState<ApiUser | null>(null)
   const [deleting, setDeleting] = useState(false)
@@ -194,6 +206,7 @@ export default function AdminUsers() {
     setEditRow(u)
     setEditRole(u.role)
     setEditGroup(u.group_id || (groups.find((g) => g.is_default)?.id ?? ''))
+    setEditExpiry(expiryToInput(u.group_expires_at ?? 0))
     setEditPassword('')
     setEditCredits(u.credits_permanent ?? 0)
   }
@@ -210,8 +223,9 @@ export default function AdminUsers() {
         await adminApi.setUserRole(editRow.id, editRole)
         toast.success(t('admin:users.roleChanged'))
       }
-      if (editGroup && editGroup !== editRow.group_id) {
-        await adminApi.setUserGroup(editRow.id, editGroup)
+      const newExpiry = inputToExpiry(editExpiry)
+      if (editGroup && (editGroup !== editRow.group_id || newExpiry !== (editRow.group_expires_at ?? 0))) {
+        await adminApi.setUserGroup(editRow.id, editGroup, newExpiry)
         toast.success(t('admin:users.groupChanged'))
       }
       if (editPassword) {
@@ -293,34 +307,45 @@ export default function AdminUsers() {
                       </span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Button variant="ghost" size="sm" leadingIcon={<Pencil size={12} aria-hidden />} onClick={() => openEdit(u)}>
-                      {t('admin:common.edit')}
-                    </Button>
-                    <Button asChild variant="ghost" size="sm" leadingIcon={<MessageSquare size={12} aria-hidden />}>
-                      <Link to={`/admin/users/${encodeURIComponent(u.id)}/conversations`}>
-                        {t('admin:users.viewConversations')}
-                      </Link>
-                    </Button>
+                  <div className="flex items-center gap-0.5">
+                    <IconAction label={t('admin:users.viewInfo')} onClick={() => setInfoRow(u)}>
+                      <Info size={15} aria-hidden />
+                    </IconAction>
+                    <IconAction label={t('admin:common.edit')} onClick={() => openEdit(u)}>
+                      <Pencil size={15} aria-hidden />
+                    </IconAction>
+                    <DropdownMenu>
+                      <Tooltip content={t('admin:users.more')}>
+                        <DropdownMenuTrigger
+                          aria-label={t('admin:users.more')}
+                          className="inline-flex items-center justify-center size-8 rounded-[8px] text-[var(--color-fg-subtle)] hover:bg-[var(--color-bg-muted)] hover:text-[var(--color-fg)] interactive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
+                        >
+                          <MoreHorizontal size={15} aria-hidden />
+                        </DropdownMenuTrigger>
+                      </Tooltip>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => navigate(`/admin/users/${encodeURIComponent(u.id)}/conversations`)}>
+                          <MessageSquare size={14} aria-hidden />
+                          {t('admin:users.viewConversations')}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => navigate(`/admin/users/${encodeURIComponent(u.id)}/library`)}>
+                          <Library size={14} aria-hidden />
+                          {t('admin:users.viewLibrary')}
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                     {u.status === 'active' ? (
-                      <Button variant="ghost" size="sm" disabled={isMe} onClick={() => void ban(u)}>
-                        {t('admin:users.ban')}
-                      </Button>
+                      <IconAction label={t('admin:users.ban')} onClick={() => void ban(u)} disabled={isMe}>
+                        <Ban size={15} aria-hidden />
+                      </IconAction>
                     ) : (
-                      <Button variant="ghost" size="sm" onClick={() => void unban(u)}>
-                        {t('admin:users.unban')}
-                      </Button>
+                      <IconAction label={t('admin:users.unban')} onClick={() => void unban(u)}>
+                        <ShieldCheck size={15} aria-hidden />
+                      </IconAction>
                     )}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      disabled={isMe}
-                      leadingIcon={<Trash2 size={12} aria-hidden />}
-                      className="text-[var(--color-danger)] hover:bg-[var(--color-danger-soft)]"
-                      onClick={() => setDeleteRow(u)}
-                    >
-                      {t('admin:common.delete')}
-                    </Button>
+                    <IconAction label={t('admin:common.delete')} onClick={() => setDeleteRow(u)} disabled={isMe} danger>
+                      <Trash2 size={15} aria-hidden />
+                    </IconAction>
                   </div>
                 </li>
               )
@@ -430,6 +455,18 @@ export default function AdminUsers() {
                   </SelectContent>
                 </Select>
               </Field>
+              <Field
+                label={t('admin:users.fields.groupExpiry')}
+                htmlFor="e-expiry"
+                hint={t('admin:users.fields.groupExpiryHint')}
+              >
+                <Input
+                  id="e-expiry"
+                  type="date"
+                  value={editExpiry}
+                  onChange={(e) => setEditExpiry(e.target.value)}
+                />
+              </Field>
               {editRow?.totp_enabled ? (
                 <Field label={t('admin:users.fields.twofa')} hint={t('admin:users.twofaHint')}>
                   <Button variant="secondary" onClick={() => void resetTwoFa()}>
@@ -477,6 +514,63 @@ export default function AdminUsers() {
         </DialogContent>
       </Dialog>
 
+      {/* User info (read-only) */}
+      <Dialog open={Boolean(infoRow)} onOpenChange={(o) => !o && setInfoRow(null)}>
+        <DialogContent size="sm">
+          <DialogHeader>
+            <DialogTitle>{infoRow ? infoRow.name || infoRow.email : ''}</DialogTitle>
+          </DialogHeader>
+          <DialogBody>
+            {infoRow ? (
+              <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2.5 text-sm">
+                <InfoLine label={t('admin:users.fields.email')} value={infoRow.email} mono />
+                <InfoLine
+                  label={t('admin:users.fields.role')}
+                  value={t(`admin:users.role${infoRow.role === 'admin' ? 'Admin' : 'User'}`)}
+                />
+                <InfoLine label={t('admin:users.info.status')} value={infoRow.status} />
+                <InfoLine
+                  label={t('admin:users.fields.group')}
+                  value={groups.find((g) => g.id === infoRow.group_id)?.name ?? '—'}
+                />
+                <InfoLine
+                  label={t('admin:users.info.expiry')}
+                  value={
+                    (infoRow.group_expires_at ?? 0) > 0
+                      ? formatDateTime((infoRow.group_expires_at ?? 0) * 1000)
+                      : t('admin:users.info.permanent')
+                  }
+                />
+                <InfoLine
+                  label={t('admin:users.fields.permanentCredits')}
+                  value={(infoRow.credits_permanent ?? 0).toLocaleString()}
+                />
+                {(() => {
+                  const g = groups.find((x) => x.id === infoRow.group_id)
+                  return g && g.credit_allowance > 0 ? (
+                    <InfoLine label={t('admin:users.info.allowance')} value={g.credit_allowance.toLocaleString()} />
+                  ) : null
+                })()}
+                <InfoLine
+                  label={t('admin:users.info.twofa')}
+                  value={infoRow.totp_enabled ? t('admin:users.info.enabled') : t('admin:users.info.disabled')}
+                />
+                <InfoLine
+                  label={t('admin:users.info.lastSeen')}
+                  value={infoRow.last_seen_at ? formatDateTime(infoRow.last_seen_at * 1000) : t('admin:users.neverSeen')}
+                />
+                <InfoLine label={t('admin:users.info.created')} value={formatDateTime(infoRow.created_at * 1000)} />
+              </dl>
+            ) : null}
+          </DialogBody>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setInfoRow(null)}>
+              {t('common:actions.close', { defaultValue: 'Close' })}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Delete user confirmation */}
       <Dialog open={Boolean(deleteRow)} onOpenChange={(o) => !o && setDeleteRow(null)}>
         <DialogContent size="sm">
@@ -498,4 +592,66 @@ export default function AdminUsers() {
       </Dialog>
     </div>
   )
+}
+
+// IconAction — a compact, label-only-on-hover icon button (or link) for the
+// user row. Tooltip carries the accessible name so the rail stays uncluttered.
+function IconAction({
+  label,
+  onClick,
+  href,
+  disabled,
+  danger,
+  children,
+}: {
+  label: string
+  onClick?: () => void
+  href?: string
+  disabled?: boolean
+  danger?: boolean
+  children: ReactNode
+}) {
+  const cls = cn(
+    'inline-flex items-center justify-center size-8 rounded-[8px] interactive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)] disabled:opacity-40 disabled:cursor-not-allowed',
+    danger
+      ? 'text-[var(--color-fg-subtle)] hover:bg-[var(--color-danger-soft)] hover:text-[var(--color-danger)]'
+      : 'text-[var(--color-fg-subtle)] hover:bg-[var(--color-bg-muted)] hover:text-[var(--color-fg)]',
+  )
+  return (
+    <Tooltip content={label}>
+      {href ? (
+        <Link to={href} aria-label={label} className={cls}>
+          {children}
+        </Link>
+      ) : (
+        <button type="button" aria-label={label} onClick={onClick} disabled={disabled} className={cls}>
+          {children}
+        </button>
+      )}
+    </Tooltip>
+  )
+}
+
+function InfoLine({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <>
+      <dt className="text-[var(--color-fg-subtle)]">{label}</dt>
+      <dd className={cn('text-right break-words text-[var(--color-fg)]', mono && 'font-mono text-[12.5px]')}>{value}</dd>
+    </>
+  )
+}
+
+// Membership expiry conversions between the API's unix seconds and the
+// <input type="date"> yyyy-mm-dd value. '' / 0 means permanent.
+function expiryToInput(sec: number): string {
+  if (!sec || sec <= 0) return ''
+  const d = new Date(sec * 1000)
+  if (Number.isNaN(d.getTime())) return ''
+  const z = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`
+}
+function inputToExpiry(s: string): number {
+  if (!s) return 0
+  const ms = Date.parse(`${s}T23:59:59`)
+  return Number.isNaN(ms) ? 0 : Math.floor(ms / 1000)
 }

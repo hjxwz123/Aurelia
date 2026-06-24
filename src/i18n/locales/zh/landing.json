@@ -120,5 +120,32 @@
     "readingList": "复杂理论入门书单",
     "newsletterName": "为一份评论性的简报命名",
     "askPlaceholder": "随便问点什么…"
+  },
+  "membership": {
+    "eyebrow": "会员",
+    "title": "选择适合你的方案。",
+    "body": "每个方案都开放完整工作室——全部前沿模型、深度研究、代码沙箱。更高的层级只是给你更多思考空间:更多额度、更多项目、更多知识库。",
+    "recommended": "最受欢迎",
+    "footnote": "价格按周期计。随时可取消——你的存档始终归你所有。",
+    "perMonth": "/月",
+    "perWeek": "/周",
+    "perDay": "/天",
+    "perCycle": "/周期",
+    "creditsPerCycle": "{{credits}} 额度 {{period}}",
+    "projects": "{{count}} 个项目",
+    "projectsUnlimited": "无限项目",
+    "kbs": "{{count}} 个知识库",
+    "kbsUnlimited": "无限知识库",
+    "cta": "开始使用"
+  },
+  "demo": {
+    "user1": "帮我列一篇「把注意力当作一种道德能力」的文章提纲。",
+    "reply1": "这是一份留白充分的提纲——每个部分都有呼吸的空间,论点先于论据出现。",
+    "cite1": "论注意力的道德维度",
+    "user2": "把开头收紧到两句话。",
+    "reply2": "注意力并非被动。我们选择去留意什么,本身就是一种道德行为。",
+    "switched": "已切换到 {{model}}",
+    "thinking": "思考中",
+    "placeholder": "问点什么…"
   }
 }

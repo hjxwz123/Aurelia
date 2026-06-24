@@ -176,11 +176,19 @@ func DeleteUserGroup(ctx context.Context, db *sql.DB, id string) error {
 // version so the group change (and its quota limits) takes effect immediately —
 // the group_id lives in the access-token claims, so outstanding tokens must be
 // invalidated (§ FIX-4, same pattern as SetUserRole / SetUserStatus).
-func SetUserGroup(ctx context.Context, db *sql.DB, userID, groupID string) error {
+// expiresAt is the unix-seconds expiry (0 = permanent). When set, the group
+// downgrades back to the default tier once it passes (see maybeExpireGroup), so
+// previous_group_id is cleared.
+func SetUserGroup(ctx context.Context, db *sql.DB, userID, groupID string, expiresAt int64) error {
 	if _, err := GetUserGroup(ctx, db, groupID); err != nil {
 		return err
 	}
-	if _, err := db.ExecContext(ctx, `UPDATE users SET group_id=? WHERE id=?`, groupID, userID); err != nil {
+	if expiresAt < 0 {
+		expiresAt = 0
+	}
+	if _, err := db.ExecContext(ctx,
+		`UPDATE users SET group_id=?, group_expires_at=?, previous_group_id='' WHERE id=?`,
+		groupID, expiresAt, userID); err != nil {
 		return err
 	}
 	return BumpTokenVersion(ctx, db, userID)

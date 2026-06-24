@@ -641,6 +641,13 @@ function MessageRowImpl({ message, userName, onRegenerate, onEdit, onSaveEdit, o
                 ) : null}
           </div>
         ) : null}
+        {/* Read-only branch picker (admin triage): no mutation actions, but the
+            `< n/m >` switcher stays so reviewers can walk every branch. */}
+        {readOnly && !message.streaming && message.branchCount && message.branchCount > 1 && typeof message.branchIndex === 'number' ? (
+          <div className="mt-2 inline-flex items-center">
+            <BranchSwitcher message={message} onSwitch={onBranchSwitch} t={t} />
+          </div>
+        ) : null}
         {isUser && (
           <span className="sr-only">
             {displayUserName}

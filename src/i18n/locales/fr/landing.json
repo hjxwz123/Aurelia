@@ -120,5 +120,32 @@
     "readingList": "Liste de lecture sur la complexité",
     "newsletterName": "Trouver un nom pour une newsletter éditoriale",
     "askPlaceholder": "Posez n'importe quelle question…"
+  },
+  "membership": {
+    "eyebrow": "Abonnement",
+    "title": "Trouvez le palier qui vous convient.",
+    "body": "Chaque formule ouvre tout le studio — tous les modèles de pointe, la recherche approfondie, le bac à sable. Les paliers supérieurs vous donnent simplement plus d'espace pour penser : plus de crédits, de projets, de bases de connaissances.",
+    "recommended": "Le plus choisi",
+    "footnote": "Prix indiqués par cycle. Annulable à tout moment — vos archives vous appartiennent.",
+    "perMonth": "/ mois",
+    "perWeek": "/ sem.",
+    "perDay": "/ jour",
+    "perCycle": "/ cycle",
+    "creditsPerCycle": "{{credits}} crédits {{period}}",
+    "projects": "{{count}} projets",
+    "projectsUnlimited": "Projets illimités",
+    "kbs": "{{count}} bases de connaissances",
+    "kbsUnlimited": "Bases de connaissances illimitées",
+    "cta": "Commencer"
+  },
+  "demo": {
+    "user1": "Esquisse un essai sur l'attention comme compétence morale.",
+    "reply1": "Voici un plan aéré — chaque section respire, et la thèse arrive avant les preuves.",
+    "cite1": "Sur la dimension morale de l'attention",
+    "user2": "Resserre l'ouverture à deux phrases.",
+    "reply2": "L'attention n'est pas passive. Ce que nous choisissons de remarquer est déjà un acte moral.",
+    "switched": "Basculé vers {{model}}",
+    "thinking": "Réflexion",
+    "placeholder": "Posez n'importe quelle question…"
   }
 }

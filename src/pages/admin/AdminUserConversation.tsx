@@ -38,9 +38,14 @@ export default function AdminUserConversation() {
   const navigate = useNavigate()
   const { id = '', cid = '' } = useParams<{ id: string; cid: string }>()
   const [conv, setConv] = useState<ApiConversation | null>(null)
-  const [messages, setMessages] = useState<Message[]>([])
+  // The FULL message tree (all branches) + which leaf is shown. Branch switching
+  // is local: the admin walks branches for triage without touching the user's
+  // stored active leaf.
+  const [tree, setTree] = useState<Message[]>([])
+  const [activeLeaf, setActiveLeaf] = useState('')
   const [users, setUsers] = useState<ApiUser[]>([])
   const [loading, setLoading] = useState(true)
+  const messages = useMemo(() => buildBranchPath(tree, activeLeaf), [tree, activeLeaf])
   // MessageRow resolves the assistant's model name/icon from the shared models
   // store (the same source the chat surface uses). Hydrate it for deep-links.
   const getModelById = useModels((s) => s.getById)
@@ -57,12 +62,15 @@ export default function AdminUserConversation() {
       try {
         const [c, msgs, us] = await Promise.all([
           adminApi.conversation(cid),
-          adminApi.conversationMessages(cid),
+          // Pull the whole tree so every branch is inspectable, not just the
+          // user's current active path.
+          adminApi.conversationMessages(cid, 'tree'),
           adminApi.users('', 200, 0).then((r) => r.users).catch(() => [] as ApiUser[]),
         ])
         if (cancelled) return
         setConv(c)
-        setMessages(msgs.map(toLocalMessage))
+        setTree(msgs.map(toLocalMessage))
+        setActiveLeaf(c.active_leaf_id || '')
         setUsers(us)
       } catch (e) {
         if (!cancelled) toast.error(e instanceof ApiError ? e.message : t('common.failed'))
@@ -129,13 +137,85 @@ export default function AdminUserConversation() {
           // so the admin sees exactly what the user saw (§8.1).
           <div className="flex flex-col gap-8 mx-auto w-full max-w-[var(--layout-message-max-w)]">
             {messages.map((m) => (
-              <MessageRow key={m.id} message={m} userName={userLabel} readOnly />
+              <MessageRow
+                key={m.id}
+                message={m}
+                userName={userLabel}
+                readOnly
+                onBranchSwitch={(leafId) => setActiveLeaf(deepestLeaf(tree, leafId))}
+              />
             ))}
           </div>
         )}
       </section>
     </div>
   )
+}
+
+// buildBranchPath resolves the root→leaf path from the full message tree and
+// annotates each node with its branch siblings (same parent + same role) so the
+// read-only MessageRow can render the `< n/m >` picker. Pure: switching the leaf
+// just recomputes the visible path — it never writes the user's stored leaf.
+function buildBranchPath(all: Message[], activeLeafId: string): Message[] {
+  if (all.length === 0) return []
+  const byId = new Map(all.map((m) => [m.id, m]))
+  const childrenOf = childrenIndex(all)
+
+  let leaf = activeLeafId ? byId.get(activeLeafId) : undefined
+  if (!leaf) {
+    // No (or stale) active leaf → follow the latest child from the root down.
+    const roots = childrenOf.get('') ?? []
+    let cur: Message | undefined = roots[roots.length - 1]
+    while (cur) {
+      const kids = childrenOf.get(cur.id) ?? []
+      if (kids.length === 0) break
+      cur = kids[kids.length - 1]
+    }
+    leaf = cur
+  }
+  if (!leaf) return []
+
+  const chain: Message[] = []
+  const seen = new Set<string>()
+  let node: Message | undefined = leaf
+  while (node && !seen.has(node.id)) {
+    seen.add(node.id)
+    chain.push(node)
+    node = node.parentId ? byId.get(node.parentId) : undefined
+  }
+  chain.reverse()
+
+  return chain.map((m) => {
+    const sibs = (childrenOf.get(m.parentId ?? '') ?? []).filter((s) => s.role === m.role)
+    if (sibs.length <= 1) return m
+    const ids = sibs.map((s) => s.id)
+    return { ...m, siblings: ids, branchCount: ids.length, branchIndex: ids.indexOf(m.id) }
+  })
+}
+
+// deepestLeaf follows the latest child from `startId` down to a leaf — the leaf a
+// freshly-selected branch should display.
+function deepestLeaf(all: Message[], startId: string): string {
+  const childrenOf = childrenIndex(all)
+  let cur = startId
+  for (;;) {
+    const kids = childrenOf.get(cur) ?? []
+    if (kids.length === 0) return cur
+    cur = kids[kids.length - 1].id
+  }
+}
+
+// childrenIndex maps parentId ('' = root) → children ordered oldest-first.
+function childrenIndex(all: Message[]): Map<string, Message[]> {
+  const idx = new Map<string, Message[]>()
+  for (const m of all) {
+    const key = m.parentId ?? ''
+    const arr = idx.get(key) ?? []
+    arr.push(m)
+    idx.set(key, arr)
+  }
+  for (const arr of idx.values()) arr.sort((a, b) => a.createdAt - b.createdAt)
+  return idx
 }
 
 function formatBytes(n: number): string {
