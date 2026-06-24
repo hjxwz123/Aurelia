@@ -68,6 +68,9 @@ func NewRouter(d Deps) http.Handler {
 	mux.handle("GET", "/api/public/needs-setup", wrap(d, needsSetupHandler))
 	mux.handle("POST", "/api/setup", rateLimitedIP(d, "auth", 10, 60*time.Second, wrap(d, setupHandler)))
 	mux.handle("GET", "/api/public/oauth-providers", wrap(d, oauthProvidersPublicHandler))
+	// Membership tiers for the public landing page (§ user groups) — read-only,
+	// marketing info (names / prices / features / allowances), no secrets.
+	mux.handle("GET", "/api/public/user-groups", wrap(d, listUserGroupsPublic))
 	// Public read-only conversation share (token in the path; no auth). Rate
 	// limited (§D1) so the token space can't be swept even though it's now 192-bit.
 	mux.handle("GET", "/api/public/shared/:token", rateLimitedIP(d, "share", 60, 60*time.Second, wrap(d, publicSharedHandler)))
@@ -217,6 +220,9 @@ func NewRouter(d Deps) http.Handler {
 	// timeline of one conversation (including assistant/tool turns) so an
 	// admin can verify a report without needing to log in as the user.
 	mux.handle("GET", "/api/admin/users/:id/conversations", requireAdmin(d, listUserConversationsAdmin))
+	mux.handle("GET", "/api/admin/users/:id/projects", requireAdmin(d, listUserProjectsAdmin))
+	mux.handle("GET", "/api/admin/users/:id/kbs", requireAdmin(d, listUserKBsAdmin))
+	mux.handle("GET", "/api/admin/kbs/:id/documents", requireAdmin(d, listKBDocumentsAdmin))
 	mux.handle("GET", "/api/admin/conversations/:id", requireAdmin(d, getConversationAdmin))
 	mux.handle("GET", "/api/admin/conversations/:id/sandbox", requireAdmin(d, sandboxFilesAdmin))
 	mux.handle("GET", "/api/admin/conversations/:id/sandbox/file", requireAdmin(d, sandboxFileGetAdmin))

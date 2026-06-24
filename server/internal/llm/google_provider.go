@@ -267,14 +267,32 @@ func geminiSupportsThinking(requestID string) bool {
 // turn with 400 "Function call is missing a thought_signature in functionCall
 // parts." We copy it under whatever key the upstream used (REST camelCase or
 // proto snake_case) to stay robust across gateways.
-func geminiFunctionCallPart(part, fc map[string]any) map[string]any {
+func geminiFunctionCallPart(part, fc map[string]any, fallbackSig string) map[string]any {
 	out := map[string]any{"functionCall": fc}
-	for _, k := range []string{"thoughtSignature", "thought_signature"} {
-		if v, ok := part[k]; ok {
-			out[k] = v
-		}
+	sig := geminiPartSig(part)
+	if sig == "" {
+		// Gemini 3 sometimes attaches the signature to the preceding thought part
+		// (or, in streaming, an earlier chunk) rather than the functionCall part
+		// itself. Fall back to the most recent signature seen this turn so the
+		// replayed functionCall never goes back bare (→ 400 "missing
+		// thought_signature in functionCall parts").
+		sig = fallbackSig
+	}
+	if sig != "" {
+		out["thoughtSignature"] = sig
 	}
 	return out
+}
+
+// geminiPartSig returns a part's thought signature under either the REST
+// camelCase or proto snake_case key. Empty when absent.
+func geminiPartSig(part map[string]any) string {
+	for _, k := range []string{"thoughtSignature", "thought_signature"} {
+		if s, ok := part[k].(string); ok && s != "" {
+			return s
+		}
+	}
+	return ""
 }
 
 // readGeminiStream consumes the streamGenerateContent SSE response. Each line
@@ -294,6 +312,10 @@ func readGeminiStream(body io.Reader, onEvent func(SseEvent)) (string, string, [
 	calls := []geminiCall{}
 	modelParts := []map[string]any{}
 	usage := Usage{}
+	// Most recent thought signature seen this turn — Gemini 3 may attach it to a
+	// thought part (or an earlier streaming chunk) instead of the functionCall
+	// part. We carry it forward so every replayed functionCall keeps a signature.
+	lastSig := ""
 	for scanner.Scan() {
 		line := scanner.Text()
 		if !strings.HasPrefix(line, "data:") {
@@ -314,12 +336,19 @@ func readGeminiStream(body io.Reader, onEvent func(SseEvent)) (string, string, [
 			parts, _ := content["parts"].([]any)
 			for _, pr := range parts {
 				prm, _ := pr.(map[string]any)
+				if sig := geminiPartSig(prm); sig != "" {
+					lastSig = sig
+				}
 				isThought, _ := prm["thought"].(bool)
 				if t, _ := prm["text"].(string); t != "" {
 					if isThought {
 						thinking.WriteString(t)
 						onEvent(SseEvent{Type: "thinking_delta", Text: t})
-						modelParts = append(modelParts, map[string]any{"text": t, "thought": true})
+						tp := map[string]any{"text": t, "thought": true}
+						if sig := geminiPartSig(prm); sig != "" {
+							tp["thoughtSignature"] = sig
+						}
+						modelParts = append(modelParts, tp)
 					} else {
 						text.WriteString(t)
 						onEvent(SseEvent{Type: "text_delta", Text: t})
@@ -338,7 +367,7 @@ func readGeminiStream(body io.Reader, onEvent func(SseEvent)) (string, string, [
 						args = json.RawMessage("{}")
 					}
 					calls = append(calls, geminiCall{Name: name, Args: args})
-					modelParts = append(modelParts, geminiFunctionCallPart(prm, fc))
+					modelParts = append(modelParts, geminiFunctionCallPart(prm, fc, lastSig))
 					onEvent(SseEvent{Type: "tool_start", Name: name, ID: name})
 					onEvent(SseEvent{Type: "tool_input", Name: name, ID: name, PartialJson: string(args)})
 				}
@@ -364,6 +393,7 @@ func parseGeminiCandidate(parsed map[string]any) (string, []geminiCall, []map[st
 	text := ""
 	calls := []geminiCall{}
 	modelParts := []map[string]any{}
+	candSig := ""
 	cs, _ := parsed["candidates"].([]any)
 	for _, c := range cs {
 		cm, _ := c.(map[string]any)
@@ -371,6 +401,9 @@ func parseGeminiCandidate(parsed map[string]any) (string, []geminiCall, []map[st
 		parts, _ := content["parts"].([]any)
 		for _, pr := range parts {
 			prm, _ := pr.(map[string]any)
+			if sig := geminiPartSig(prm); sig != "" {
+				candSig = sig
+			}
 			if t, _ := prm["text"].(string); t != "" {
 				text += t
 				modelParts = append(modelParts, map[string]any{"text": t})
@@ -382,7 +415,7 @@ func parseGeminiCandidate(parsed map[string]any) (string, []geminiCall, []map[st
 					args = json.RawMessage("{}")
 				}
 				calls = append(calls, geminiCall{Name: name, Args: args})
-				modelParts = append(modelParts, geminiFunctionCallPart(prm, fc))
+				modelParts = append(modelParts, geminiFunctionCallPart(prm, fc, candSig))
 			}
 		}
 	}

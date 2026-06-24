@@ -149,6 +149,8 @@ export const skillsApi = {
 export const groupsApi = {
   /** Groups visible to the signed-in user (subscription page). */
   list: () => api<ApiUserGroup[]>('/user-groups'),
+  /** Public membership tiers for the landing page (no auth required). */
+  publicList: () => api<ApiUserGroup[]>('/public/user-groups'),
 }
 
 // ----- Redeem codes (§ redeem codes) ---------------------------------------
@@ -412,8 +414,12 @@ export const adminApi = {
     api<ApiUserGroup>(`/admin/user-groups/${encodeURIComponent(id)}`, { method: 'PATCH', body }),
   removeUserGroup: (id: string) =>
     api<{ ok: true }>(`/admin/user-groups/${encodeURIComponent(id)}`, { method: 'DELETE' }),
-  setUserGroup: (id: string, group_id: string) =>
-    api<{ ok: true }>(`/admin/users/${encodeURIComponent(id)}/group`, { method: 'POST', body: { group_id } }),
+  /** Assign a membership group; group_expires_at is unix seconds (0 = permanent). */
+  setUserGroup: (id: string, group_id: string, group_expires_at = 0) =>
+    api<{ ok: true }>(`/admin/users/${encodeURIComponent(id)}/group`, {
+      method: 'POST',
+      body: { group_id, group_expires_at },
+    }),
   /** Overwrite a user's permanent (non-expiring) credit balance (§ credits). */
   setUserCredits: (id: string, credits_permanent: number) =>
     api<{ ok: true; credits_permanent: number }>(`/admin/users/${encodeURIComponent(id)}/credits`, {
@@ -482,6 +488,12 @@ export const adminApi = {
   // per-user ownership filter on the server side.
   userConversations: (id: string) =>
     api<ApiConversation[]>(`/admin/users/${encodeURIComponent(id)}/conversations`),
+  userProjects: (id: string) =>
+    api<ApiProject[]>(`/admin/users/${encodeURIComponent(id)}/projects`),
+  userKbs: (id: string) =>
+    api<ApiKnowledgeBase[]>(`/admin/users/${encodeURIComponent(id)}/kbs`),
+  kbDocuments: (kbId: string) =>
+    api<ApiDocument[]>(`/admin/kbs/${encodeURIComponent(kbId)}/documents`),
   conversation: (id: string) =>
     api<ApiConversation>(`/admin/conversations/${encodeURIComponent(id)}`),
   conversationMessages: (id: string, mode?: 'tree') =>

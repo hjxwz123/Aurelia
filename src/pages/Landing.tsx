@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { gsap } from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import { useGSAP } from '@gsap/react'
@@ -16,15 +16,14 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { Logo } from '@/components/brand/logo'
+import { MembershipTiers } from '@/components/landing/membership-tiers'
+import { LiveDemo } from '@/components/landing/live-demo'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
 import { LanguageToggle } from '@/components/ui/language-toggle'
-import { Composer } from '@/components/chat/composer'
-import { useConversations } from '@/store/conversations'
-import { useModels } from '@/store/models'
 import { useTheme } from '@/store/theme'
-import { useTranslation, Trans } from 'react-i18next'
+import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 
 gsap.registerPlugin(ScrollTrigger, useGSAP)
@@ -62,13 +61,8 @@ const MODELS: readonly ModelSpec[] = [
 const PRINCIPLE_KEYS = ['noDefaults', 'readingFirst', 'youOwnIt'] as const
 
 export default function Landing() {
-  const navigate = useNavigate()
   const syncSystem = useTheme((s) => s.syncSystem)
   const { t } = useTranslation(['landing', 'common', 'nav'])
-  // Pull only the actions to avoid re-rendering Landing on every streaming token.
-  const createConversation = useConversations((s) => s.createConversation)
-  const sendMessage = useConversations((s) => s.sendMessage)
-  const defaultModelId = useModels((s) => s.defaultId)
 
   const root = useRef<HTMLDivElement>(null)
   const topBtn = useRef<HTMLButtonElement>(null)
@@ -97,7 +91,7 @@ export default function Landing() {
           // The accent baseline segment draws in alongside it.
           .from('.hero-baseline', { scaleX: 0, duration: 0.8 }, '<')
           .from('.hero-sub', { y: 16, autoAlpha: 0, duration: 0.7 }, '-=0.85')
-          .from('.hero-composer', { y: 22, autoAlpha: 0, duration: 0.7 }, '-=0.45')
+          .from('.hero-cta', { y: 22, autoAlpha: 0, duration: 0.7 }, '-=0.45')
           .from('.hero-meta', { y: 10, autoAlpha: 0, duration: 0.6 }, '-=0.5')
           .from('.hero-preview', { y: 48, autoAlpha: 0, duration: 1.0 }, '-=0.9')
 
@@ -127,14 +121,41 @@ export default function Landing() {
           })
         })
 
-        // Depth: the soft background orbs drift at different rates on scroll.
-        gsap.to('.orb-1', { yPercent: 22, ease: 'none', scrollTrigger: { start: 'top top', end: 'max', scrub: true } })
-        gsap.to('.orb-2', { yPercent: -16, ease: 'none', scrollTrigger: { start: 'top top', end: 'max', scrub: true } })
+        // Ambient depth: the warm gradient orbs drift perpetually — a calm,
+        // Claude-like motion — each at its own slow cadence and scale breath.
+        gsap.to('.orb-1', { xPercent: 8, yPercent: 12, scale: 1.08, duration: 16, ease: 'sine.inOut', repeat: -1, yoyo: true })
+        gsap.to('.orb-2', { xPercent: -10, yPercent: -8, scale: 1.12, duration: 21, ease: 'sine.inOut', repeat: -1, yoyo: true })
+        gsap.to('.orb-3', { xPercent: 6, yPercent: -12, scale: 1.06, duration: 26, ease: 'sine.inOut', repeat: -1, yoyo: true })
 
-        // Pointer-parallax tilt on the hero preview — subtle 3D depth, desktop
-        // (fine-pointer) only. quickTo keeps it off the React render cycle.
+        const cleanups: Array<() => void> = []
+        const fine = window.matchMedia('(pointer: fine)').matches
+
+        // Magnetic CTAs — the control eases toward the cursor, then springs back.
+        if (fine) {
+          root.current?.querySelectorAll<HTMLElement>('[data-magnetic]').forEach((el) => {
+            const xq = gsap.quickTo(el, 'x', { duration: 0.5, ease: 'power3' })
+            const yq = gsap.quickTo(el, 'y', { duration: 0.5, ease: 'power3' })
+            const move = (e: PointerEvent) => {
+              const r = el.getBoundingClientRect()
+              xq((e.clientX - (r.left + r.width / 2)) * 0.35)
+              yq((e.clientY - (r.top + r.height / 2)) * 0.45)
+            }
+            const leave = () => {
+              xq(0)
+              yq(0)
+            }
+            el.addEventListener('pointermove', move)
+            el.addEventListener('pointerleave', leave)
+            cleanups.push(() => {
+              el.removeEventListener('pointermove', move)
+              el.removeEventListener('pointerleave', leave)
+            })
+          })
+        }
+
+        // Pointer-parallax tilt on the hero demo — subtle 3D depth, desktop only.
         const preview = root.current?.querySelector<HTMLElement>('.hero-preview')
-        if (preview && window.matchMedia('(pointer: fine)').matches) {
+        if (preview && fine) {
           gsap.set(preview, { transformPerspective: 1100, transformOrigin: 'center' })
           const rx = gsap.quickTo(preview, 'rotationX', { duration: 0.5, ease: 'power3' })
           const ry = gsap.quickTo(preview, 'rotationY', { duration: 0.5, ease: 'power3' })
@@ -149,11 +170,13 @@ export default function Landing() {
           }
           preview.addEventListener('pointermove', onMove)
           preview.addEventListener('pointerleave', onLeave)
-          return () => {
+          cleanups.push(() => {
             preview.removeEventListener('pointermove', onMove)
             preview.removeEventListener('pointerleave', onLeave)
-          }
+          })
         }
+
+        if (cleanups.length) return () => cleanups.forEach((fn) => fn())
       })
 
       // Reduced motion: nothing animates. The one element whose *resting* state
@@ -175,13 +198,6 @@ export default function Landing() {
     },
     { scope: root },
   )
-
-  async function handleHeroSubmit(text: string) {
-    const conv = await createConversation(defaultModelId)
-    if (!conv) return
-    navigate(`/chat/${conv.id}`)
-    void sendMessage({ conversationId: conv.id, text, modelId: conv.modelId || defaultModelId })
-  }
 
   return (
     <div ref={root} className="relative min-h-svh overflow-x-clip bg-[var(--color-bg)] text-[var(--color-fg)]">
@@ -207,6 +223,7 @@ export default function Landing() {
             <a href="#capabilities" className="hover:text-[var(--color-fg)] interactive">{t('nav:capabilities')}</a>
             <a href="#how" className="hover:text-[var(--color-fg)] interactive">{t('nav:howItFeels')}</a>
             <a href="#models" className="hover:text-[var(--color-fg)] interactive">{t('nav:models')}</a>
+            <a href="#pricing" className="hover:text-[var(--color-fg)] interactive">{t('nav:pricing')}</a>
             <a href="#safety" className="hover:text-[var(--color-fg)] interactive">{t('nav:safety')}</a>
           </nav>
           <div className="flex items-center gap-2">
@@ -264,24 +281,29 @@ export default function Landing() {
               {t('landing:hero.subtitle')}
             </p>
 
-            <div className="hero-composer mt-8 max-w-[34rem]">
-              <Composer
-                modelId={defaultModelId}
-                onModelChange={() => { /* hero composer ignores; real switch happens in /chat */ }}
-                onSubmit={(text) => void handleHeroSubmit(text)}
-                placeholder={t('landing:hero.placeholder')}
-              />
-              <div className="hero-meta mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-[12px] text-[var(--color-fg-subtle)]">
-                <span>{t('common:common.free')}</span>
-                <span aria-hidden>·</span>
-                <span>{t('common:common.noCard')}</span>
-                <span aria-hidden>·</span>
-                <span>{t('common:common.openAnytime')}</span>
-              </div>
+            <div className="hero-cta mt-9 flex flex-wrap items-center gap-3">
+              <Link to="/chat" data-magnetic className="inline-block will-change-transform">
+                <Button size="lg" trailingIcon={<ArrowRight size={15} aria-hidden />}>
+                  {t('landing:cta.primary')}
+                </Button>
+              </Link>
+              <Link to="/login" data-magnetic className="inline-block will-change-transform">
+                <Button size="lg" variant="ghost">
+                  {t('common:actions.signIn')}
+                </Button>
+              </Link>
+            </div>
+            <div className="hero-meta mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 text-[12px] text-[var(--color-fg-subtle)]">
+              <span>{t('common:common.free')}</span>
+              <span aria-hidden>·</span>
+              <span>{t('common:common.noCard')}</span>
+              <span aria-hidden>·</span>
+              <span>{t('common:common.openAnytime')}</span>
             </div>
           </div>
 
-          {/* Product preview on a faint dot-grid plinth, bleeding past the gutter. */}
+          {/* The product itself is the hero: a live, looping demo that streams
+              its replies and switches models mid-thread. On a faint dot-grid. */}
           <div className="hero-preview relative min-w-0 will-change-transform lg:-mr-6">
             <div
               aria-hidden
@@ -292,10 +314,33 @@ export default function Landing() {
                 backgroundSize: '16px 16px',
               }}
             />
-            <ProductPreview />
+            <LiveDemo />
           </div>
         </div>
       </section>
+
+      {/* Model marquee — a calm, edge-faded auto-scroll of the frontier models
+          Aurelia convenes. Pauses on hover; static under reduced-motion. */}
+      <div
+        className="marquee-group relative overflow-hidden border-y border-[var(--color-divider)] py-6"
+        aria-hidden
+        style={{
+          maskImage: 'linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent)',
+          WebkitMaskImage: 'linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent)',
+        }}
+      >
+        <ul className="marquee-track flex w-max items-center gap-14">
+          {[...MODELS, ...MODELS].map((m, i) => (
+            <li key={`${m.key}-${i}`} className="flex shrink-0 items-center gap-2.5">
+              <span
+                className="brand-mark size-5 bg-[var(--color-fg-subtle)]"
+                style={{ WebkitMaskImage: `url(/brand/${m.slug}.svg)`, maskImage: `url(/brand/${m.slug}.svg)` }}
+              />
+              <span className="font-serif text-lg tracking-tight text-[var(--color-fg-muted)]">{m.name}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
 
       {/* Capabilities */}
       <section id="capabilities" className="py-24 sm:py-32 border-t border-[var(--color-divider)]">
@@ -449,6 +494,9 @@ export default function Landing() {
           <p className="mt-6 text-[12px] text-[var(--color-fg-subtle)]">{t('landing:models.footnote')}</p>
         </div>
       </section>
+
+      {/* Membership tiers (§ user groups) — public, fetched from the open endpoint. */}
+      <MembershipTiers />
 
       {/* Safety */}
       <section id="safety" className="py-24 sm:py-32 border-t border-[var(--color-divider)]">
@@ -619,103 +667,6 @@ function PullQuote() {
   )
 }
 
-function ProductPreview() {
-  const { t } = useTranslation('landing')
-  return (
-    <div
-      className="relative rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-[var(--shadow-2xl)] overflow-hidden"
-      aria-hidden
-    >
-      {/* Window chrome */}
-      <div className="flex items-center gap-1.5 px-4 h-9 border-b border-[var(--color-divider)] bg-[var(--color-bg-muted)]">
-        <span className="size-2.5 rounded-full bg-[var(--color-fg-faint)]" />
-        <span className="size-2.5 rounded-full bg-[var(--color-fg-faint)]" />
-        <span className="size-2.5 rounded-full bg-[var(--color-fg-faint)]" />
-        <span className="mx-auto text-[11px] text-[var(--color-fg-subtle)] font-mono">aurelia.app/chat</span>
-      </div>
-      <div className="grid grid-cols-[200px_1fr] min-h-[420px]">
-        {/* Mini sidebar */}
-        <div className="border-r border-[var(--color-divider)] bg-[var(--color-bg-muted)]/60 p-3 max-md:hidden">
-          <Logo size="sm" />
-          <div className="mt-5 space-y-1">
-            <MiniNavRow label={t('preview.essayTitle')} active />
-            <MiniNavRow label={t('preview.readingList')} />
-          </div>
-          <div className="mt-5">
-            <div className="text-[10px] uppercase tracking-wider text-[var(--color-fg-subtle)] mb-1.5 px-2">
-              {t('preview.today')}
-            </div>
-            <MiniNavRow label={t('preview.essayTitle')} />
-            <MiniNavRow label={t('preview.readingList')} />
-          </div>
-          <div className="mt-5">
-            <div className="text-[10px] uppercase tracking-wider text-[var(--color-fg-subtle)] mb-1.5 px-2">
-              {t('preview.yesterday')}
-            </div>
-            <MiniNavRow label={t('preview.newsletterName')} />
-          </div>
-        </div>
-        {/* Mini conversation */}
-        <div className="p-6 sm:p-8 flex flex-col">
-          <div className="flex items-center gap-2 mb-5">
-            <span className="size-6 rounded-full bg-[var(--color-secondary-soft)] text-[var(--color-secondary)] inline-flex items-center justify-center text-[11px] font-medium">
-              A
-            </span>
-            <span className="font-serif text-[15px] tracking-tight text-[var(--color-fg)]">Aurelia</span>
-          </div>
-          <p className="text-[var(--color-fg)] leading-relaxed text-[14px] max-w-[36rem]">
-            <Trans
-              i18nKey="preview.essayLead"
-              t={t}
-              values={{ topic: t('preview.essayTopic') }}
-              components={{ italic: <em /> }}
-            />
-          </p>
-          <p className="mt-3 text-[var(--color-fg)] leading-relaxed text-[14px] max-w-[36rem]">
-            <span className="font-serif text-base">
-              <Trans
-                i18nKey="preview.section1"
-                t={t}
-                values={{ italic: t('preview.section1Italic') }}
-                components={{ italic: <em /> }}
-              />
-            </span>
-            <br />
-            <span className="text-[var(--color-fg-muted)]">{t('preview.section1Body')}</span>
-          </p>
-          <p className="mt-3 text-[var(--color-fg)] leading-relaxed text-[14px] max-w-[36rem]">
-            <span className="font-serif text-base">{t('preview.section2')}</span>
-            <br />
-            <span className="text-[var(--color-fg-muted)]">{t('preview.section2Body')}</span>
-          </p>
-          <div className="mt-auto rounded-[16px] border border-[var(--color-border)] bg-[var(--color-bg)] p-2.5 max-w-[36rem]">
-            <div className="px-1.5 py-2 text-[var(--color-fg-faint)] text-sm">{t('preview.askPlaceholder')}</div>
-            <div className="flex items-center gap-1 px-1.5 pt-1">
-              <span className="text-[11px] text-[var(--color-fg-subtle)]">Aurelia Reason</span>
-              <span className="ml-auto inline-flex size-7 items-center justify-center rounded-[8px] bg-[var(--color-accent)] text-[var(--color-accent-fg)]">
-                <ArrowUp size={13} aria-hidden />
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function MiniNavRow({ label, active }: { label: string; active?: boolean }) {
-  return (
-    <div
-      className={cn(
-        'px-2 py-1.5 rounded-[8px] text-[12px] truncate',
-        active ? 'bg-[var(--color-surface)] text-[var(--color-fg)] font-medium' : 'text-[var(--color-fg-muted)]',
-      )}
-    >
-      {label}
-    </div>
-  )
-}
-
 function BackgroundOrnament() {
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
@@ -731,6 +682,14 @@ function BackgroundOrnament() {
           background: 'radial-gradient(closest-side, color-mix(in oklch, var(--color-secondary-soft) 60%, transparent), transparent 70%)',
         }}
       />
+      <div
+        className="orb-3 absolute top-[1100px] right-[-10rem] size-[520px] rounded-full opacity-40 blur-3xl will-change-transform"
+        style={{
+          background: 'radial-gradient(closest-side, color-mix(in oklch, var(--color-accent-soft) 55%, transparent), transparent 70%)',
+        }}
+      />
+      {/* Warm film grain — premium texture over the gradient field. */}
+      <div className="grain-overlay absolute inset-0 opacity-[0.04] mix-blend-soft-light" />
     </div>
   )
 }

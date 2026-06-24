@@ -300,6 +300,27 @@
   animation: page-enter var(--duration-base) var(--ease-out);
 }
 
+/* Landing — edge-faded auto-scrolling marquee (model logos). The track holds two
+   copies of the row; translating it -50% lands exactly on the seam, so the loop
+   is seamless. Pauses on hover. prefers-reduced-motion zeroes it (static row). */
+@keyframes marquee {
+  to { transform: translateX(-50%); }
+}
+.marquee-track {
+  animation: marquee 36s linear infinite;
+  will-change: transform;
+}
+.marquee-group:hover .marquee-track {
+  animation-play-state: paused;
+}
+
+/* Landing — subtle film grain for a warm, premium texture. Neutral noise, very
+   low opacity; sits above the gradient field, below content. */
+.grain-overlay {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  background-size: 160px 160px;
+}
+
 /* Inline split-panel enter (HTML preview drawer on desktop). Width appears
    with the flex re-layout; the content glides in instead of jump-cutting. */
 @keyframes panel-in {

@@ -532,6 +532,38 @@ func listUserConversationsAdmin(d Deps, w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, 200, rows)
 }
 
+// listUserProjectsAdmin / listUserKBsAdmin — read-only drill-down into a target
+// user's projects and knowledge bases for support / triage (§8.1), no ownership
+// filter (admin scope).
+func listUserProjectsAdmin(d Deps, w http.ResponseWriter, r *http.Request) {
+	rows, err := store.ListProjects(r.Context(), d.DB, pathParam(r, "id"))
+	if err != nil {
+		writeError(w, 500, err)
+		return
+	}
+	writeJSON(w, 200, rows)
+}
+
+func listUserKBsAdmin(d Deps, w http.ResponseWriter, r *http.Request) {
+	rows, err := store.ListKBs(r.Context(), d.DB, pathParam(r, "id"))
+	if err != nil {
+		writeError(w, 500, err)
+		return
+	}
+	writeJSON(w, 200, rows)
+}
+
+// listKBDocumentsAdmin lists the documents in a knowledge base (read-only, admin
+// scope — no ownership filter), for the user-library drill-down.
+func listKBDocumentsAdmin(d Deps, w http.ResponseWriter, r *http.Request) {
+	rows, err := store.ListDocuments(r.Context(), d.DB, "kb", pathParam(r, "id"))
+	if err != nil {
+		writeError(w, 500, err)
+		return
+	}
+	writeJSON(w, 200, rows)
+}
+
 // getConversationAdmin returns one conversation by id, without the per-user
 // ownership filter. The frontend pairs this with /messages to render the
 // admin thread view.

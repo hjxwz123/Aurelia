@@ -47,6 +47,7 @@ const AdminUsers = lazy(() => import('@/pages/admin/AdminUsers'))
 const AdminUserGroups = lazy(() => import('@/pages/admin/AdminUserGroups'))
 const AdminUserConversations = lazy(() => import('@/pages/admin/AdminUserConversations'))
 const AdminUserConversation = lazy(() => import('@/pages/admin/AdminUserConversation'))
+const AdminUserLibrary = lazy(() => import('@/pages/admin/AdminUserLibrary'))
 const AdminUsage = lazy(() => import('@/pages/admin/AdminUsage'))
 const AdminAnalytics = lazy(() => import('@/pages/admin/AdminAnalytics'))
 const AdminSettings = lazy(() => import('@/pages/admin/AdminSettings'))
@@ -176,6 +177,7 @@ export default function App() {
               <Route path="user-groups" element={<AdminUserGroups />} />
               <Route path="redeem-codes" element={<AdminRedeemCodes />} />
               <Route path="users/:id/conversations" element={<AdminUserConversations />} />
+              <Route path="users/:id/library" element={<AdminUserLibrary />} />
               <Route path="users/:id/conversations/:cid" element={<AdminUserConversation />} />
               <Route path="usage" element={<AdminUsage />} />
               <Route path="analytics" element={<AdminAnalytics />} />

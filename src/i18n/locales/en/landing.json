@@ -120,5 +120,32 @@
     "readingList": "Reading list on complexity",
     "newsletterName": "Naming an editorial newsletter",
     "askPlaceholder": "Ask anything…"
+  },
+  "membership": {
+    "eyebrow": "Membership",
+    "title": "Find the tier that fits.",
+    "body": "Every plan opens the full studio — every frontier model, deep research, the sandbox. Higher tiers simply give you more room to think: more credits, more projects, more knowledge bases.",
+    "recommended": "Most popular",
+    "footnote": "Prices shown per cycle. Cancel anytime — your archive is always yours.",
+    "perMonth": "/ mo",
+    "perWeek": "/ wk",
+    "perDay": "/ day",
+    "perCycle": "/ cycle",
+    "creditsPerCycle": "{{credits}} credits {{period}}",
+    "projects": "{{count}} projects",
+    "projectsUnlimited": "Unlimited projects",
+    "kbs": "{{count}} knowledge bases",
+    "kbsUnlimited": "Unlimited knowledge bases",
+    "cta": "Get started"
+  },
+  "demo": {
+    "user1": "Outline an essay on attention as a moral skill.",
+    "reply1": "Here's a spacious outline — each section has room to breathe, and the thesis lands before the evidence.",
+    "cite1": "On the moral dimension of attention",
+    "user2": "Tighten the opening to two sentences.",
+    "reply2": "Attention is not passive. What we choose to notice is already a moral act.",
+    "switched": "Switched to {{model}}",
+    "thinking": "Thinking",
+    "placeholder": "Ask anything…"
   }
 }
