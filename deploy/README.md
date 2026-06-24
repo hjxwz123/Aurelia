@@ -1,5 +1,10 @@
 # Aurelia — production deployment
 
+<p align="center">
+  <a href="./README.md"><strong>English</strong></a> ·
+  <a href="./README.zh-CN.md">简体中文</a>
+</p>
+
 This folder deploys the full stack with Docker Compose:
 
 | Service    | Image / build              | Role                                    |

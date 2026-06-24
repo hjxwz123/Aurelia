@@ -1,5 +1,10 @@
 # Aurelia local Python sandbox (sidecar)
 
+<p align="center">
+  <a href="./README.md"><strong>English</strong></a> ·
+  <a href="./README.zh-CN.md">简体中文</a>
+</p>
+
 A tiny, self-hosted Python execution sandbox for local development. It implements
 the exact 3-endpoint HTTP protocol the Go backend already speaks
 (`server/internal/sandbox/sandbox.go`), so wiring it up is just an env var.
