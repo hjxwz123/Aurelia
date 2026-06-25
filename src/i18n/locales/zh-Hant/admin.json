@@ -11,7 +11,8 @@
     "failed": "失敗",
     "dragHandle": "拖曳排序",
     "moveUp": "上移",
-    "moveDown": "下移"
+    "moveDown": "下移",
+    "cancel": "取消"
   },
   "icon": {
     "upload": "上傳",
@@ -346,7 +347,9 @@
       "out": "輸出",
       "calls": "呼叫",
       "cost": "費用",
-      "conversation": "關聯對話"
+      "conversation": "關聯對話",
+      "time": "調用時間",
+      "actions": "操作"
     },
     "purposes": {
       "chat": "對話",
@@ -357,9 +360,30 @@
       "task_compact": "上下文壓縮",
       "task_memory_extract": "記憶抽取",
       "task_memory_adjudicate": "記憶裁決",
-      "task_downgrade": "跨廠商降級"
+      "task_downgrade": "跨廠商降級",
+      "task_image_prompt": "圖片提示詞",
+      "task_research_plan": "研究規劃",
+      "task_research_verify": "研究核驗",
+      "task_moderation": "內容審核"
     },
-    "empty": "所選視窗內沒有呼叫記錄。"
+    "empty": "所選視窗內沒有呼叫記錄。",
+    "leadRecords": "每次 API 呼叫一筆記錄。在下方篩選並清理日誌。",
+    "deleteFiltered": "刪除篩選結果",
+    "conversationDeleted": "已刪除",
+    "deleteRow": "刪除記錄",
+    "deleted": "已刪除 {{count}} 筆記錄",
+    "filters": {
+      "range": "時間範圍",
+      "user": "使用者",
+      "userPlaceholder": "電子郵件或 ID",
+      "model": "模型",
+      "allModels": "全部模型"
+    },
+    "deleteConfirm": {
+      "title": "刪除這些用量記錄？",
+      "body": "將永久刪除目前篩選條件下的 {{count}} 筆記錄。此操作無法復原。",
+      "action": "刪除"
+    }
   },
   "documents": {
     "title": "文件",

@@ -1,62 +1,111 @@
 /**
- * AdminUsage — aggregated cost / token report from usage_logs.
+ * AdminUsage — per-record usage log from usage_logs (one row per API call).
  *
- * Fetches the model list alongside usage data so model_id → label lookup
- * renders human names instead of raw IDs. Purpose values (chat/task/image/
- * embedding) are translated via i18n keys.
+ * Each call is one row, newest first. Filter by time range, user (email/id), and
+ * model; delete a single record or every record matching the current filter.
+ * Purpose values (chat/image/embedding/task.*) are translated via i18n keys; a
+ * row whose conversation was deleted shows "deleted" instead of a dangling id.
  */
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { Trash2 } from 'lucide-react'
 import { adminApi, ApiError } from '@/api'
-import type { ApiUsageReportRow } from '@/api/types'
+import type { ApiUsageRecord } from '@/api/types'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Pagination } from '@/components/ui/pagination'
 import { toast } from '@/hooks/use-toast'
 
 const RANGE_IDS = ['1', '7', '30', '90'] as const
+const ALL_MODELS = 'all'
+const PAGE_SIZE = 50
 
 export default function AdminUsage() {
-  const { t } = useTranslation('admin')
+  const { t, i18n } = useTranslation('admin')
   const [days, setDays] = useState('30')
-  const [rows, setRows] = useState<ApiUsageReportRow[]>([])
+  const [userQ, setUserQ] = useState('')
+  const [userQDebounced, setUserQDebounced] = useState('')
+  const [modelId, setModelId] = useState(ALL_MODELS)
+
+  const [records, setRecords] = useState<ApiUsageRecord[]>([])
+  const [total, setTotal] = useState(0)
+  const [totalCost, setTotalCost] = useState(0)
   const [modelMap, setModelMap] = useState<Record<string, string>>({})
+  const [modelOptions, setModelOptions] = useState<{ id: string; label: string }[]>([])
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
-  const PAGE_SIZE = 25
+  const [confirmBulk, setConfirmBulk] = useState(false)
+  const [busy, setBusy] = useState(false)
 
-  async function load() {
+  // Debounce the free-text user filter so we don't refetch on every keystroke.
+  useEffect(() => {
+    const id = setTimeout(() => setUserQDebounced(userQ.trim()), 400)
+    return () => clearTimeout(id)
+  }, [userQ])
+
+  // The filters the backend sees (model 'all' → no model constraint).
+  const queryParams = useMemo(
+    () => ({
+      days: Number(days),
+      user: userQDebounced || undefined,
+      model: modelId === ALL_MODELS ? undefined : modelId,
+    }),
+    [days, userQDebounced, modelId],
+  )
+
+  const load = useCallback(async () => {
     setLoading(true)
     try {
-      const [r, models] = await Promise.all([
-        adminApi.usage(Number(days)),
-        adminApi.models(),
-      ])
-      setRows(r.rows)
-      const map: Record<string, string> = {}
-      for (const m of models) {
-        map[m.id] = m.label
-      }
-      setModelMap(map)
+      const r = await adminApi.usage({ ...queryParams, page, pageSize: PAGE_SIZE })
+      setRecords(r.records)
+      setTotal(r.total)
+      setTotalCost(r.total_cost)
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : t('common.failed'))
     } finally {
       setLoading(false)
     }
-  }
+  }, [queryParams, page, t])
+
+  // Models are fetched once for the id→label map + the filter dropdown.
+  useEffect(() => {
+    void (async () => {
+      try {
+        const models = await adminApi.models()
+        const map: Record<string, string> = {}
+        for (const m of models) map[m.id] = m.label
+        setModelMap(map)
+        setModelOptions(models.map((m) => ({ id: m.id, label: m.label })))
+      } catch {
+        /* non-fatal: ids just won't resolve to labels */
+      }
+    })()
+  }, [])
 
   useEffect(() => {
     void load()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [days])
+  }, [load])
 
-  const totalCost = rows.reduce((a, b) => a + b.cost, 0)
-  const totalCalls = rows.reduce((a, b) => a + b.calls, 0)
-  const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE))
-  const pageRows = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  // Any filter change resets to the first page.
   useEffect(() => {
     setPage(1)
-  }, [days, rows.length])
+  }, [days, userQDebounced, modelId])
+
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const timeFmt = useMemo(
+    () => new Intl.DateTimeFormat(i18n.language || undefined, { dateStyle: 'short', timeStyle: 'medium' }),
+    [i18n.language],
+  )
 
   function modelLabel(id: string): string {
     return modelMap[id] || id
@@ -66,8 +115,36 @@ export default function AdminUsage() {
     // Backend purposes like "task.title" contain dots; i18next treats "." as a
     // key separator, so normalise to "task_title" to match the flat keys.
     const key = `usage.purposes.${purpose.replace(/\./g, '_')}`
-    const translated = t(key, { defaultValue: '' })
-    return translated || purpose
+    return t(key, { defaultValue: '' }) || purpose
+  }
+
+  async function deleteOne(id: number) {
+    setBusy(true)
+    try {
+      await adminApi.deleteUsageRecord(id)
+      // Optimistically drop the row; reload to keep the page full + totals fresh.
+      setRecords((rs) => rs.filter((r) => r.id !== id))
+      await load()
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : t('common.failed'))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function deleteFiltered() {
+    setBusy(true)
+    try {
+      const r = await adminApi.deleteUsageFiltered(queryParams)
+      toast.success(t('usage.deleted', { defaultValue: 'Deleted {{count}} record(s)', count: r.deleted }))
+      setConfirmBulk(false)
+      setPage(1)
+      await load()
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : t('common.failed'))
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
@@ -75,9 +152,24 @@ export default function AdminUsage() {
       <header className="flex items-end justify-between gap-4">
         <div>
           <h1 className="font-serif text-3xl tracking-tight text-[var(--color-fg)]">{t('usage.title')}</h1>
-          <p className="mt-2 text-[var(--color-fg-muted)] text-sm max-w-2xl">{t('usage.lead')}</p>
+          <p className="mt-2 text-[var(--color-fg-muted)] text-sm max-w-2xl">
+            {t('usage.leadRecords', { defaultValue: 'Every API call, one row. Filter and prune the log below.' })}
+          </p>
         </div>
+        <Button
+          variant="destructive"
+          leadingIcon={<Trash2 size={13} aria-hidden />}
+          disabled={total === 0 || loading}
+          onClick={() => setConfirmBulk(true)}
+        >
+          {t('usage.deleteFiltered', { defaultValue: 'Delete filtered' })}
+        </Button>
+      </header>
+
+      {/* Filters: time range · user · model */}
+      <section className="mt-6 flex flex-wrap items-end gap-3">
         <div className="w-40">
+          <label className="block text-[12px] text-[var(--color-fg-subtle)] mb-1">{t('usage.filters.range', { defaultValue: 'Time range' })}</label>
           <Select value={days} onValueChange={setDays}>
             <SelectTrigger>
               <SelectValue />
@@ -91,42 +183,71 @@ export default function AdminUsage() {
             </SelectContent>
           </Select>
         </div>
-      </header>
+        <div className="w-56">
+          <label className="block text-[12px] text-[var(--color-fg-subtle)] mb-1">{t('usage.filters.user', { defaultValue: 'User' })}</label>
+          <Input
+            value={userQ}
+            onChange={(e) => setUserQ(e.target.value)}
+            placeholder={t('usage.filters.userPlaceholder', { defaultValue: 'Email or ID' })}
+          />
+        </div>
+        <div className="w-56">
+          <label className="block text-[12px] text-[var(--color-fg-subtle)] mb-1">{t('usage.filters.model', { defaultValue: 'Model' })}</label>
+          <Select value={modelId} onValueChange={setModelId}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_MODELS}>{t('usage.filters.allModels', { defaultValue: 'All models' })}</SelectItem>
+              {modelOptions.map((m) => (
+                <SelectItem key={m.id} value={m.id}>
+                  {m.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </section>
 
       <section className="mt-6 grid grid-cols-2 sm:grid-cols-3 gap-3">
         <Stat label={t('usage.stats.totalCost')} value={`$${totalCost.toFixed(4)}`} />
-        <Stat label={t('usage.stats.calls')} value={String(totalCalls)} />
-        <Stat label={t('usage.stats.rows')} value={String(rows.length)} />
+        <Stat label={t('usage.stats.rows')} value={String(total)} />
       </section>
 
       <section className="mt-8">
         {loading ? (
           <div className="text-sm text-[var(--color-fg-subtle)]">{t('common.loading')}</div>
-        ) : rows.length === 0 ? (
+        ) : records.length === 0 ? (
           <div className="rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] px-6 py-10 text-center text-sm text-[var(--color-fg-muted)]">
             {t('usage.empty')}
           </div>
         ) : (
           <div className="rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] overflow-x-auto">
-            <table className="min-w-[640px] w-full text-sm tabular-nums">
+            <table className="min-w-[720px] w-full text-sm tabular-nums">
               <thead className="bg-[var(--color-bg-muted)] text-[12px] text-[var(--color-fg-subtle)]">
                 <tr>
+                  <th className="text-left py-2.5 px-4 font-medium">{t('usage.table.time', { defaultValue: 'Time' })}</th>
                   <th className="text-left py-2.5 px-4 font-medium">{t('usage.table.user')}</th>
                   <th className="text-left py-2.5 px-4 font-medium">{t('usage.table.conversation', { defaultValue: 'Conversation' })}</th>
                   <th className="text-left py-2.5 px-4 font-medium">{t('usage.table.model')}</th>
                   <th className="text-left py-2.5 px-4 font-medium">{t('usage.table.purpose')}</th>
                   <th className="text-right py-2.5 px-4 font-medium">{t('usage.table.in')}</th>
                   <th className="text-right py-2.5 px-4 font-medium">{t('usage.table.out')}</th>
-                  <th className="text-right py-2.5 px-4 font-medium">{t('usage.table.calls')}</th>
                   <th className="text-right py-2.5 px-4 font-medium">{t('usage.table.cost')}</th>
+                  <th className="text-right py-2.5 px-4 font-medium" aria-label={t('usage.table.actions', { defaultValue: 'Actions' })} />
                 </tr>
               </thead>
               <tbody>
-                {pageRows.map((r, i) => (
-                  <tr key={i} className="border-t border-[var(--color-divider)]">
+                {records.map((r) => (
+                  <tr key={r.id} className="border-t border-[var(--color-divider)]">
+                    <td className="py-2 px-4 text-[12px] text-[var(--color-fg-muted)] whitespace-nowrap">{timeFmt.format(new Date(r.created_at * 1000))}</td>
                     <td className="py-2 px-4 truncate max-w-[12rem]">{r.user_email || r.user_id}</td>
                     <td className="py-2 px-4 max-w-[14rem]">
-                      {r.conversation_id ? (
+                      {r.conversation_deleted ? (
+                        <span className="text-[var(--color-fg-faint)] italic">
+                          {t('usage.conversationDeleted', { defaultValue: 'Deleted' })}
+                        </span>
+                      ) : r.conversation_id ? (
                         <Link
                           to={`/admin/users/${encodeURIComponent(r.user_id)}/conversations/${encodeURIComponent(r.conversation_id)}`}
                           className="block truncate text-[var(--color-accent)] hover:underline"
@@ -142,16 +263,48 @@ export default function AdminUsage() {
                     <td className="py-2 px-4 text-[var(--color-fg-muted)]">{purposeLabel(r.purpose)}</td>
                     <td className="py-2 px-4 text-right">{r.input_tokens}</td>
                     <td className="py-2 px-4 text-right">{r.output_tokens}</td>
-                    <td className="py-2 px-4 text-right">{r.calls}</td>
                     <td className="py-2 px-4 text-right">${r.cost.toFixed(4)}</td>
+                    <td className="py-2 px-4 text-right">
+                      <button
+                        type="button"
+                        onClick={() => void deleteOne(r.id)}
+                        disabled={busy}
+                        aria-label={t('usage.deleteRow', { defaultValue: 'Delete record' })}
+                        className="inline-flex items-center justify-center size-7 rounded-[7px] text-[var(--color-fg-subtle)] hover:bg-[var(--color-danger-soft)] hover:text-[var(--color-danger)] interactive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)] disabled:opacity-40"
+                      >
+                        <Trash2 size={13} aria-hidden />
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         )}
-        {!loading && rows.length > 0 ? <Pagination page={page} pageCount={pageCount} onPage={setPage} /> : null}
+        {!loading && total > PAGE_SIZE ? <Pagination page={page} pageCount={pageCount} onPage={setPage} /> : null}
       </section>
+
+      <Dialog open={confirmBulk} onOpenChange={setConfirmBulk}>
+        <DialogContent size="sm">
+          <DialogHeader>
+            <DialogTitle>{t('usage.deleteConfirm.title', { defaultValue: 'Delete these usage records?' })}</DialogTitle>
+            <DialogDescription>
+              {t('usage.deleteConfirm.body', {
+                defaultValue: 'This permanently deletes the {{count}} record(s) matching the current filter. This cannot be undone.',
+                count: total,
+              })}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setConfirmBulk(false)} disabled={busy}>
+              {t('common.cancel', { defaultValue: 'Cancel' })}
+            </Button>
+            <Button variant="destructive" loading={busy} onClick={() => void deleteFiltered()}>
+              {t('usage.deleteConfirm.action', { defaultValue: 'Delete' })}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"aurelia/server/internal/store"
 )
@@ -660,20 +661,87 @@ func listConversationMessagesAdmin(d Deps, w http.ResponseWriter, r *http.Reques
 
 // ===== Usage report =====
 
-func usageReportAdmin(d Deps, w http.ResponseWriter, r *http.Request) {
-	days := 30
-	if s := r.URL.Query().Get("days"); s != "" {
-		if n, err := strconv.Atoi(s); err == nil {
-			days = n
+// parseUsageQuery reads the shared usage filter + pagination from the query
+// string: days (shortcut for a since-window) | start/end (unix) | user | model |
+// page | page_size.
+func parseUsageQuery(r *http.Request) (store.UsageFilter, int, int) {
+	q := r.URL.Query()
+	var f store.UsageFilter
+	if s := q.Get("days"); s != "" {
+		if days, err := strconv.Atoi(s); err == nil && days > 0 {
+			f.Since = time.Now().Add(-time.Duration(days) * 24 * time.Hour).Unix()
 		}
 	}
-	rows, err := store.AdminUsageReport(r.Context(), d.DB, days)
+	if s := q.Get("start"); s != "" {
+		if v, err := strconv.ParseInt(s, 10, 64); err == nil {
+			f.Since = v
+		}
+	}
+	if s := q.Get("end"); s != "" {
+		if v, err := strconv.ParseInt(s, 10, 64); err == nil {
+			f.Until = v
+		}
+	}
+	f.UserQ = strings.TrimSpace(q.Get("user"))
+	f.ModelID = strings.TrimSpace(q.Get("model"))
+	page, _ := strconv.Atoi(q.Get("page"))
+	if page < 1 {
+		page = 1
+	}
+	pageSize, _ := strconv.Atoi(q.Get("page_size"))
+	if pageSize <= 0 || pageSize > 200 {
+		pageSize = 50
+	}
+	return f, page, pageSize
+}
+
+// usageReportAdmin lists individual usage records (one per API call), filtered +
+// paginated, with the matching total count and summed cost.
+func usageReportAdmin(d Deps, w http.ResponseWriter, r *http.Request) {
+	f, page, pageSize := parseUsageQuery(r)
+	records, err := store.AdminUsageRecords(r.Context(), d.DB, f, pageSize, (page-1)*pageSize)
 	if err != nil {
 		writeError(w, 500, err)
 		return
 	}
-	trend, _ := store.AdminUsageTrend(r.Context(), d.DB, days)
-	writeJSON(w, 200, map[string]any{"days": days, "rows": rows, "trend": trend})
+	total, totalCost, _ := store.AdminUsageCount(r.Context(), d.DB, f)
+	writeJSON(w, 200, map[string]any{
+		"records":    records,
+		"total":      total,
+		"total_cost": totalCost,
+		"page":       page,
+		"page_size":  pageSize,
+	})
+}
+
+// usageDeleteOneAdmin deletes a single usage record by id.
+func usageDeleteOneAdmin(d Deps, w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(pathParam(r, "id"), 10, 64)
+	if err != nil {
+		writeError(w, 400, errInvalidInput)
+		return
+	}
+	if derr := store.DeleteUsageRecord(r.Context(), d.DB, id); derr != nil {
+		if errors.Is(derr, store.ErrNotFound) {
+			writeError(w, 404, errNotFound)
+			return
+		}
+		writeError(w, 500, derr)
+		return
+	}
+	writeJSON(w, 200, map[string]any{"ok": true})
+}
+
+// usageDeleteFilteredAdmin deletes every usage record matching the filter
+// (the same filter the admin is viewing) and returns how many were removed.
+func usageDeleteFilteredAdmin(d Deps, w http.ResponseWriter, r *http.Request) {
+	f, _, _ := parseUsageQuery(r)
+	n, err := store.DeleteUsageByFilter(r.Context(), d.DB, f)
+	if err != nil {
+		writeError(w, 500, err)
+		return
+	}
+	writeJSON(w, 200, map[string]any{"deleted": n})
 }
 
 // analyticsAdmin powers the admin Analytics dashboard: the overall trend plus

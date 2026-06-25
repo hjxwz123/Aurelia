@@ -32,7 +32,7 @@ import type {
   ApiSharedConversation,
   ApiSkill,
   ApiSkillAsset,
-  ApiUsageReportRow,
+  ApiUsageRecord,
   ApiUser,
 } from './types'
 
@@ -556,7 +556,26 @@ export const adminApi = {
   clearSandbox: (id: string) =>
     api<{ ok: true }>(`/admin/conversations/${encodeURIComponent(id)}/sandbox`, { method: 'DELETE' }),
 
-  usage: (days = 30) => api<{ days: number; rows: ApiUsageReportRow[]; trend: { bucket_start: number; input_tokens: number; output_tokens: number; calls: number; cost: number }[] }>(`/admin/usage?days=${days}`),
+  // Per-record usage list (one row per API call), filtered + paginated.
+  usage: (params: { days?: number; user?: string; model?: string; page?: number; pageSize?: number } = {}) => {
+    const qs = new URLSearchParams()
+    if (params.days) qs.set('days', String(params.days))
+    if (params.user) qs.set('user', params.user)
+    if (params.model) qs.set('model', params.model)
+    if (params.page) qs.set('page', String(params.page))
+    if (params.pageSize) qs.set('page_size', String(params.pageSize))
+    return api<{ records: ApiUsageRecord[]; total: number; total_cost: number; page: number; page_size: number }>(
+      `/admin/usage${qs.toString() ? `?${qs}` : ''}`,
+    )
+  },
+  deleteUsageRecord: (id: number) => api<{ ok: true }>(`/admin/usage/${id}`, { method: 'DELETE' }),
+  deleteUsageFiltered: (params: { days?: number; user?: string; model?: string }) => {
+    const qs = new URLSearchParams()
+    if (params.days) qs.set('days', String(params.days))
+    if (params.user) qs.set('user', params.user)
+    if (params.model) qs.set('model', params.model)
+    return api<{ deleted: number }>(`/admin/usage${qs.toString() ? `?${qs}` : ''}`, { method: 'DELETE' })
+  },
   analytics: (days = 30) => api<ApiAnalytics>(`/admin/analytics?days=${days}`),
 
   settings: () => api<Record<string, unknown>>('/admin/settings'),
