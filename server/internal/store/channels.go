@@ -163,7 +163,7 @@ func DeleteChannel(ctx context.Context, db *sql.DB, id string) error {
 // ListModels returns every model with optional kind filter (empty = all).
 // onlyEnabled restricts to enabled rows.
 func ListModels(ctx context.Context, db *sql.DB, kind string, onlyEnabled bool) ([]Model, error) {
-	q := `SELECT id, channel_id, kind, request_id, label, description, icon, enabled, sort_order, tool_mode, vision, stream, system_prompt, param_controls, official_tools, tags, moderation_enabled, moderation_mode, price_input, price_output, price_cache_read, price_cache_write, price_per_image, currency, dim, updated_at FROM models WHERE 1=1`
+	q := `SELECT id, channel_id, kind, request_id, label, description, icon, enabled, sort_order, tool_mode, vision, stream, system_prompt, param_controls, official_tools, tags, moderation_enabled, moderation_mode, price_input, price_output, price_cache_read, price_cache_write, price_per_image, currency, dim, image_timeout_sec, updated_at FROM models WHERE 1=1`
 	args := []any{}
 	if kind != "" {
 		q += " AND kind=?"
@@ -192,7 +192,7 @@ func ListModels(ctx context.Context, db *sql.DB, kind string, onlyEnabled bool) 
 // GetModel returns one row.
 func GetModel(ctx context.Context, db *sql.DB, id string) (*Model, error) {
 	row := db.QueryRowContext(ctx,
-		`SELECT id, channel_id, kind, request_id, label, description, icon, enabled, sort_order, tool_mode, vision, stream, system_prompt, param_controls, official_tools, tags, moderation_enabled, moderation_mode, price_input, price_output, price_cache_read, price_cache_write, price_per_image, currency, dim, updated_at FROM models WHERE id=?`, id)
+		`SELECT id, channel_id, kind, request_id, label, description, icon, enabled, sort_order, tool_mode, vision, stream, system_prompt, param_controls, official_tools, tags, moderation_enabled, moderation_mode, price_input, price_output, price_cache_read, price_cache_write, price_per_image, currency, dim, image_timeout_sec, updated_at FROM models WHERE id=?`, id)
 	m, err := scanModel(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
@@ -209,7 +209,7 @@ func scanModel(s scanner) (Model, error) {
 	var paramControls, officialTools, tags string
 	if err := s.Scan(&m.ID, &m.ChannelID, &m.Kind, &m.RequestID, &m.Label, &m.Description, &m.Icon, &en, &m.SortOrder,
 		&m.ToolMode, &vi, &st, &m.SystemPrompt, &paramControls, &officialTools, &tags, &modEn, &m.ModerationMode,
-		&m.PriceInput, &m.PriceOutput, &m.PriceCacheRead, &m.PriceCacheWrite, &m.PricePerImage, &m.Currency, &m.Dim, &m.UpdatedAt); err != nil {
+		&m.PriceInput, &m.PriceOutput, &m.PriceCacheRead, &m.PriceCacheWrite, &m.PricePerImage, &m.Currency, &m.Dim, &m.ImageTimeoutSec, &m.UpdatedAt); err != nil {
 		return m, err
 	}
 	m.Enabled = en == 1
@@ -255,16 +255,19 @@ func CreateModel(ctx context.Context, db *sql.DB, m Model) (*Model, error) {
 	if m.ModerationMode == "" {
 		m.ModerationMode = "keyword"
 	}
+	if m.ImageTimeoutSec < 0 {
+		m.ImageTimeoutSec = 0 // 0 = no cap; never store a negative
+	}
 	_, err := db.ExecContext(ctx, `INSERT INTO models(
 		id, channel_id, kind, request_id, label, description, icon, enabled, sort_order,
 		tool_mode, vision, stream, system_prompt, param_controls, official_tools, tags, moderation_enabled, moderation_mode,
 		price_input, price_output, price_cache_read, price_cache_write, price_per_image, currency,
-		dim, updated_at
-	) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		dim, image_timeout_sec, updated_at
+	) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		m.ID, m.ChannelID, m.Kind, m.RequestID, m.Label, m.Description, m.Icon, boolInt(m.Enabled), m.SortOrder,
 		m.ToolMode, boolInt(m.Vision), boolInt(m.Stream), m.SystemPrompt, string(m.ParamControls), string(m.OfficialTools), string(m.Tags), boolInt(m.ModerationEnabled), m.ModerationMode,
 		m.PriceInput, m.PriceOutput, m.PriceCacheRead, m.PriceCacheWrite, m.PricePerImage, m.Currency,
-		m.Dim, time.Now().Unix())
+		m.Dim, m.ImageTimeoutSec, time.Now().Unix())
 	if err != nil {
 		return nil, err
 	}
@@ -282,16 +285,19 @@ func UpdateModel(ctx context.Context, db *sql.DB, id string, m Model) (*Model, e
 	if m.ModerationMode == "" {
 		m.ModerationMode = "keyword"
 	}
+	if m.ImageTimeoutSec < 0 {
+		m.ImageTimeoutSec = 0 // 0 = no cap; never store a negative
+	}
 	_, err := db.ExecContext(ctx, `UPDATE models SET
 		channel_id=?, label=?, description=?, icon=?, request_id=?, kind=?, enabled=?, sort_order=?,
 		tool_mode=?, vision=?, stream=?, system_prompt=?, param_controls=?, official_tools=?, tags=?, moderation_enabled=?, moderation_mode=?,
 		price_input=?, price_output=?, price_cache_read=?, price_cache_write=?, price_per_image=?, currency=?,
-		dim=?, updated_at=?
+		dim=?, image_timeout_sec=?, updated_at=?
 		WHERE id=?`,
 		m.ChannelID, m.Label, m.Description, m.Icon, m.RequestID, m.Kind, boolInt(m.Enabled), m.SortOrder,
 		m.ToolMode, boolInt(m.Vision), boolInt(m.Stream), m.SystemPrompt, string(m.ParamControls), string(m.OfficialTools), string(m.Tags), boolInt(m.ModerationEnabled), m.ModerationMode,
 		m.PriceInput, m.PriceOutput, m.PriceCacheRead, m.PriceCacheWrite, m.PricePerImage, m.Currency,
-		m.Dim, time.Now().Unix(), id)
+		m.Dim, m.ImageTimeoutSec, time.Now().Unix(), id)
 	if err != nil {
 		return nil, err
 	}

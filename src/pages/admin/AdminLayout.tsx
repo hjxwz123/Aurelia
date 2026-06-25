@@ -57,6 +57,7 @@ const SECTIONS: AdminSection[] = [
     to: '/admin/skills',
     tabs: [
       { to: '/admin/skills', labelKey: 'admin:skills.title' },
+      { to: '/admin/image-styles', labelKey: 'admin:imageStyles.title' },
       { to: '/admin/tools', labelKey: 'admin:tools.title' },
       { to: '/admin/documents', labelKey: 'admin:documents.title' },
       { to: '/admin/audio', labelKey: 'admin:audio.title' },

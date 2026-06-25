@@ -7,6 +7,14 @@
   },
   "empty": {
     "subtitle": "What's on your mind?",
+    "subtitleVariants": [
+      "What's on your mind?",
+      "What shall we explore today?",
+      "What can I help you with?",
+      "Got something new brewing?",
+      "Where would you like to begin?",
+      "What are you curious about?"
+    ],
     "lead": "Ask anything. Outlines, code, decisions, reading — Aurelia will think alongside you.",
     "disclaimer": "Aurelia can make mistakes. Check anything important."
   },
@@ -37,7 +45,11 @@
     "indexing": "Indexing…",
     "ingestFailed": "Couldn't read this file",
     "knowledgeBases": "Knowledge bases",
-    "noKnowledgeBases": "No knowledge bases yet."
+    "noKnowledgeBases": "No knowledge bases yet.",
+    "style": "Style",
+    "styleHeading": "Image style",
+    "styleNone": "None",
+    "noStyles": "No styles configured."
   },
   "assistant": "Aurelia",
   "thinking": "Thinking",
@@ -259,7 +271,8 @@
     "upgrade": "Upgrade to unlock",
     "allTags": "All",
     "noneForTag": "No models with this tag.",
-    "creditRate": "Credits per token"
+    "creditRate": "Credits per token",
+    "imageSection": "Image generation"
   },
   "commandMenu": {
     "placeholder": "Search conversations, run a command…",
@@ -340,5 +353,9 @@
   "deleteRound": {
     "title": "Delete this exchange?",
     "body": "This removes this question and its answer from the conversation. Earlier and later messages are kept."
+  },
+  "image": {
+    "optimizing": "Refining your prompt…",
+    "generating": "Painting your image…"
   }
 }

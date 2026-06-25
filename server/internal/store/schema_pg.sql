@@ -131,6 +131,7 @@ CREATE TABLE IF NOT EXISTS models (
   price_per_image   DOUBLE PRECISION NOT NULL DEFAULT 0,
   currency          TEXT NOT NULL DEFAULT 'USD',
   dim               INTEGER NOT NULL DEFAULT 0,
+  image_timeout_sec INTEGER NOT NULL DEFAULT 0,
   updated_at        BIGINT NOT NULL DEFAULT (extract(epoch from now())::bigint)
 );
 
@@ -402,3 +403,16 @@ CREATE TABLE IF NOT EXISTS oauth_identities (
   PRIMARY KEY (provider_id, subject)
 );
 CREATE INDEX IF NOT EXISTS idx_oauth_identities_user ON oauth_identities(user_id);
+
+-- §4.20 Image Generation Studio (Postgres dialect — see schema.sql for notes).
+CREATE TABLE IF NOT EXISTS image_styles (
+  id                TEXT PRIMARY KEY,
+  name              TEXT NOT NULL,
+  example_image_url TEXT NOT NULL DEFAULT '',
+  hidden_prompt     TEXT NOT NULL DEFAULT '',
+  enabled           INTEGER NOT NULL DEFAULT 1,
+  sort_order        INTEGER NOT NULL DEFAULT 0,
+  created_at        BIGINT NOT NULL DEFAULT (extract(epoch from now())::bigint),
+  updated_at        BIGINT NOT NULL DEFAULT (extract(epoch from now())::bigint)
+);
+CREATE INDEX IF NOT EXISTS idx_image_styles_sort ON image_styles(sort_order);

@@ -101,7 +101,9 @@
       "moderationEnable": "Screen prompts before generation",
       "moderationHint": "Screens each user prompt (not history).",
       "moderationModeKeyword": "Keyword match",
-      "moderationModeModel": "Moderation model"
+      "moderationModeModel": "Moderation model",
+      "imageTimeout": "Generation timeout (seconds)",
+      "imageTimeoutHint": "Cut a single image request after this many seconds. 0 = no per-model cap."
     },
     "editorTitle": "Edit model",
     "newTitle": "New model",
@@ -317,7 +319,10 @@
     "inProject": "In a project",
     "more": "More",
     "chunks": "{{count}} chunks",
-    "noDocuments": "No documents."
+    "noDocuments": "No documents.",
+    "imagesHeading": "Image gallery",
+    "noImages": "No generated images.",
+    "loadMore": "Load more"
   },
   "usage": {
     "title": "Usage",
@@ -477,7 +482,9 @@
       "fallbackModelHint": "If the chosen model returns nothing in time, answer with this one instead (transparent to the user).",
       "fallbackNone": "Disabled",
       "fallbackTtft": "First-token timeout (s)",
-      "fallbackTtftHint": "Cut the upstream after this many seconds with no output. 0 = off."
+      "fallbackTtftHint": "Cut the upstream after this many seconds with no output. 0 = off.",
+      "imagePromptModel": "Image prompt model",
+      "imagePromptModelHint": "Text model that refines image prompts before drawing. None = skip."
     }
   },
   "groups": {
@@ -738,5 +745,20 @@
     "users": "Users",
     "data": "Analytics",
     "system": "System"
+  },
+  "imageStyles": {
+    "title": "Image styles",
+    "lead": "Looks users can pick when drawing. The style prompt is hidden from users.",
+    "add": "Add style",
+    "empty": "No styles yet. Add one above.",
+    "namePlaceholder": "Style name (e.g. Watercolor)",
+    "name": "Name",
+    "order": "Order",
+    "enabled": "Enabled",
+    "example": "Example image",
+    "examplePlaceholder": "Image URL or upload",
+    "hiddenPrompt": "Style prompt (hidden from users)",
+    "hiddenPromptPlaceholder": "e.g. soft watercolor, textured paper, muted palette",
+    "nameRequired": "Name is required."
   }
 }

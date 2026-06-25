@@ -101,7 +101,9 @@
       "moderationEnable": "生成前审核提示",
       "moderationHint": "审核每条用户提示(不含历史)。",
       "moderationModeKeyword": "关键词匹配",
-      "moderationModeModel": "审核模型"
+      "moderationModeModel": "审核模型",
+      "imageTimeout": "生成超时(秒)",
+      "imageTimeoutHint": "单次图片请求超过该秒数即中断。0 = 不限。"
     },
     "editorTitle": "编辑模型",
     "newTitle": "新建模型",
@@ -317,7 +319,10 @@
     "inProject": "项目内",
     "more": "更多",
     "chunks": "{{count}} 切片",
-    "noDocuments": "暂无文档。"
+    "noDocuments": "暂无文档。",
+    "imagesHeading": "图库",
+    "noImages": "暂无生成的图片。",
+    "loadMore": "加载更多"
   },
   "usage": {
     "title": "用量",
@@ -477,7 +482,9 @@
       "fallbackModelHint": "所选模型超时无返回时,改用它回答(用户无感)。",
       "fallbackNone": "关闭",
       "fallbackTtft": "首字超时(秒)",
-      "fallbackTtftHint": "上游这么多秒无任何输出就切断。0 = 关闭。"
+      "fallbackTtftHint": "上游这么多秒无任何输出就切断。0 = 关闭。",
+      "imagePromptModel": "图片提示词模型",
+      "imagePromptModelHint": "绘图前用于润色提示词的文本模型。选「无」则跳过。"
     }
   },
   "groups": {
@@ -738,5 +745,20 @@
     "users": "用户",
     "data": "数据",
     "system": "系统"
+  },
+  "imageStyles": {
+    "title": "图片风格",
+    "lead": "用户绘图时可选的风格。风格提示词对用户隐藏。",
+    "add": "新增风格",
+    "empty": "暂无风格，请在上方添加。",
+    "namePlaceholder": "风格名称（如 水彩）",
+    "name": "名称",
+    "order": "排序",
+    "enabled": "启用",
+    "example": "示例图",
+    "examplePlaceholder": "图片 URL 或上传",
+    "hiddenPrompt": "风格提示词（对用户隐藏）",
+    "hiddenPromptPlaceholder": "如：柔和水彩、纸张纹理、低饱和配色",
+    "nameRequired": "名称必填。"
   }
 }

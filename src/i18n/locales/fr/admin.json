@@ -101,7 +101,9 @@
       "moderationEnable": "Filtrer les messages avant génération",
       "moderationHint": "Filtre chaque invite (hors historique).",
       "moderationModeKeyword": "Mots-clés",
-      "moderationModeModel": "Modèle de modération"
+      "moderationModeModel": "Modèle de modération",
+      "imageTimeout": "Délai de génération (secondes)",
+      "imageTimeoutHint": "Interrompt une requête image après ce nombre de secondes. 0 = aucune limite."
     },
     "editorTitle": "Modifier le modèle",
     "newTitle": "Nouveau modèle",
@@ -317,7 +319,10 @@
     "inProject": "Dans un projet",
     "more": "Plus",
     "chunks": "{{count}} fragments",
-    "noDocuments": "Aucun document."
+    "noDocuments": "Aucun document.",
+    "imagesHeading": "Galerie d'images",
+    "noImages": "Aucune image générée.",
+    "loadMore": "Charger plus"
   },
   "usage": {
     "title": "Utilisation",
@@ -477,7 +482,9 @@
       "fallbackModelHint": "Si le modèle choisi ne répond pas à temps, répondre avec celui-ci (transparent).",
       "fallbackNone": "Désactivé",
       "fallbackTtft": "Délai 1er token (s)",
-      "fallbackTtftHint": "Couper l'amont après ce délai sans sortie. 0 = désactivé."
+      "fallbackTtftHint": "Couper l'amont après ce délai sans sortie. 0 = désactivé.",
+      "imagePromptModel": "Modèle de prompt d'image",
+      "imagePromptModelHint": "Modèle texte qui affine les prompts avant le dessin. Aucun = ignorer."
     }
   },
   "groups": {
@@ -738,5 +745,20 @@
     "users": "Utilisateurs",
     "data": "Analyses",
     "system": "Système"
+  },
+  "imageStyles": {
+    "title": "Styles d'image",
+    "lead": "Apparences que les utilisateurs peuvent choisir. Le prompt de style leur est masqué.",
+    "add": "Ajouter un style",
+    "empty": "Aucun style. Ajoutez-en un ci-dessus.",
+    "namePlaceholder": "Nom du style (ex. Aquarelle)",
+    "name": "Nom",
+    "order": "Ordre",
+    "enabled": "Activé",
+    "example": "Image d'exemple",
+    "examplePlaceholder": "URL de l'image ou téléverser",
+    "hiddenPrompt": "Prompt de style (masqué aux utilisateurs)",
+    "hiddenPromptPlaceholder": "ex. aquarelle douce, papier texturé, palette sobre",
+    "nameRequired": "Le nom est requis."
   }
 }

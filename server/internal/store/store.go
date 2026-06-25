@@ -124,6 +124,8 @@ func Migrate(db *sql.DB) error {
 	// message so it remains visible even after the model is deleted from the catalog.
 	addMsgModelLabel := `ALTER TABLE messages ADD COLUMN model_label TEXT NOT NULL DEFAULT ''`
 	addMsgSearchText := `ALTER TABLE messages ADD COLUMN search_text TEXT NOT NULL DEFAULT ''`
+	// §4.20 per-model image generation timeout (seconds; 0 = default).
+	addImageTimeout := `ALTER TABLE models ADD COLUMN image_timeout_sec INTEGER NOT NULL DEFAULT 0`
 	if usePostgres {
 		schema = schemaPGSQL
 		addImageRef = `ALTER TABLE chunks ADD COLUMN IF NOT EXISTS image_ref TEXT`
@@ -157,6 +159,7 @@ func Migrate(db *sql.DB) error {
 		addMsgCredits = `ALTER TABLE messages ADD COLUMN IF NOT EXISTS credits DOUBLE PRECISION NOT NULL DEFAULT 0`
 		addMsgModelLabel = `ALTER TABLE messages ADD COLUMN IF NOT EXISTS model_label TEXT NOT NULL DEFAULT ''`
 		addMsgSearchText = `ALTER TABLE messages ADD COLUMN IF NOT EXISTS search_text TEXT NOT NULL DEFAULT ''`
+		addImageTimeout = `ALTER TABLE models ADD COLUMN IF NOT EXISTS image_timeout_sec INTEGER NOT NULL DEFAULT 0`
 	}
 	if _, err := db.Exec(schema); err != nil {
 		return fmt.Errorf("apply schema: %w", err)
@@ -176,6 +179,7 @@ func Migrate(db *sql.DB) error {
 		addGroupCreditAllowance, addGroupCreditPeriod,
 		addUserPermCredits, addUserSortOrder, addUsageCredits, addMsgCredits,
 		addMsgModelLabel, addMsgSearchText,
+		addImageTimeout,
 	} {
 		_, _ = db.Exec(ddl)
 	}
@@ -240,6 +244,7 @@ func Seed(db *sql.DB, cfg config.Config) error {
 	for k, v := range map[string]string{
 		"default_model_id":            `""`,
 		"task_model_id":               `""`,
+		"image_prompt_model_id":       `""`,
 		"keep_recent_rounds":          `6`,
 		"summary_max_tokens":          `2048`,
 		"compaction_token_trigger":    `32000`,

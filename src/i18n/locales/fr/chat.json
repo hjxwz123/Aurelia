@@ -7,6 +7,14 @@
   },
   "empty": {
     "subtitle": "À quoi pensez-vous ?",
+    "subtitleVariants": [
+      "À quoi pensez-vous ?",
+      "Qu'explorons-nous aujourd'hui ?",
+      "Que puis-je faire pour vous ?",
+      "Une nouvelle idée en tête ?",
+      "Par où commençons-nous ?",
+      "Qu'est-ce qui vous intrigue ?"
+    ],
     "lead": "Demandez ce que vous voulez. Plans, code, décisions, lectures — Aurelia réfléchira à vos côtés.",
     "disclaimer": "Aurelia peut faire des erreurs. Vérifiez tout ce qui est important."
   },
@@ -37,7 +45,11 @@
     "indexing": "Indexation…",
     "ingestFailed": "Impossible de lire ce fichier",
     "knowledgeBases": "Bases de connaissances",
-    "noKnowledgeBases": "Aucune base de connaissances pour l'instant."
+    "noKnowledgeBases": "Aucune base de connaissances pour l'instant.",
+    "style": "Style",
+    "styleHeading": "Style d'image",
+    "styleNone": "Aucun",
+    "noStyles": "Aucun style configuré."
   },
   "assistant": "Aurelia",
   "thinking": "Réflexion",
@@ -259,7 +271,8 @@
     "upgrade": "Mettre à niveau pour débloquer",
     "allTags": "Tous",
     "noneForTag": "Aucun modèle avec cette étiquette.",
-    "creditRate": "Crédits par token"
+    "creditRate": "Crédits par token",
+    "imageSection": "Génération d'images"
   },
   "commandMenu": {
     "placeholder": "Rechercher des conversations, lancer une commande…",
@@ -340,5 +353,9 @@
   "deleteRound": {
     "title": "Supprimer cet échange ?",
     "body": "Cela retire cette question et sa réponse de la conversation. Les messages précédents et suivants sont conservés."
+  },
+  "image": {
+    "optimizing": "Affinage du prompt…",
+    "generating": "Création de l'image…"
   }
 }

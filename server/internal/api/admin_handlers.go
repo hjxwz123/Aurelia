@@ -792,6 +792,11 @@ var settingsKeys = []string{
 	"smtp_from", "smtp_tls",
 	"email_verification_required",
 	"email_domain_whitelist",
+	// §4.20 Image Generation: the TEXT model used to optimize/expand a user's
+	// image prompt (and fold in the style's hidden prompt) before generation.
+	// Blank = no optimization (deterministic join). Image MODELS are picked per
+	// conversation from the model picker, so there's no default-image-model key.
+	"image_prompt_model_id",
 }
 
 // sensitiveKeywords lists substrings that identify secret settings fields.

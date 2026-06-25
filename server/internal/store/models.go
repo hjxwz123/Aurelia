@@ -137,7 +137,11 @@ type Model struct {
 	PricePerImage     float64 `json:"price_per_image"`
 	Currency          string  `json:"currency"`
 	Dim               int     `json:"dim"`
-	UpdatedAt         int64   `json:"updated_at"`
+	// ImageTimeoutSec caps a single image generation/edit request (§4.20). 0 =
+	// use the default (no per-model cap; bounded only by the turn context).
+	// Only meaningful for kind=image models.
+	ImageTimeoutSec int   `json:"image_timeout_sec"`
+	UpdatedAt       int64 `json:"updated_at"`
 }
 
 // OAuthProvider is an admin-configured social/OAuth login method. The

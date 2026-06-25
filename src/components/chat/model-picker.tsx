@@ -25,8 +25,11 @@ interface ModelPickerProps {
  */
 export function ModelPicker({ value, onChange, className }: ModelPickerProps) {
   const models = useModels((s) => s.models)
+  const imageModels = useModels((s) => s.imageModels)
   const tags = useModels((s) => s.tags)
-  const current = models.find((m) => m.id === value) ?? models[0]
+  // §4.20: a selected value can be a chat OR an image model — look in both so the
+  // trigger shows the right name + icon (incl. an image model when drawing).
+  const current = models.find((m) => m.id === value) ?? imageModels.find((m) => m.id === value) ?? models[0]
   const { t } = useTranslation('chat')
 
   // Tag filter (§ model tags): null = all models (the default). Only tags that
@@ -128,10 +131,41 @@ export function ModelPicker({ value, onChange, className }: ModelPickerProps) {
             </DropdownMenuItem>
           )
         })}
-        {visibleModels.length === 0 && (
+        {visibleModels.length === 0 && activeTag !== null && (
           <div className="px-2.5 py-3 text-center text-[12px] text-[var(--color-fg-subtle)]">
             {t('modelPicker.noneForTag')}
           </div>
+        )}
+
+        {/* §4.20 image models — picking one puts the conversation in drawing mode. */}
+        {imageModels.length > 0 && (activeTag === null) && (
+          <>
+            <DropdownMenuLabel className="mt-1 border-t border-[var(--color-divider)] pt-2">
+              {t('modelPicker.imageSection', { defaultValue: 'Image generation' })}
+            </DropdownMenuLabel>
+            {imageModels.map((m) => {
+              const active = m.id === value
+              return (
+                <DropdownMenuItem key={m.id} onSelect={() => onChange(m.id)} className="items-start gap-2 py-2.5">
+                  <ModelIcon icon={m.icon} size={16} className="mt-0.5" />
+                  <div className="flex min-w-0 flex-1 flex-col gap-1">
+                    <div className="flex items-center gap-2">
+                      <span className="truncate font-medium text-[var(--color-fg)]">{m.label}</span>
+                      {active ? (
+                        <span
+                          className="ml-auto size-1.5 shrink-0 rounded-full bg-[var(--color-accent)]"
+                          aria-label={t('modelPicker.current')}
+                        />
+                      ) : null}
+                    </div>
+                    {m.description ? (
+                      <span className="text-[11.5px] leading-snug text-[var(--color-fg-muted)]">{m.description}</span>
+                    ) : null}
+                  </div>
+                </DropdownMenuItem>
+              )
+            })}
+          </>
         )}
       </DropdownMenuContent>
     </DropdownMenu>
