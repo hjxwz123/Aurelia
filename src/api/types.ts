@@ -283,6 +283,8 @@ export interface ApiModel {
   price_per_image: number
   currency: string
   dim: number
+  /** §4.20 per-image-model: seconds cap for one generation/edit request. 0 = default. */
+  image_timeout_sec?: number
   updated_at: number
   /** True when the model has no free allotment left for the user's group, so it's
    *  charged in credits (§ credits). The picker shows the multiplier, not a lock. */
@@ -507,6 +509,33 @@ export interface ApiUsageReportRow {
 }
 
 /** SSE event shapes — matches §6.2. */
+// §4.20 Image Generation — admin-managed style. hidden_prompt is present only in
+// admin responses; the user-facing list strips it.
+export interface ApiImageStyle {
+  id: string
+  name: string
+  example_image_url: string
+  hidden_prompt?: string
+  enabled: boolean
+  sort_order: number
+  created_at: number
+  updated_at: number
+}
+
+// §8.1 admin drill-down: one of a user's generated images (links to its source
+// conversation). url = /api/artifacts/<id>.
+export interface ApiAdminImage {
+  id: string
+  conversation_id: string
+  conversation_title: string
+  message_id: string
+  filename: string
+  mime_type: string
+  size_bytes: number
+  created_at: number
+  url: string
+}
+
 export type ApiSseEvent =
   | { type: 'message_start'; message_id: string }
   | { type: 'thinking_delta'; text: string }
@@ -516,6 +545,9 @@ export type ApiSseEvent =
   | { type: 'tool_result'; name: string; id?: string; summary: string; status?: 'complete' | 'error' }
   | { type: 'citation'; citation: ApiCitation }
   | { type: 'artifact'; id?: string; url?: string; title?: string; summary?: string }
+  // §4.20 image mode: drawing-phase status ('optimizing' | 'generating') driving
+  // the dedicated generating UI.
+  | { type: 'image_status'; message_id?: string; status?: string }
   | { type: 'rag'; status?: string; summary?: string }
   | { type: 'refusal'; message_id?: string; message?: string }
   | { type: 'error'; message: string }

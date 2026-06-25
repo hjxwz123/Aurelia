@@ -12,6 +12,8 @@ import type { ApiModel, ApiModelTag } from '@/api/types'
 
 interface ModelStore {
   models: ApiModel[]
+  /** §4.20 image (kind=image) models — selectable in the picker to draw. */
+  imageModels: ApiModel[]
   /** Admin-managed tags (§ model tags) — drives the picker's filter chips. */
   tags: ApiModelTag[]
   defaultId: string
@@ -25,6 +27,7 @@ interface ModelStore {
 
 export const useModels = create<ModelStore>((set, get) => ({
   models: [],
+  imageModels: [],
   tags: [],
   defaultId: '',
   loaded: false,
@@ -35,11 +38,16 @@ export const useModels = create<ModelStore>((set, get) => ({
     if (get().loading) return
     set({ loading: true, error: null })
     try {
-      // Tags are optional decoration for the picker — never let a tag-fetch
-      // failure block the model list.
-      const [resp, tags] = await Promise.all([modelsApi.list(), modelsApi.tags().catch(() => [])])
+      // Tags + image models are optional decoration for the picker — never let
+      // their fetch failing block the chat model list.
+      const [resp, tags, img] = await Promise.all([
+        modelsApi.list(),
+        modelsApi.tags().catch(() => []),
+        modelsApi.listImage().catch(() => ({ models: [], default_id: '' })),
+      ])
       set({
         models: resp.models,
+        imageModels: img.models,
         tags,
         defaultId: resp.default_id || resp.models[0]?.id || '',
         loaded: true,
@@ -52,6 +60,6 @@ export const useModels = create<ModelStore>((set, get) => ({
   },
 
   getById(id) {
-    return get().models.find((m) => m.id === id)
+    return get().models.find((m) => m.id === id) ?? get().imageModels.find((m) => m.id === id)
   },
 }))

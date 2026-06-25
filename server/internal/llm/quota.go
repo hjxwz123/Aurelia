@@ -85,6 +85,69 @@ func (o *Orchestrator) checkModelQuota(ctx context.Context, userID string, model
 	return o.creditDecision(ctx, userID, groupID)
 }
 
+// checkImageQuota is the image-model analogue of checkModelQuota (§4.20). It
+// reads the SHARED purpose='image' ledger (ImageUsageInWindow) so drawing-mode
+// and chat tool-call generations on the same model draw from one pool, and it
+// follows the SAME free-allotment → credits → block flow as chat: within the
+// group's free image allotment is free; past it, charge credits (timed then
+// permanent) when the user can cover it; otherwise block. Counts images for a
+// count-limit, summed cost for a cost-limit. Admins are exempt.
+func (o *Orchestrator) checkImageQuota(ctx context.Context, userID string, model *store.Model, n int) (string, bool, bool) {
+	if n <= 0 {
+		n = 1
+	}
+	if u, err := store.FindUserByID(ctx, o.db, userID); err == nil && u.Role == "admin" {
+		return "", true, false
+	}
+	has, err := store.ModelHasAnyQuota(ctx, o.db, model.ID)
+	if err != nil {
+		if o.logger != nil {
+			o.logger.Printf("imagequota: ModelHasAnyQuota(%s) failed, allowing (fail-open): %v", model.ID, err)
+		}
+		return "", true, false
+	}
+	if !has {
+		return "", true, false // no quota rows → free + unlimited
+	}
+	groupID := o.userGroupID(ctx, userID)
+	q, err := store.GetModelQuota(ctx, o.db, model.ID, groupID)
+	if err != nil {
+		// Restricted model with no row for this group → not available to them.
+		return o.quotaMessage(), false, false
+	}
+	if q.LimitValue <= 0 {
+		return "", true, false // granted unlimited free
+	}
+	start, _ := quotaWindow(q.PeriodSeconds)
+	cost, images, _ := store.ImageUsageInWindow(ctx, o.db, userID, model.ID, start)
+	// Pre-project this request (n images) so the n-th image that crosses the free
+	// allotment is what flips to credits.
+	withinFree := true
+	if q.LimitType == "count" {
+		withinFree = images+n <= int(q.LimitValue+0.5)
+	} else {
+		withinFree = cost+float64(n)*model.PricePerImage <= q.LimitValue
+	}
+	if withinFree {
+		return "", true, false // free use within the group's per-cycle allotment
+	}
+	// Free image allotment exhausted → pay with credits (shared with chat credits).
+	return o.creditDecision(ctx, userID, groupID)
+}
+
+// CheckImageCredits / ChargeImageCredits implement the ImageBiller interface so
+// the image_generate tool (chat tool-call path) runs the SAME free→credits→block
+// decision + debit as drawing mode (§4.20). CheckImageCredits returns whether to
+// allow the n images and whether they cost credits; ChargeImageCredits debits.
+func (o *Orchestrator) CheckImageCredits(ctx context.Context, userID string, model *store.Model, n int) (bool, bool, string) {
+	msg, ok, payCredits := o.checkImageQuota(ctx, userID, model, n)
+	return ok, payCredits, msg
+}
+
+func (o *Orchestrator) ChargeImageCredits(ctx context.Context, userID string, costUSD float64) (float64, float64) {
+	return o.chargeTurnCredits(ctx, userID, costUSD)
+}
+
 // creditsPerUSD reads the global USD→credit conversion rate (§ credits). 0 = the
 // credit system is disabled platform-wide.
 func (o *Orchestrator) creditsPerUSD() float64 {

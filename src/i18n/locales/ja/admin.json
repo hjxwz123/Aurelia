@@ -101,7 +101,9 @@
       "moderationEnable": "生成前にプロンプトを審査",
       "moderationHint": "各プロンプトを審査(履歴は除く)。",
       "moderationModeKeyword": "キーワード一致",
-      "moderationModeModel": "審査モデル"
+      "moderationModeModel": "審査モデル",
+      "imageTimeout": "生成タイムアウト(秒)",
+      "imageTimeoutHint": "1回の画像リクエストがこの秒数を超えたら中断。0 = 制限なし。"
     },
     "editorTitle": "モデルを編集",
     "newTitle": "新規モデル",
@@ -317,7 +319,10 @@
     "inProject": "プロジェクト内",
     "more": "その他",
     "chunks": "{{count}} チャンク",
-    "noDocuments": "ドキュメントなし。"
+    "noDocuments": "ドキュメントなし。",
+    "imagesHeading": "画像ギャラリー",
+    "noImages": "生成された画像はありません。",
+    "loadMore": "もっと読み込む"
   },
   "usage": {
     "title": "使用状況",
@@ -477,7 +482,9 @@
       "fallbackModelHint": "選択モデルが時間内に返さない場合、これで代わりに回答(ユーザーに無感)。",
       "fallbackNone": "無効",
       "fallbackTtft": "初回応答タイムアウト(秒)",
-      "fallbackTtftHint": "この秒数、上流が無出力なら切断。0 = 無効。"
+      "fallbackTtftHint": "この秒数、上流が無出力なら切断。0 = 無効。",
+      "imagePromptModel": "画像プロンプトモデル",
+      "imagePromptModelHint": "描画前にプロンプトを調整するテキストモデル。なし＝スキップ。"
     }
   },
   "groups": {
@@ -738,5 +745,20 @@
     "users": "ユーザー",
     "data": "分析",
     "system": "システム"
+  },
+  "imageStyles": {
+    "title": "画像スタイル",
+    "lead": "ユーザーが描画時に選べるスタイル。スタイルプロンプトはユーザーに表示されません。",
+    "add": "スタイルを追加",
+    "empty": "スタイルがありません。上で追加してください。",
+    "namePlaceholder": "スタイル名（例：水彩）",
+    "name": "名前",
+    "order": "並び順",
+    "enabled": "有効",
+    "example": "サンプル画像",
+    "examplePlaceholder": "画像URLまたはアップロード",
+    "hiddenPrompt": "スタイルプロンプト（ユーザー非表示）",
+    "hiddenPromptPlaceholder": "例：柔らかな水彩、紙の質感、落ち着いた配色",
+    "nameRequired": "名前は必須です。"
   }
 }

@@ -115,6 +115,10 @@ export interface Message {
   createdAt: number
   /** True while the model is producing tokens. */
   streaming?: boolean
+  /** §4.20 image-mode: the drawing phase, driving the dedicated generating UI
+   *  (distinct from the chat thinking/tool-call trace). Set by the `image_status`
+   *  SSE event; cleared once the image artifact arrives. */
+  imageStatus?: 'optimizing' | 'generating'
   /** Ordered, interleaved reasoning trace — thinking runs + tool rounds in the
    *  exact order they happened (§7.1-4), so the UI can render them woven
    *  together instead of "all thinking, then all tools". */

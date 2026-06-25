@@ -33,6 +33,7 @@ import { Tooltip } from '@/components/ui/tooltip'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { kbsApi, audioApi, conversationsApi } from '@/api/endpoints'
 import { ModelPicker } from './model-picker'
+import { StylePicker } from './style-picker'
 import { ParamControls } from './param-controls'
 import { filterVisibleParams } from './param-controls.utils'
 import { useAutosizeTextarea } from '@/hooks/use-autosize-textarea'
@@ -51,7 +52,12 @@ interface ComposerProps {
   onSubmit: (
     text: string,
     attachments: Attachment[],
-    options: { mode?: 'default' | 'deep-research' | 'canvas'; params?: Record<string, unknown> },
+    options: {
+      mode?: 'default' | 'deep-research' | 'canvas'
+      params?: Record<string, unknown>
+      /** §4.20 image mode: chosen style id (sent for an image-model turn). */
+      imageStyleId?: string
+    },
   ) => void
   onStop?: () => void
   streaming?: boolean
@@ -192,7 +198,13 @@ export function Composer({
   }
   const effectivePlaceholder = placeholder ?? t('composer.placeholder')
 
-  const currentModel = useModels((s) => s.models.find((m) => m.id === modelId))
+  const currentModel = useModels(
+    (s) => s.models.find((m) => m.id === modelId) ?? s.imageModels.find((m) => m.id === modelId),
+  )
+  // §4.20 image mode: when the selected model draws, the composer shows a style
+  // picker and hides chat-only controls (research / knowledge bases).
+  const isImageMode = currentModel?.kind === 'image'
+  const [imageStyleId, setImageStyleId] = useState('')
   // Deep Research is a per-group capability — only show the button when the
   // user's group is entitled (admins always are).
   const researchEnabled = useAuth(
@@ -239,6 +251,7 @@ export function Composer({
       onSubmit(text, attachments, {
         mode: mode === 'default' ? undefined : mode,
         params: Object.keys(params).length > 0 ? params : undefined,
+        imageStyleId: isImageMode && imageStyleId ? imageStyleId : undefined,
       })
       setValue('')
       // Stop any leftover pollers and revoke blob: URLs — uploadAttachment already
@@ -423,7 +436,7 @@ export function Composer({
               className={cn(
                 'inline-flex size-4 items-center justify-center rounded border',
                 checked
-                  ? 'border-[var(--color-accent)] bg-[var(--color-accent)] text-white'
+                  ? 'border-[var(--color-accent)] bg-[var(--color-accent)] text-[var(--color-accent-fg)]'
                   : 'border-[var(--color-border-strong)]',
               )}
             >
@@ -699,7 +712,7 @@ export function Composer({
                 {recording ? t('composer.voiceStop') : t('composer.voice')}
               </button>
 
-              {researchEnabled ? (
+              {researchEnabled && !isImageMode ? (
                 <>
                   <div className="my-1 h-px bg-[var(--color-divider)]" aria-hidden />
                   <button
@@ -722,7 +735,7 @@ export function Composer({
                 </>
               ) : null}
 
-              {onKBChange ? (
+              {onKBChange && !isImageMode ? (
                 <>
                   <div className="my-1 h-px bg-[var(--color-divider)]" aria-hidden />
                   <p className="px-2.5 pb-1 pt-0.5 text-[11px] font-medium uppercase tracking-wider text-[var(--color-fg-subtle)]">
@@ -743,7 +756,9 @@ export function Composer({
             </PopoverContent>
           </Popover>
 
-          <ModelPicker value={modelId} onChange={onModelChange} className="min-w-0 max-w-[44vw]" />
+          {isImageMode ? <StylePicker value={imageStyleId} onChange={setImageStyleId} /> : null}
+
+          <ModelPicker value={modelId} onChange={onModelChange} className="min-w-0 max-w-[40vw]" />
 
           <div className="ml-auto">{sendBtn}</div>
         </div>
@@ -804,7 +819,9 @@ export function Composer({
 
             <div className="mx-1 h-5 w-px bg-[var(--color-divider)]" aria-hidden />
 
-            {researchEnabled ? (
+            {isImageMode ? <StylePicker value={imageStyleId} onChange={setImageStyleId} /> : null}
+
+            {researchEnabled && !isImageMode ? (
               <Tooltip content={t('composer.researchTooltip')}>
                 <button
                   type="button"
@@ -833,7 +850,7 @@ export function Composer({
             ) : null}
 
             {/* §7.2-7 📚 知识库选择器 — 绑定 kb_ids 到当前会话 */}
-            {onKBChange ? (
+            {onKBChange && !isImageMode ? (
               <Popover>
                 <Tooltip content={t('composer.knowledgeBases')}>
                   <PopoverTrigger asChild>

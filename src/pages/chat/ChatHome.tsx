@@ -1,6 +1,8 @@
 import { useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { gsap } from 'gsap'
+import { useGSAP } from '@gsap/react'
 import { Composer } from '@/components/chat/composer'
 import { SuggestionCard } from '@/components/chat/suggestion-card'
 import { SUGGESTIONS } from '@/data/suggestions'
@@ -8,6 +10,8 @@ import { useConversations } from '@/store/conversations'
 import { useAuth } from '@/store/auth'
 import { useModels } from '@/store/models'
 import type { Attachment, Conversation } from '@/types/chat'
+
+gsap.registerPlugin(useGSAP)
 
 function fisherYatesPick<T>(arr: T[], count: number): T[] {
   const a = [...arr]
@@ -34,13 +38,19 @@ export default function ChatHome() {
   const sendMessage = useConversations((s) => s.sendMessage)
   const setModel = useConversations((s) => s.setModel)
   const defaultModelId = useModels((s) => s.defaultId)
+  const imageModels = useModels((s) => s.imageModels)
   const user = useAuth((s) => s.user)
 
+  // §4.20: the sidebar "Draw" entry links here with ?mode=draw to open the
+  // composer pre-set to an image model (drawing mode).
+  const [searchParams] = useSearchParams()
+  const drawDefault = searchParams.get('mode') === 'draw' && imageModels[0] ? imageModels[0].id : ''
+
   // The model the user picks in the composer before the conversation exists.
-  // Falls back to the (async-loaded) default until they choose, so a new chat
-  // honours the picker instead of always using the default model.
+  // Falls back to the draw default (if any), then the async-loaded chat default,
+  // so a new chat honours the picker instead of always using the default model.
   const [pickedModelId, setPickedModelId] = useState<string | null>(null)
-  const modelId = pickedModelId ?? defaultModelId
+  const modelId = pickedModelId ?? (drawDefault || defaultModelId)
 
   // When the user attaches a file BEFORE sending, we must create the
   // conversation up front so the upload is scoped + RAG-ingested (§4.11.2).
@@ -66,12 +76,54 @@ export default function ChatHome() {
     () => `${t(`greeting.${greetingKey()}`)}, ${firstName}.`,
     [t, firstName],
   )
+  // The trailing question is no longer fixed — pick a fresh variant each time the
+  // home screen mounts (and on language change) so the prompt feels alive.
+  const subtitle = useMemo(() => {
+    const raw = t('empty.subtitleVariants', { returnObjects: true }) as unknown
+    const pool = Array.isArray(raw) && raw.length > 0 ? (raw as string[]) : [t('empty.subtitle')]
+    return pool[Math.floor(Math.random() * pool.length)]
+  }, [t])
   const cards = useMemo(() => fisherYatesPick(SUGGESTIONS, 6), [])
+
+  // Entrance choreography — the home screen used to pop in flat. Now the
+  // heading, lead, composer and suggestion cards rise + fade in sequence, with a
+  // whisper-faint accent glow breathing behind the greeting for depth. All gated
+  // behind prefers-reduced-motion via gsap.matchMedia (reduced → static, fully
+  // visible). useGSAP sets the `from` state before paint, so there's no flash.
+  const root = useRef<HTMLDivElement>(null)
+  useGSAP(
+    () => {
+      const mm = gsap.matchMedia()
+      mm.add('(prefers-reduced-motion: no-preference)', () => {
+        const tl = gsap.timeline({ defaults: { ease: 'power3.out' } })
+        // opacity (not autoAlpha) so the composer stays focusable while fading —
+        // autoAlpha's visibility:hidden would swallow the textarea's autoFocus.
+        tl.from('.home-rise', { y: 16, opacity: 0, duration: 0.6, stagger: 0.09 })
+          .from('.home-card', { y: 14, opacity: 0, duration: 0.5, stagger: 0.06 }, '-=0.28')
+          // Land at the faint 0.07 the class defines (autoAlpha would force 1).
+          .fromTo('.home-glow', { opacity: 0, scale: 0.9 }, { opacity: 0.07, scale: 1, duration: 1.1 }, 0)
+        gsap.to('.home-glow', {
+          scale: 1.12,
+          opacity: '+=0.04',
+          duration: 7,
+          ease: 'sine.inOut',
+          repeat: -1,
+          yoyo: true,
+          delay: 1.1,
+        })
+      })
+    },
+    { scope: root },
+  )
 
   async function startNew(
     text: string,
     attachments: Attachment[],
-    opts: { mode?: 'default' | 'deep-research' | 'canvas'; params?: Record<string, unknown> } = {},
+    opts: {
+      mode?: 'default' | 'deep-research' | 'canvas'
+      params?: Record<string, unknown>
+      imageStyleId?: string
+    } = {},
   ) {
     // Reuse the conversation created up front for an attachment (so its uploads
     // stay scoped/ingested); otherwise create a fresh one now.
@@ -94,23 +146,29 @@ export default function ChatHome() {
       attachments,
       mode: opts.mode,
       params: opts.params,
+      imageStyleId: opts.imageStyleId,
     })
   }
 
   return (
-    <div className="flex-1 flex flex-col overflow-y-auto">
-      <div className="mx-auto w-full max-w-[var(--layout-message-max-w)] px-5 sm:px-8 py-12 flex-1 flex flex-col justify-center">
+    <div ref={root} className="relative flex-1 flex flex-col overflow-y-auto">
+      {/* Ambient warmth behind the greeting — faint, blurred, slowly breathing. */}
+      <div
+        className="home-glow pointer-events-none absolute left-1/2 top-[14%] -z-0 size-[34rem] max-w-[88vw] -translate-x-1/2 rounded-full bg-[var(--color-accent)] opacity-[0.07] blur-[90px]"
+        aria-hidden
+      />
+      <div className="relative z-10 mx-auto w-full max-w-[var(--layout-message-max-w)] px-5 sm:px-8 py-12 flex-1 flex flex-col justify-center">
         <header className="text-center">
-          <h1 className="font-sans font-semibold tracking-tight text-[2rem] sm:text-[2.5rem] leading-[1.12] text-[var(--color-fg)] text-balance">
+          <h1 className="home-rise font-sans font-semibold tracking-tight text-[2rem] sm:text-[2.5rem] leading-[1.12] text-[var(--color-fg)] text-balance">
             {greeting}{' '}
-            <span className="text-[var(--color-fg-muted)] font-normal">{t('empty.subtitle')}</span>
+            <span className="text-[var(--color-fg-muted)] font-normal">{subtitle}</span>
           </h1>
-          <p className="mt-3.5 text-[var(--color-fg-muted)] text-sm sm:text-base text-pretty mx-auto max-w-2xl">
+          <p className="home-rise mt-3.5 text-[var(--color-fg-muted)] text-sm sm:text-base text-pretty mx-auto max-w-2xl">
             {t('empty.lead')}
           </p>
         </header>
 
-        <div className="mt-10 mx-auto w-full max-w-[44rem]">
+        <div className="home-rise mt-10 mx-auto w-full max-w-[44rem]">
           <Composer
             modelId={modelId}
             onModelChange={setPickedModelId}
@@ -128,7 +186,7 @@ export default function ChatHome() {
               const title = t(s.titleKey)
               const prompt = t(s.promptKey)
               return (
-                <div key={s.id} className="w-[15.5rem] shrink-0 snap-start">
+                <div key={s.id} className="home-card w-[15.5rem] shrink-0 snap-start">
                   <SuggestionCard
                     icon={s.icon}
                     title={title}

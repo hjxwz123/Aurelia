@@ -18,6 +18,8 @@ import type {
   ApiModel,
   ApiModelTag,
   ApiModelQuota,
+  ApiImageStyle,
+  ApiAdminImage,
   ApiOAuthProvider,
   ApiProject,
   ApiRedeemCode,
@@ -138,6 +140,13 @@ export const modelsApi = {
   listEmbedding: () => api<{ models: ApiModel[]; default_id: string }>('/embedding-models'),
   /** Model tags for the picker's filter chips (§ model tags). */
   tags: () => api<ApiModelTag[]>('/model-tags'),
+}
+
+// ----- Image generation (§4.20) --------------------------------------------
+
+export const imageApi = {
+  /** Enabled styles for the composer style picker (hidden prompt stripped). */
+  styles: () => api<ApiImageStyle[]>('/image/styles'),
 }
 
 export const skillsApi = {
@@ -385,6 +394,15 @@ export const adminApi = {
   removeModelTag: (id: string) =>
     api<{ ok: true }>(`/admin/model-tags/${encodeURIComponent(id)}`, { method: 'DELETE' }),
 
+  // §4.20 Image styles — full row incl. hidden_prompt (admin only).
+  imageStyles: () => api<ApiImageStyle[]>('/admin/image-styles'),
+  createImageStyle: (body: Partial<ApiImageStyle>) =>
+    api<ApiImageStyle>('/admin/image-styles', { method: 'POST', body }),
+  updateImageStyle: (id: string, body: Partial<ApiImageStyle>) =>
+    api<ApiImageStyle>(`/admin/image-styles/${encodeURIComponent(id)}`, { method: 'PATCH', body }),
+  removeImageStyle: (id: string) =>
+    api<{ ok: true }>(`/admin/image-styles/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+
   skills: () => api<ApiSkill[]>('/admin/skills'),
   createSkill: (body: Partial<ApiSkill>) => api<ApiSkill>('/admin/skills', { method: 'POST', body }),
   updateSkill: (id: string, body: Partial<ApiSkill>) =>
@@ -496,6 +514,9 @@ export const adminApi = {
     api<ApiConversation[]>(`/admin/users/${encodeURIComponent(id)}/conversations`),
   userProjects: (id: string) =>
     api<ApiProject[]>(`/admin/users/${encodeURIComponent(id)}/projects`),
+  // §4.20 a user's generated-image gallery (admin drill-down).
+  userImages: (id: string, limit = 60, offset = 0) =>
+    api<ApiAdminImage[]>(`/admin/users/${encodeURIComponent(id)}/images?limit=${limit}&offset=${offset}`),
   userKbs: (id: string) =>
     api<ApiKnowledgeBase[]>(`/admin/users/${encodeURIComponent(id)}/kbs`),
   kbDocuments: (kbId: string) =>

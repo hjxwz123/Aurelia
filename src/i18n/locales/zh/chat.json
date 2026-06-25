@@ -7,6 +7,14 @@
   },
   "empty": {
     "subtitle": "在想些什么？",
+    "subtitleVariants": [
+      "在想些什么？",
+      "今天想聊些什么？",
+      "有什么我能帮上忙的？",
+      "脑海里冒出什么新念头？",
+      "想从哪里开始？",
+      "对什么感到好奇？"
+    ],
     "lead": "随便问点什么——提纲、代码、决策、阅读，Aurelia 会与你一起思考。",
     "disclaimer": "Aurelia 也会出错。重要的内容请自行核验。"
   },
@@ -37,7 +45,11 @@
     "indexing": "索引中…",
     "ingestFailed": "无法读取此文件",
     "knowledgeBases": "知识库",
-    "noKnowledgeBases": "还没有知识库。"
+    "noKnowledgeBases": "还没有知识库。",
+    "style": "风格",
+    "styleHeading": "图片风格",
+    "styleNone": "无",
+    "noStyles": "暂无风格。"
   },
   "assistant": "Aurelia",
   "thinking": "思考中",
@@ -259,7 +271,8 @@
     "upgrade": "升级套餐解锁",
     "allTags": "全部",
     "noneForTag": "该标签下暂无模型。",
-    "creditRate": "每 token 消耗积分"
+    "creditRate": "每 token 消耗积分",
+    "imageSection": "图片生成"
   },
   "commandMenu": {
     "placeholder": "搜索会话，或执行命令…",
@@ -340,5 +353,9 @@
   "deleteRound": {
     "title": "删除这一轮对话？",
     "body": "这会从对话中移除这条提问及其回答。之前和之后的消息都会保留。"
+  },
+  "image": {
+    "optimizing": "正在优化提示词…",
+    "generating": "正在绘制图片…"
   }
 }

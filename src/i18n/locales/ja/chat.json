@@ -7,6 +7,14 @@
   },
   "empty": {
     "subtitle": "何をお考えですか？",
+    "subtitleVariants": [
+      "何をお考えですか？",
+      "今日は何を話しましょうか？",
+      "何かお手伝いできることは？",
+      "新しいアイデアが浮かびましたか？",
+      "どこから始めましょうか？",
+      "何が気になっていますか？"
+    ],
     "lead": "何でも聞いてください。アウトライン、コード、意思決定、読書まで — Aurelia があなたと一緒に考えます。",
     "disclaimer": "Aurelia は誤ることがあります。重要な内容は必ず確認してください。"
   },
@@ -37,7 +45,11 @@
     "indexing": "インデックス作成中…",
     "ingestFailed": "このファイルを読み取れませんでした",
     "knowledgeBases": "ナレッジベース",
-    "noKnowledgeBases": "ナレッジベースはまだありません。"
+    "noKnowledgeBases": "ナレッジベースはまだありません。",
+    "style": "スタイル",
+    "styleHeading": "画像スタイル",
+    "styleNone": "なし",
+    "noStyles": "スタイルがありません。"
   },
   "assistant": "Aurelia",
   "thinking": "思考中",
@@ -259,7 +271,8 @@
     "upgrade": "アップグレードして解除",
     "allTags": "すべて",
     "noneForTag": "このタグのモデルはありません。",
-    "creditRate": "トークンあたりのクレジット"
+    "creditRate": "トークンあたりのクレジット",
+    "imageSection": "画像生成"
   },
   "commandMenu": {
     "placeholder": "会話を検索、またはコマンドを実行…",
@@ -340,5 +353,9 @@
   "deleteRound": {
     "title": "このやり取りを削除しますか？",
     "body": "この質問とその回答を会話から削除します。前後のメッセージは保持されます。"
+  },
+  "image": {
+    "optimizing": "プロンプトを調整中…",
+    "generating": "画像を描画中…"
   }
 }

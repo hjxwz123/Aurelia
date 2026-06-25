@@ -112,6 +112,8 @@ interface ConversationStore {
     branch?: boolean
     /** Alternate turn pipeline: 'deep-research' runs the research engine. */
     mode?: 'default' | 'deep-research' | 'canvas'
+    /** §4.20 image mode: selected style id, sent for an image-model turn. */
+    imageStyleId?: string
   }) => Promise<void>
   regenerate: (conversationId: string, assistantId: string, modelId?: string) => Promise<void>
   /** Edit a user message's text IN PLACE — overwrite, no new branch, no
@@ -629,6 +631,7 @@ export const useConversations = createWithEqualityFn<ConversationStore>((set, ge
           mode: input.mode,
           attachments: input.attachments?.map(attachmentToApi),
           params: input.params,
+          image_style_id: input.imageStyleId,
         },
         abort.signal,
       )) {
@@ -665,9 +668,19 @@ export const useConversations = createWithEqualityFn<ConversationStore>((set, ge
               reasoning: appendThinkingDelta(m.reasoning ?? [], ev.text ?? ''),
             }))
             break
+          case 'image_status':
+            // §4.20 drawing phase → dedicated generating UI. Normalise the status
+            // (don't blind-cast an arbitrary string into the union).
+            updateAssistant(set, input.conversationId, serverAssistantId, (m) => ({
+              ...m,
+              imageStatus: ev.status === 'optimizing' ? 'optimizing' : 'generating',
+            }))
+            break
           case 'artifact':
             updateAssistant(set, input.conversationId, serverAssistantId, (m) => ({
               ...m,
+              // The image arrived — drop the drawing placeholder.
+              imageStatus: undefined,
               artifacts: [
                 ...(m.artifacts ?? []),
                 {
@@ -795,6 +808,7 @@ export const useConversations = createWithEqualityFn<ConversationStore>((set, ge
             updateAssistant(set, input.conversationId, serverAssistantId, (m) => ({
               ...m,
               streaming: false,
+              imageStatus: undefined,
               error: ev.message || 'error',
             }))
             break
@@ -802,6 +816,7 @@ export const useConversations = createWithEqualityFn<ConversationStore>((set, ge
             updateAssistant(set, input.conversationId, serverAssistantId, (m) => ({
               ...m,
               streaming: false,
+              imageStatus: undefined,
               credits: ev.credits && ev.credits > 0 ? ev.credits : m.credits,
               moderation: ev.stop_reason === 'content_moderation' ? true : m.moderation,
               quotaExceeded: ev.stop_reason === 'quota_exceeded' ? true : m.quotaExceeded,
@@ -826,6 +841,9 @@ export const useConversations = createWithEqualityFn<ConversationStore>((set, ge
           updateAssistant(set, input.conversationId, serverAssistantId, (m) => ({
             ...m,
             streaming: false,
+            // §4.20: clear the drawing placeholder on any non-terminal stream end
+            // (the `done`/`error`/`artifact` cases already do) so it can't spin forever.
+            imageStatus: undefined,
             error: stopped || hasOutput ? m.error : m.error || 'The reply ended unexpectedly. Please try again.',
           }))
           if (!hasOutput && !stopped) errored = true
@@ -846,6 +864,9 @@ export const useConversations = createWithEqualityFn<ConversationStore>((set, ge
       updateAssistant(set, input.conversationId, serverAssistantId, (m) => ({
         ...m,
         streaming: false,
+        // §4.20: a stop / mid-stream drop on a drawing turn must clear the
+        // ImageGenerating placeholder (it renders independent of streaming/error).
+        imageStatus: undefined,
         error: abort.signal.aborted ? m.error : errorMessage(e),
       }))
     } finally {
@@ -998,9 +1019,17 @@ export const useConversations = createWithEqualityFn<ConversationStore>((set, ge
               research: applyResearchEvent(m.research, ev),
             }))
             break
+          case 'image_status':
+            // §4.20 drawing phase (regenerated image turn) → dedicated UI.
+            updateAssistant(set, conversationId, serverAssistantId, (m) => ({
+              ...m,
+              imageStatus: ev.status === 'optimizing' ? 'optimizing' : 'generating',
+            }))
+            break
           case 'artifact':
             updateAssistant(set, conversationId, serverAssistantId, (m) => ({
               ...m,
+              imageStatus: undefined,
               artifacts: [
                 ...(m.artifacts ?? []),
                 { id: ev.id ?? uid('art'), filename: ev.title ?? 'file', url: ev.url ?? '', mimeType: ev.summary ?? '' },
@@ -1010,6 +1039,7 @@ export const useConversations = createWithEqualityFn<ConversationStore>((set, ge
           case 'refusal':
             updateAssistant(set, conversationId, serverAssistantId, (m) => ({
               ...m,
+              imageStatus: undefined,
               refused: true,
               content: m.content || (ev.message ?? 'The model declined to answer.'),
             }))
@@ -1018,6 +1048,7 @@ export const useConversations = createWithEqualityFn<ConversationStore>((set, ge
             updateAssistant(set, conversationId, serverAssistantId, (m) => ({
               ...m,
               streaming: false,
+              imageStatus: undefined,
               moderation: ev.stop_reason === 'content_moderation' ? true : m.moderation,
             }))
             break
@@ -1025,6 +1056,7 @@ export const useConversations = createWithEqualityFn<ConversationStore>((set, ge
             updateAssistant(set, conversationId, serverAssistantId, (m) => ({
               ...m,
               streaming: false,
+              imageStatus: undefined,
               content: m.content + `\n\n*Regeneration failed: ${ev.message}*`,
             }))
             break
