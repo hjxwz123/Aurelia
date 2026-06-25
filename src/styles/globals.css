@@ -576,6 +576,10 @@ mark.inline-thread-mark:hover {
 .hl-number  { color: var(--color-syntax-number); }
 .hl-type    { color: var(--color-syntax-type); }
 .hl-fn      { color: var(--color-syntax-fn); }
+.hl-attr    { color: var(--color-syntax-type); }
+.hl-variable { color: var(--color-syntax-fn); }
+.hl-inserted { color: var(--color-success); }
+.hl-deleted { color: var(--color-danger); }
 
 /* Shiki final-render tokens. The worker uses Shiki's CSS-variable theme so
    token colors stay bound to Aurelia design tokens instead of bundled themes. */

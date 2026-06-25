@@ -39,7 +39,7 @@ interface ShikiWorkerFailure {
 type ShikiWorkerResponse = ShikiWorkerSuccess | ShikiWorkerFailure
 
 const MAX_SHIKI_CODE_LENGTH = 200_000
-const REQUEST_TIMEOUT_MS = 2500
+const FINAL_RENDER_TIMEOUT_MS = 15_000
 const CACHE_LIMIT = 160
 
 let worker: Worker | null = null
@@ -202,7 +202,7 @@ export function highlightCode({ code, lang, theme, signal }: HighlightRequest): 
     const timer = window.setTimeout(() => {
       cleanup(id)
       resolve(fallback)
-    }, REQUEST_TIMEOUT_MS)
+    }, FINAL_RENDER_TIMEOUT_MS)
 
     pending.set(id, { resolve, reject, timer, fallback })
 
