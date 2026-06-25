@@ -243,7 +243,11 @@ export default function ChatThread() {
   function submit(
     text: string,
     attachments: Attachment[],
-    opts: { mode?: 'default' | 'deep-research' | 'canvas'; params?: Record<string, unknown> },
+    opts: {
+      mode?: 'default' | 'deep-research' | 'canvas'
+      params?: Record<string, unknown>
+      imageStyleId?: string
+    },
   ) {
     if (!conversation) return
     void sendMessage({
@@ -253,6 +257,7 @@ export default function ChatThread() {
       attachments,
       mode: opts.mode,
       params: opts.params,
+      imageStyleId: opts.imageStyleId,
     })
     // Force the view to the freshly appended turn now — don't rely on the
     // auto-follow effect, whose scroll a content reflow or a stale autoFollow

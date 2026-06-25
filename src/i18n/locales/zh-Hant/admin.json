@@ -101,7 +101,9 @@
       "moderationEnable": "生成前審核提示",
       "moderationHint": "審核每條使用者提示(不含歷史)。",
       "moderationModeKeyword": "關鍵詞匹配",
-      "moderationModeModel": "審核模型"
+      "moderationModeModel": "審核模型",
+      "imageTimeout": "生成逾時(秒)",
+      "imageTimeoutHint": "單次圖片請求超過該秒數即中斷。0 = 不限。"
     },
     "editorTitle": "編輯模型",
     "newTitle": "新建模型",
@@ -317,7 +319,10 @@
     "inProject": "專案內",
     "more": "更多",
     "chunks": "{{count}} 切片",
-    "noDocuments": "尚無文件。"
+    "noDocuments": "尚無文件。",
+    "imagesHeading": "圖庫",
+    "noImages": "尚無生成的圖片。",
+    "loadMore": "載入更多"
   },
   "usage": {
     "title": "用量",
@@ -477,7 +482,9 @@
       "fallbackModelHint": "所選模型逾時無回應時,改用它回答(使用者無感)。",
       "fallbackNone": "關閉",
       "fallbackTtft": "首字逾時(秒)",
-      "fallbackTtftHint": "上游這麼多秒無任何輸出就切斷。0 = 關閉。"
+      "fallbackTtftHint": "上游這麼多秒無任何輸出就切斷。0 = 關閉。",
+      "imagePromptModel": "圖片提示詞模型",
+      "imagePromptModelHint": "繪圖前用於潤色提示詞的文字模型。選「無」則略過。"
     }
   },
   "groups": {
@@ -738,5 +745,20 @@
     "users": "使用者",
     "data": "資料",
     "system": "系統"
+  },
+  "imageStyles": {
+    "title": "圖片風格",
+    "lead": "使用者繪圖時可選的風格。風格提示詞對使用者隱藏。",
+    "add": "新增風格",
+    "empty": "尚無風格，請在上方新增。",
+    "namePlaceholder": "風格名稱（如 水彩）",
+    "name": "名稱",
+    "order": "排序",
+    "enabled": "啟用",
+    "example": "範例圖",
+    "examplePlaceholder": "圖片 URL 或上傳",
+    "hiddenPrompt": "風格提示詞（對使用者隱藏）",
+    "hiddenPromptPlaceholder": "如：柔和水彩、紙張紋理、低飽和配色",
+    "nameRequired": "名稱必填。"
   }
 }

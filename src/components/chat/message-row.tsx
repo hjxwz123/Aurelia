@@ -49,6 +49,7 @@ import { useModels } from '@/store/models'
 import { useAutosizeTextarea } from '@/hooks/use-autosize-textarea'
 import { Markdown } from './markdown'
 import { ReasoningTrace } from './reasoning-trace'
+import { ImageGenerating } from './image-generating'
 import { ResearchPanel } from './research-panel'
 import { CitationList } from './citation'
 import { ImageLightbox } from './image-lightbox'
@@ -352,8 +353,12 @@ function MessageRowImpl({ message, userName, onRegenerate, onEdit, onSaveEdit, o
               </div>
             ) : null}
 
-            {/* Streaming placeholder while empty */}
-            {message.streaming && !message.content && (!message.reasoning || message.reasoning.length === 0) ? (
+            {/* §4.20 image mode: dedicated drawing surface (distinct from the
+                chat thinking/tool-call trace) while no image artifact exists yet. */}
+            {message.imageStatus && (!message.artifacts || message.artifacts.length === 0) ? (
+              <ImageGenerating phase={message.imageStatus} />
+            ) : /* Streaming placeholder while empty */
+            message.streaming && !message.content && (!message.reasoning || message.reasoning.length === 0) ? (
               <div className="flex items-center gap-1.5 py-1">
                 <span className="size-1.5 rounded-full bg-[var(--color-fg-faint)] animate-[typing_1400ms_ease-in-out_infinite] [animation-delay:0ms]" />
                 <span className="size-1.5 rounded-full bg-[var(--color-fg-faint)] animate-[typing_1400ms_ease-in-out_infinite] [animation-delay:160ms]" />
@@ -491,7 +496,7 @@ function MessageRowImpl({ message, userName, onRegenerate, onEdit, onSaveEdit, o
             via opacity + pointer-events so nothing below is pushed around.
             Also show the action bar when a message has an error but no content
             so the user can retry the failed message. */}
-        {!readOnly && !editing && !message.streaming && (message.content || message.error) ? (
+        {!readOnly && !editing && !message.streaming && (message.content || message.error || (message.artifacts && message.artifacts.length > 0)) ? (
           <div
             className={cn(
               'mt-2 inline-flex items-center gap-0.5 transition-opacity duration-[140ms] ease-out',

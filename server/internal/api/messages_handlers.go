@@ -27,6 +27,8 @@ type postMessageReq struct {
 	Mode           string           `json:"mode"`
 	Attachments    []llm.Attachment `json:"attachments"`
 	ParamOverrides map[string]any   `json:"params"`
+	// ImageStyleID selects an admin image style for an image-mode turn (§4.20).
+	ImageStyleID string `json:"image_style_id"`
 }
 
 // postMessageHandler is the SSE-streaming endpoint. The orchestrator owns the
@@ -133,6 +135,7 @@ func postMessageHandler(d Deps, w http.ResponseWriter, r *http.Request) {
 		Branch:         req.Branch,
 		Mode:           req.Mode,
 		ParamOverrides: req.ParamOverrides,
+		ImageStyleID:   req.ImageStyleID,
 	}, func(ev llm.SseEvent) {
 		_ = writer.Send(ev, ev.Type)
 	})

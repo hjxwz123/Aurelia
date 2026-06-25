@@ -566,6 +566,28 @@ export default function AdminModelEdit() {
                   />
                 </Field>
               )}
+              {draft.kind === 'image' && (
+                <Field
+                  label={t('admin:models.fields.imageTimeout', { defaultValue: 'Generation timeout (seconds)' })}
+                  htmlFor="m-imgto"
+                  hint={t('admin:models.fields.imageTimeoutHint', {
+                    defaultValue: 'Cut a single image request after this many seconds. 0 = no per-model cap.',
+                  })}
+                  className="col-span-2"
+                >
+                  <Input
+                    id="m-imgto"
+                    type="number"
+                    min="0"
+                    value={String(draft.image_timeout_sec ?? 0)}
+                    onChange={(e) => {
+                      // Blank → NaN → 0 (no cap); never send a negative.
+                      const n = Number(e.target.value)
+                      patch({ image_timeout_sec: Number.isFinite(n) && n > 0 ? Math.floor(n) : 0 })
+                    }}
+                  />
+                </Field>
+              )}
               {draft.kind === 'embedding' && (
                 <Field label={t('admin:models.fields.dim')} htmlFor="m-dim" className="col-span-2">
                   <Input

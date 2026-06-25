@@ -124,6 +124,9 @@ func NewRouter(d Deps) http.Handler {
 	mux.handle("GET", "/api/embedding-models", requireAuth(d, listEmbeddingModelsHandler))
 	mux.handle("GET", "/api/skills", requireAuth(d, listSkillsPublicHandler))
 	mux.handle("GET", "/api/model-tags", requireAuth(d, listModelTagsPublic))
+	// §4.20 Image styles — enabled catalog for the composer style picker (hidden
+	// prompt stripped). Image generation itself reuses the chat message endpoint.
+	mux.handle("GET", "/api/image/styles", requireAuth(d, listImageStylesPublic))
 	mux.handle("GET", "/api/user-groups", requireAuth(d, listUserGroupsPublic))
 	mux.handle("POST", "/api/audio/transcriptions", requireAuth(d, transcribeAudioHandler))
 
@@ -195,6 +198,12 @@ func NewRouter(d Deps) http.Handler {
 	mux.handle("POST", "/api/admin/model-tags", requireAdmin(d, createModelTagAdmin))
 	mux.handle("PATCH", "/api/admin/model-tags/:id", requireAdmin(d, updateModelTagAdmin))
 	mux.handle("DELETE", "/api/admin/model-tags/:id", requireAdmin(d, deleteModelTagAdmin))
+	// §4.20 Image styles — admin CRUD (full row incl. hidden_prompt). Example
+	// images are uploaded via the existing POST /api/admin/icons.
+	mux.handle("GET", "/api/admin/image-styles", requireAdmin(d, listImageStylesAdmin))
+	mux.handle("POST", "/api/admin/image-styles", requireAdmin(d, createImageStyleAdmin))
+	mux.handle("PATCH", "/api/admin/image-styles/:id", requireAdmin(d, updateImageStyleAdmin))
+	mux.handle("DELETE", "/api/admin/image-styles/:id", requireAdmin(d, deleteImageStyleAdmin))
 	mux.handle("GET", "/api/admin/models/:id/quotas", requireAdmin(d, listModelQuotasAdmin))
 	mux.handle("PUT", "/api/admin/models/:id/quotas", requireAdmin(d, setModelQuotasAdmin))
 	mux.handle("GET", "/api/admin/user-groups", requireAdmin(d, listUserGroupsAdmin))
@@ -223,6 +232,8 @@ func NewRouter(d Deps) http.Handler {
 	// admin can verify a report without needing to log in as the user.
 	mux.handle("GET", "/api/admin/users/:id/conversations", requireAdmin(d, listUserConversationsAdmin))
 	mux.handle("GET", "/api/admin/users/:id/projects", requireAdmin(d, listUserProjectsAdmin))
+	// §4.20/§8.1 admin drill-down: a user's generated-image gallery.
+	mux.handle("GET", "/api/admin/users/:id/images", requireAdmin(d, listUserImagesAdmin))
 	mux.handle("GET", "/api/admin/users/:id/kbs", requireAdmin(d, listUserKBsAdmin))
 	mux.handle("GET", "/api/admin/kbs/:id/documents", requireAdmin(d, listKBDocumentsAdmin))
 	mux.handle("GET", "/api/admin/conversations/:id", requireAdmin(d, getConversationAdmin))

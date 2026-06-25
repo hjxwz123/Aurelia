@@ -24,6 +24,7 @@ type Settings = Record<string, unknown>
 const OWNED_KEYS = [
   'default_model_id',
   'task_model_id',
+  'image_prompt_model_id',
   'fallback_model_id',
   'fallback_ttft_sec',
   'keep_recent_rounds',
@@ -141,6 +142,34 @@ export default function AdminSettings() {
                 <SelectValue placeholder={t('admin:settings.fields.pickModel')} />
               </SelectTrigger>
               <SelectContent>
+                {models.map((m) => (
+                  <SelectItem key={m.id} value={m.id}>
+                    {m.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+
+          {/* §4.20 image prompt optimizer: a TEXT model that expands the user's
+              image request and folds in the style's hidden prompt before drawing.
+              "none" = no optimization (deterministic join). */}
+          <Field
+            label={t('admin:settings.fields.imagePromptModel', { defaultValue: 'Image prompt model' })}
+            htmlFor="image-prompt-model"
+            hint={t('admin:settings.fields.imagePromptModelHint', {
+              defaultValue: 'Text model that refines image prompts. Leave as None to skip.',
+            })}
+          >
+            <Select
+              value={readString('image_prompt_model_id') || 'none'}
+              onValueChange={(v) => setDraft({ ...draft, image_prompt_model_id: v === 'none' ? '' : v })}
+            >
+              <SelectTrigger id="image-prompt-model">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">{t('admin:settings.fields.fallbackNone', { defaultValue: 'None' })}</SelectItem>
                 {models.map((m) => (
                   <SelectItem key={m.id} value={m.id}>
                     {m.label}
