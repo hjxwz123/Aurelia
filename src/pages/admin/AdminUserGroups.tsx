@@ -16,6 +16,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { AdminSortableList } from '@/components/admin/AdminSortableList'
 import {
   Dialog,
   DialogBody,
@@ -185,6 +186,13 @@ export default function AdminUserGroups() {
     }
   }
 
+  function persistOrder(next: ApiUserGroup[], prev: ApiUserGroup[]) {
+    void adminApi.reorderUserGroups(next.map((g) => g.id)).catch((e) => {
+      setRows(prev)
+      toast.error(e instanceof ApiError ? e.message : t('admin:common.failed'))
+    })
+  }
+
   return (
     <div>
       <header className="flex items-end justify-between gap-4">
@@ -201,9 +209,16 @@ export default function AdminUserGroups() {
         {loading ? (
           <div className="text-sm text-[var(--color-fg-subtle)]">{t('admin:common.loading')}</div>
         ) : (
-          <ul className="flex flex-col divide-y divide-[var(--color-divider)] rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)]">
-            {rows.map((g) => (
-              <li key={g.id} className="grid grid-cols-[1fr_auto_auto] gap-3 items-center px-5 py-4">
+          <AdminSortableList
+            items={rows}
+            onItemsChange={setRows}
+            onOrderCommit={persistOrder}
+            dragHandleLabel={t('admin:common.dragHandle')}
+            moveUpLabel={t('admin:common.moveUp')}
+            moveDownLabel={t('admin:common.moveDown')}
+            rowClassName="grid grid-cols-[auto_auto_1fr_auto_auto] gap-3 items-center px-5 py-4"
+            renderItem={(g) => (
+              <>
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-medium text-[var(--color-fg)] truncate">{g.name}</span>
@@ -226,9 +241,9 @@ export default function AdminUserGroups() {
                     {t('admin:common.remove')}
                   </Button>
                 )}
-              </li>
-            ))}
-          </ul>
+              </>
+            )}
+          />
         )}
       </section>
 

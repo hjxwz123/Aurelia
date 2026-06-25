@@ -354,6 +354,8 @@ export const adminApi = {
   channels: () => api<ApiChannel[]>('/admin/channels'),
   createChannel: (body: Partial<ApiChannel> & { api_key?: string }) =>
     api<ApiChannel>('/admin/channels', { method: 'POST', body }),
+  reorderChannels: (ids: string[]) =>
+    api<{ ok: true }>('/admin/channels/reorder', { method: 'PATCH', body: { ids } }),
   updateChannel: (id: string, body: Partial<ApiChannel> & { api_key?: string }) =>
     api<ApiChannel>(`/admin/channels/${encodeURIComponent(id)}`, { method: 'PATCH', body }),
   removeChannel: (id: string) =>
@@ -410,6 +412,8 @@ export const adminApi = {
   userGroups: () => api<ApiUserGroup[]>('/admin/user-groups'),
   createUserGroup: (body: Partial<ApiUserGroup>) =>
     api<ApiUserGroup>('/admin/user-groups', { method: 'POST', body }),
+  reorderUserGroups: (ids: string[]) =>
+    api<{ ok: true }>('/admin/user-groups/reorder', { method: 'PATCH', body: { ids } }),
   updateUserGroup: (id: string, body: Partial<ApiUserGroup>) =>
     api<ApiUserGroup>(`/admin/user-groups/${encodeURIComponent(id)}`, { method: 'PATCH', body }),
   removeUserGroup: (id: string) =>

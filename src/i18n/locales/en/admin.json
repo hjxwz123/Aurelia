@@ -8,7 +8,10 @@
     "loading": "Loading…",
     "createFirst": "Create your first {{kind}}",
     "saved": "Saved",
-    "failed": "Failed"
+    "failed": "Failed",
+    "dragHandle": "Drag to reorder",
+    "moveUp": "Move up",
+    "moveDown": "Move down"
   },
   "icon": {
     "upload": "Upload",
