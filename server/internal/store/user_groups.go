@@ -34,9 +34,9 @@ func orDefaultJSON(s string) string {
 	return s
 }
 
-// ListUserGroups returns every group, default first then by sort order.
+// ListUserGroups returns every group in the admin-defined display order.
 func ListUserGroups(ctx context.Context, db *sql.DB) ([]UserGroup, error) {
-	rows, err := db.QueryContext(ctx, `SELECT `+userGroupCols+` FROM user_groups ORDER BY is_default DESC, sort_order, name`)
+	rows, err := db.QueryContext(ctx, `SELECT `+userGroupCols+` FROM user_groups ORDER BY sort_order, name`)
 	if err != nil {
 		return nil, err
 	}
@@ -81,6 +81,24 @@ func CreateUserGroup(ctx context.Context, db *sql.DB, g UserGroup) (*UserGroup, 
 		return nil, err
 	}
 	return GetUserGroup(ctx, db, g.ID)
+}
+
+// ReorderUserGroups assigns sort_order = position for each id in one
+// transaction. This includes the default group; it remains non-deletable but is
+// not pinned above paid tiers.
+func ReorderUserGroups(ctx context.Context, db *sql.DB, ids []string) error {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	now := time.Now().Unix()
+	for i, id := range ids {
+		if _, err := tx.ExecContext(ctx, `UPDATE user_groups SET sort_order=?, updated_at=? WHERE id=?`, i, now, id); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }
 
 // UserGroupPatch carries selective group edits.
