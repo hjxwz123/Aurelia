@@ -500,8 +500,10 @@ export default function AdminModelEdit() {
             </section>
           )}
 
-          {/* Section: Permissions / quotas (chat models) --------------------- */}
-          {draft.kind === 'chat' ? (
+          {/* Section: Permissions / quotas (chat + image models). §4.20: image
+              models need per-group free allotment too — without a quota row the
+              backend treats the model as free+unlimited and never charges credits. */}
+          {draft.kind === 'chat' || draft.kind === 'image' ? (
             <section className="mt-6 rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] px-6 py-5">
               <h2 className="font-serif text-lg text-[var(--color-fg)]">{t('admin:models.sections.permissions')}</h2>
               <p className="mt-1 text-sm text-[var(--color-fg-muted)]">{t('admin:models.permissionsLead')}</p>
