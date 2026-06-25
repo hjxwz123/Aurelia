@@ -486,6 +486,80 @@ def _kill_marked_processes(name: str, token: str) -> None:
         pass
 
 
+# Warm-up program piped to `python -` inside a fresh session container. It
+# (re)writes the CJK matplotlibrc and forces matplotlib's FontManager cache to
+# build, exercising the CJK glyph-fallback path with a real render. Encoded as
+# UTF-8 on the wire; Python reads stdin source as UTF-8 by default (PEP 3120)
+# regardless of the container locale. See _warm_matplotlib for the why.
+_MPL_WARM_PY = r'''
+import os
+# Rewrite the CJK matplotlibrc BEFORE importing matplotlib (it reads the rc at
+# import). The image bakes one, but /home/sandbox is a fresh tmpfs that shadows
+# it, so we restore it into the live (writable, container-lifetime) tmpfs here.
+cfg = os.environ.get("MPLCONFIGDIR") or os.path.expanduser("~/.config/matplotlib")
+try:
+    os.makedirs(cfg, exist_ok=True)
+    with open(os.path.join(cfg, "matplotlibrc"), "w") as fh:
+        fh.write(
+            "font.family: sans-serif\n"
+            "font.sans-serif: Noto Sans CJK SC, Noto Sans CJK JP, WenQuanYi Zen Hei, DejaVu Sans\n"
+            "axes.unicode_minus: False\n"
+            "figure.dpi: 120\n"
+            "savefig.bbox: tight\n"
+        )
+except OSError:
+    pass
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import matplotlib.font_manager as fm
+# Building the FontManager (the import above) writes fontlist-vNNN.json into
+# MPLCONFIGDIR; findfont + a CJK render warm the glyph-fallback path so the
+# first real cell renders Chinese instead of tofu boxes.
+fm.fontManager.findfont("Noto Sans CJK SC")
+fig, ax = plt.subplots()
+ax.set_title("中文 CJK warmup")
+fig.savefig("/tmp/_mpl_warm.png")
+plt.close(fig)
+try:
+    os.remove("/tmp/_mpl_warm.png")
+except OSError:
+    pass
+'''
+
+
+def _warm_matplotlib(name: str) -> None:
+    """Best-effort: pre-build matplotlib's font cache + restore the CJK
+    matplotlibrc inside a freshly-created session container, BEFORE any user
+    code runs.
+
+    Why this is needed (the "Chinese is tofu on the first chart, fine on the
+    second" bug): the container mounts /home/sandbox as an empty tmpfs (the
+    read-only-rootfs hardening, §4.5), which SHADOWS both the matplotlibrc and
+    the font cache baked into the image. So every new container starts with a
+    COLD FontManager cache and no CJK rc. The first cell that imports matplotlib
+    then builds the cache from scratch — and while it is cold, matplotlib's
+    glyph-level font fallback can't see Noto CJK yet, so Chinese renders as
+    boxes (the tofu). The SECOND cell hits the now-warm cache and renders fine.
+    Warming once here makes the FIRST cell behave like the second. The cache
+    lives on the /home/sandbox tmpfs, which persists for the container's whole
+    lifetime, so it survives across exec calls within the session.
+
+    Bounded + swallowed: a warm-up failure must never block session creation —
+    the worst case is simply the old (first-cell-tofu) behaviour.
+    """
+    try:
+        cp = _docker(["exec", "-i", name, "python", "-"],
+                     input_bytes=_MPL_WARM_PY.encode("utf-8"), timeout=60)
+        if cp.returncode != 0:
+            print(f"[sandbox] matplotlib warm-up for {name} returned "
+                  f"{cp.returncode}: {cp.stderr.decode(errors='replace')[:200]}")
+    except subprocess.TimeoutExpired:
+        print(f"[sandbox] matplotlib warm-up for {name} timed out")
+    except Exception as exc:  # noqa: BLE001 - never let warm-up break create
+        print(f"[sandbox] matplotlib warm-up for {name} failed: {exc}")
+
+
 # --- Request models ---------------------------------------------------------
 class ExecBody(BaseModel):
     session_id: str
@@ -618,6 +692,11 @@ def create_session(body: Optional[CreateBody] = Body(default=None)):
         if mk.returncode != 0:
             _docker(["rm", "-f", name], timeout=30)
             raise HTTPException(status_code=500, detail=f"workspace init failed: {mk.stderr.decode(errors='replace')}")
+        # Pre-warm matplotlib's font cache + CJK matplotlibrc so the FIRST cell
+        # that draws a chart renders Chinese instead of tofu boxes (the empty
+        # /home/sandbox tmpfs shadows the image-baked cache, so each new
+        # container starts cold). Best-effort; never blocks session creation.
+        _warm_matplotlib(name)
         # §4.5: now that /workspace is up, restore a previously-archived
         # workspace for this session id from the bucket (best-effort; missing
         # archive or no storage → no-op). Remember the storage block so the
