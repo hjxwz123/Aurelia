@@ -28,6 +28,7 @@ const languageModules = import.meta.glob<LanguageModule>(
   '/node_modules/shiki/dist/langs/{html,xml,css,scss,sass,less,postcss,javascript,jsx,typescript,tsx,vue,svelte,astro,angular-html,angular-ts,mdx,python,go,rust,java,kotlin,scala,c,cpp,csharp,fsharp,swift,objective-c,objective-cpp,php,ruby,perl,lua,dart,elixir,erlang,clojure,haskell,ocaml,zig,nim,crystal,v,vala,pascal,fortran-free-form,bash,fish,powershell,batch,docker,make,cmake,nginx,apache,terraform,hcl,bicep,nix,puppet,ssh-config,dotenv,ini,properties,json,jsonc,json5,jsonl,yaml,toml,csv,graphql,protobuf,http,prisma,sql,plsql,kusto,cypher,sparql,markdown,asciidoc,rst,latex,bibtex,typst,mermaid,qml,vb,asm,wasm,verilog,system-verilog,vhdl,glsl,hlsl,wgsl,shaderlab,r,julia,matlab,wolfram,scheme,racket,lisp,common-lisp,prolog,coq,lean,elm,purescript,fennel,solidity,vyper,move,cadence,clarity,diff,git-commit,git-rebase,log,regexp}.mjs',
 )
 const loadedLanguages = new Set<string>()
+const loadingLanguages = new Map<string, Promise<boolean>>()
 
 let highlighterPromise: Promise<HighlighterCore> | null = null
 
@@ -51,10 +52,22 @@ async function loadLanguage(highlighter: HighlighterCore, lang: string): Promise
   const loader = languageModules[languagePath(lang)]
   if (!loader) return false
 
-  const mod = await loader()
-  await highlighter.loadLanguage(mod.default)
-  loadedLanguages.add(lang)
-  return true
+  const loading = loadingLanguages.get(lang)
+  if (loading) return loading
+
+  const promise = (async () => {
+    const mod = await loader()
+    await highlighter.loadLanguage(mod.default)
+    loadedLanguages.add(lang)
+    return true
+  })()
+  loadingLanguages.set(lang, promise)
+
+  try {
+    return await promise
+  } finally {
+    loadingLanguages.delete(lang)
+  }
 }
 
 self.onmessage = (event: MessageEvent<ShikiWorkerRequest>) => {

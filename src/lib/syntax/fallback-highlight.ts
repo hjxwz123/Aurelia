@@ -34,7 +34,68 @@ const LANG_TOKENS: Record<string, Token[]> = {
     { re: /<!--[\s\S]*?-->/g, cls: 'comment' },
     { re: /(["'])(?:\\.|(?!\1).)*\1/g, cls: 'string' },
     { re: /<\/?[a-zA-Z][\w-]*|\/?>/g, cls: 'keyword' },
-    { re: /\b[a-zA-Z-]+(?==)/g, cls: 'fn' },
+    { re: /\b[a-zA-Z-]+(?==)/g, cls: 'attr' },
+  ],
+  json: [
+    { re: /\/\/[^\n]*/g, cls: 'comment' },
+    { re: /\/\*[\s\S]*?\*\//g, cls: 'comment' },
+    { re: /"(?:\\.|[^"\\])*"(?=\s*:)/g, cls: 'type' },
+    { re: /"(?:\\.|[^"\\])*"/g, cls: 'string' },
+    { re: /\b(true|false|null)\b/g, cls: 'keyword' },
+    { re: /-?\b(?:0|[1-9]\d*)(?:\.\d+)?(?:e[+-]?\d+)?\b/gi, cls: 'number' },
+  ],
+  bash: [
+    { re: /^[ \t]*#[^\n]*/gm, cls: 'comment' },
+    { re: /(["'])(?:\\.|(?!\1).)*\1/g, cls: 'string' },
+    { re: /\$\{?[A-Za-z_][\w]*\}?|\$[@*#?$!-]/g, cls: 'variable' },
+    { re: /\b(if|then|else|elif|fi|for|while|until|do|done|case|esac|function|select|in|time|coproc|return|exit|export|local|readonly|declare|source|alias|unalias|trap|shift|break|continue|eval|exec|test)\b/g, cls: 'keyword' },
+    { re: /(^|[;&|]\s*)[A-Za-z_][\w.-]*(?=\s|$)/gm, cls: 'fn' },
+  ],
+  css: [
+    { re: /\/\*[\s\S]*?\*\//g, cls: 'comment' },
+    { re: /(["'])(?:\\.|(?!\1).)*\1/g, cls: 'string' },
+    { re: /@[a-zA-Z-]+/g, cls: 'keyword' },
+    { re: /--[A-Za-z_][\w-]*(?=\s*:)/g, cls: 'variable' },
+    { re: /\b-?[A-Za-z_][\w-]*(?=\s*:)/g, cls: 'attr' },
+    { re: /#[\da-fA-F]{3,8}\b/g, cls: 'number' },
+    { re: /\b\d+(?:\.\d+)?(?:%|[a-zA-Z]+)?\b/g, cls: 'number' },
+    { re: /\b[A-Za-z_][\w-]*(?=\()/g, cls: 'fn' },
+  ],
+  markdown: [
+    { re: /```[\s\S]*?```/g, cls: 'string' },
+    { re: /^#{1,6}\s.+$/gm, cls: 'keyword' },
+    { re: /^>\s.*$/gm, cls: 'comment' },
+    { re: /`[^`\n]+`/g, cls: 'string' },
+    { re: /\[[^\]\n]+\]\([^)]+\)/g, cls: 'fn' },
+    { re: /(?:\*\*|__)[\s\S]+?(?:\*\*|__)/g, cls: 'keyword' },
+    { re: /^[ \t]*(?:[-*+]|\d+\.)\s/gm, cls: 'keyword' },
+  ],
+  yaml: [
+    { re: /#[^\n]*/g, cls: 'comment' },
+    { re: /(["'])(?:\\.|(?!\1).)*\1/g, cls: 'string' },
+    { re: /\b[A-Za-z_][\w.-]*(?=\s*:)/g, cls: 'attr' },
+    { re: /\b(true|false|null|yes|no|on|off)\b/gi, cls: 'keyword' },
+    { re: /-?\b\d+(?:\.\d+)?\b/g, cls: 'number' },
+  ],
+  sql: [
+    { re: /--[^\n]*/g, cls: 'comment' },
+    { re: /\/\*[\s\S]*?\*\//g, cls: 'comment' },
+    { re: /'(?:''|[^'])*'/g, cls: 'string' },
+    { re: /\b(select|from|where|join|inner|left|right|full|outer|on|group|by|order|having|limit|offset|insert|into|values|update|set|delete|create|alter|drop|table|view|index|primary|foreign|key|references|constraint|with|as|distinct|union|all|case|when|then|else|end|and|or|not|null|is|in|exists|between|like|returning)\b/gi, cls: 'keyword' },
+    { re: /\b(count|sum|avg|min|max|coalesce|nullif|cast|date_trunc|lower|upper|json_extract|jsonb_build_object)(?=\s*\()/gi, cls: 'fn' },
+    { re: /-?\b\d+(?:\.\d+)?\b/g, cls: 'number' },
+  ],
+  diff: [
+    { re: /^diff --git .+$/gm, cls: 'keyword' },
+    { re: /^@@[\s\S]*?@@.*$/gm, cls: 'type' },
+    { re: /^\+.*$/gm, cls: 'inserted' },
+    { re: /^-.*$/gm, cls: 'deleted' },
+  ],
+  dockerfile: [
+    { re: /^[ \t]*#[^\n]*/gm, cls: 'comment' },
+    { re: /(["'])(?:\\.|(?!\1).)*\1/g, cls: 'string' },
+    { re: /^\s*(FROM|RUN|CMD|LABEL|MAINTAINER|EXPOSE|ENV|ADD|COPY|ENTRYPOINT|VOLUME|USER|WORKDIR|ARG|ONBUILD|STOPSIGNAL|HEALTHCHECK|SHELL)\b/gim, cls: 'keyword' },
+    { re: /\$\{?[A-Za-z_][\w]*\}?/g, cls: 'variable' },
   ],
 }
 
@@ -48,6 +109,19 @@ LANG_TOKENS.python3 = LANG_TOKENS.python
 LANG_TOKENS.golang = LANG_TOKENS.go
 LANG_TOKENS.htm = LANG_TOKENS.html
 LANG_TOKENS.xhtml = LANG_TOKENS.html
+LANG_TOKENS.xml = LANG_TOKENS.html
+LANG_TOKENS.jsonc = LANG_TOKENS.json
+LANG_TOKENS.json5 = LANG_TOKENS.json
+LANG_TOKENS.jsonl = LANG_TOKENS.json
+LANG_TOKENS.shell = LANG_TOKENS.bash
+LANG_TOKENS.shellscript = LANG_TOKENS.bash
+LANG_TOKENS.sh = LANG_TOKENS.bash
+LANG_TOKENS.zsh = LANG_TOKENS.bash
+LANG_TOKENS.scss = LANG_TOKENS.css
+LANG_TOKENS.sass = LANG_TOKENS.css
+LANG_TOKENS.md = LANG_TOKENS.markdown
+LANG_TOKENS.yml = LANG_TOKENS.yaml
+LANG_TOKENS.docker = LANG_TOKENS.dockerfile
 
 /**
  * Lightweight streaming fallback. It intentionally covers only cheap common
@@ -89,4 +163,3 @@ export function fallbackHighlight(code: string, lang?: string): string {
   out += escapeHtml(code.slice(i))
   return out
 }
-
