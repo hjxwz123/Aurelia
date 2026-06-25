@@ -209,8 +209,16 @@ func historyToGemini(h []UnifiedMessage) []map[string]any {
 		if m.Role == "assistant" && len(m.Raw) > 2 {
 			var turns []map[string]any
 			if err := json.Unmarshal(m.Raw, &turns); err == nil && len(turns) > 0 && turns[0]["parts"] != nil {
-				contents = append(contents, turns...)
-				continue
+				// Gemini 3 hard-rejects (400 "missing thought_signature in
+				// functionCall parts") any replayed functionCall part that lacks its
+				// thoughtSignature. Raw persisted before signature capture landed —
+				// or stripped by a relay — carries bare calls; rather than poison
+				// the whole request, fall through to the lossy-but-valid block→text
+				// path below (the same downgrade used for cross-vendor history).
+				if geminiRawCallsAllSigned(turns) {
+					contents = append(contents, turns...)
+					continue
+				}
 			}
 		}
 		parts := []map[string]any{}
@@ -259,6 +267,16 @@ func geminiSupportsThinking(requestID string) bool {
 	return false
 }
 
+// geminiSkipSigSentinel is Google's documented placeholder thoughtSignature for
+// functionCall parts that have no genuine signature (history transferred from a
+// model/store that never produced one, or a relay that stripped it). It tells
+// the upstream to skip signature validation for that part. Google warns it
+// degrades model performance, so it is a last-resort fallback only — never used
+// when a real signature is available. Value is
+// base64("skip_thought_signature_validator"), matching the proven LiteLLM/Vertex
+// behaviour.
+const geminiSkipSigSentinel = "c2tpcF90aG91Z2h0X3NpZ25hdHVyZV92YWxpZGF0b3I="
+
 // geminiFunctionCallPart rebuilds a model `parts[]` entry for a functionCall so
 // it can be replayed as history. Critically it carries the part-level
 // `thoughtSignature` (a sibling of `functionCall`, NOT a field inside it) that
@@ -278,9 +296,16 @@ func geminiFunctionCallPart(part, fc map[string]any, fallbackSig string) map[str
 		// thought_signature in functionCall parts").
 		sig = fallbackSig
 	}
-	if sig != "" {
-		out["thoughtSignature"] = sig
+	if sig == "" {
+		// Last resort: the model produced this call but no signature ever reached
+		// us this turn (thinking off, or a relay stripped the field). A bare
+		// functionCall hard-400s on Gemini 3, so emit the documented bypass
+		// sentinel instead — it keeps the tool loop alive at the cost of lost
+		// reasoning context. Not hit on a direct connection to a thinking-capable
+		// model, where every functionCall carries a real signature.
+		sig = geminiSkipSigSentinel
 	}
+	out["thoughtSignature"] = sig
 	return out
 }
 
@@ -293,6 +318,27 @@ func geminiPartSig(part map[string]any) string {
 		}
 	}
 	return ""
+}
+
+// geminiRawCallsAllSigned reports whether every functionCall part across a set
+// of replayed `contents` turns carries a non-empty thoughtSignature. Gemini 3
+// hard-rejects any history turn whose functionCall part is bare, so the caller
+// uses this to choose between verbatim raw replay and the lossy block→text
+// downgrade. Turns with no functionCall parts trivially pass.
+func geminiRawCallsAllSigned(turns []map[string]any) bool {
+	for _, t := range turns {
+		parts, _ := t["parts"].([]any)
+		for _, pr := range parts {
+			prm, ok := pr.(map[string]any)
+			if !ok {
+				continue
+			}
+			if _, hasCall := prm["functionCall"]; hasCall && geminiPartSig(prm) == "" {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 // readGeminiStream consumes the streamGenerateContent SSE response. Each line
