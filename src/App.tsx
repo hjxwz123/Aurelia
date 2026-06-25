@@ -43,6 +43,7 @@ const AdminModels = lazy(() => import('@/pages/admin/AdminModels'))
 const AdminModelEdit = lazy(() => import('@/pages/admin/AdminModelEdit'))
 const AdminModelTags = lazy(() => import('@/pages/admin/AdminModelTags'))
 const AdminSkills = lazy(() => import('@/pages/admin/AdminSkills'))
+const AdminImageStyles = lazy(() => import('@/pages/admin/AdminImageStyles'))
 const AdminUsers = lazy(() => import('@/pages/admin/AdminUsers'))
 const AdminUserGroups = lazy(() => import('@/pages/admin/AdminUserGroups'))
 const AdminUserConversations = lazy(() => import('@/pages/admin/AdminUserConversations'))
@@ -173,6 +174,7 @@ export default function App() {
               <Route path="models/:id" element={<AdminModelEdit />} />
               <Route path="model-tags" element={<AdminModelTags />} />
               <Route path="skills" element={<AdminSkills />} />
+              <Route path="image-styles" element={<AdminImageStyles />} />
               <Route path="users" element={<AdminUsers />} />
               <Route path="user-groups" element={<AdminUserGroups />} />
               <Route path="redeem-codes" element={<AdminRedeemCodes />} />

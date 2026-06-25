@@ -15,6 +15,7 @@ import {
   ChevronRight,
   BookText,
   Wand2,
+  ImagePlus,
   ShieldCheck,
   Layers,
   Languages,
@@ -52,6 +53,7 @@ import { NewProjectDialog } from '@/components/projects/new-project-dialog'
 import { MoveToProjectSub } from '@/components/projects/move-to-project-menu'
 import { useConversations, sameConvListShape } from '@/store/conversations'
 import { useProjects } from '@/store/projects'
+import { useModels } from '@/store/models'
 import { useSettings } from '@/store/settings'
 import { useAuth } from '@/store/auth'
 import { useLanguage } from '@/store/language'
@@ -112,6 +114,8 @@ export function Sidebar({ variant = 'desktop', onClose }: SidebarProps) {
     [allConversations],
   )
   const projects = useProjects((s) => s.projects)
+  // §4.20: show the Draw entry only when an image model is configured.
+  const hasImageModels = useModels((s) => s.imageModels.length > 0)
   const recentProjects = useMemo(
     () =>
       projects
@@ -248,6 +252,25 @@ export function Sidebar({ variant = 'desktop', onClose }: SidebarProps) {
             )}
           </Link>
         </Tooltip>
+
+        {/* §4.20 Draw — opens a new conversation pre-set to an image model. */}
+        {hasImageModels && (
+          <Tooltip content={collapsed ? tNav('draw', { defaultValue: 'Draw' }) : ''} side="right">
+            <Link
+              to="/?mode=draw"
+              onClick={onClose}
+              className={cn(
+                'inline-flex items-center gap-2 h-9 rounded-[10px] text-sm',
+                'text-[var(--color-fg-muted)] hover:bg-[var(--color-bg-muted)] hover:text-[var(--color-fg)] interactive',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]',
+                collapsed ? 'w-9 justify-center px-0' : 'w-full justify-start px-3',
+              )}
+            >
+              <ImagePlus size={15} aria-hidden />
+              {!collapsed && <span>{tNav('draw', { defaultValue: 'Draw' })}</span>}
+            </Link>
+          </Tooltip>
+        )}
       </div>
 
       {/* Projects (expanded only) */}

@@ -71,6 +71,19 @@ func GetModelQuota(ctx context.Context, db *sql.DB, modelID, groupID string) (*M
 	return &q, nil
 }
 
+// ImageUsageInWindow aggregates a user's IMAGE generation for one model inside a
+// fixed window — summed cost and image COUNT (images_count, not rows). §4.20:
+// both the drawing-mode path and the chat tool-call path log purpose='image'
+// against the same image model id, so this is the shared quota source for an
+// image model regardless of how the generation was triggered.
+func ImageUsageInWindow(ctx context.Context, db *sql.DB, userID, modelID string, sinceUnix int64) (cost float64, images int, err error) {
+	err = db.QueryRowContext(ctx,
+		`SELECT COALESCE(SUM(cost),0), COALESCE(SUM(images_count),0) FROM usage_logs
+		 WHERE user_id=? AND model_id=? AND purpose='image' AND created_at>=?`,
+		userID, modelID, sinceUnix).Scan(&cost, &images)
+	return cost, images, err
+}
+
 // ModelHasAnyQuota reports whether a model is restricted (has ≥1 quota row).
 // A model with no rows is open to everyone, unlimited.
 func ModelHasAnyQuota(ctx context.Context, db *sql.DB, modelID string) (bool, error) {

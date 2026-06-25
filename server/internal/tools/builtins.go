@@ -805,13 +805,13 @@ func (t *imageGenerateTool) Execute(ctx context.Context, input []byte, tc *llm.T
 
 	// §4.12-E 内容安全: 生成前 prompt 过审（关键词来自管理员配置，非硬编码）。
 	if err := t.moderateImagePrompt(in.Prompt); err != nil {
-		return "", nil, err
+		return "", nil, &llm.ToolRefusalError{Message: err.Error()}
 	}
 
 	// §8.2 每用户每日图像张数限额（按 usage_logs 当日累计）。
 	if tc != nil && tc.DB != nil {
 		if err := t.checkDailyImageLimit(ctx, tc.UserID, in.N); err != nil {
-			return "", nil, err
+			return "", nil, &llm.ToolRefusalError{Message: err.Error()}
 		}
 	}
 
@@ -829,6 +829,27 @@ func (t *imageGenerateTool) Execute(ctx context.Context, input []byte, tc *llm.T
 		return "No API key on the image channel — ask an admin to configure it.", nil, nil
 	}
 
+	// §4.20 per-model image quota — shared across drawing mode and chat tool-call
+	// (both log purpose='image' against this model id), enforced here so neither
+	// path bypasses the other's usage.
+	// §4.20 image quota. Drawing mode (tc.SkipImageQuota) already metered + charged
+	// upstream → skip here. Otherwise (chat tool-call) run the SAME free→credits→
+	// block decision via ImageBilling so it matches drawing mode; payImageCredits
+	// is honored after generation. (Falls back to the legacy hard cap only if no
+	// biller is wired, e.g. a non-orchestrator caller.)
+	payImageCredits := false
+	if tc != nil && tc.DB != nil && !tc.SkipImageQuota {
+		if tc.ImageBilling != nil {
+			allow, pay, refuseMsg := tc.ImageBilling.CheckImageCredits(ctx, tc.UserID, model, in.N)
+			if !allow {
+				return "", nil, &llm.ToolRefusalError{Message: refuseMsg}
+			}
+			payImageCredits = pay
+		} else if err := t.checkModelImageQuota(ctx, tc.UserID, model, in.N); err != nil {
+			return "", nil, &llm.ToolRefusalError{Message: err.Error()}
+		}
+	}
+
 	// §4.12-C/D 图生图: load explicit input images (artifact ids); for Gemini,
 	// fall back to the conversation's image_session so multi-turn edits stay
 	// anchored on the previous generation.
@@ -840,12 +861,21 @@ func (t *imageGenerateTool) Execute(ctx context.Context, input []byte, tc *llm.T
 		}
 	}
 
+	// §4.20 per-model image timeout: cap this single generation/edit request when
+	// the admin set one (0 = no per-model cap; bounded only by the turn context).
+	genCtx := ctx
+	if model.ImageTimeoutSec > 0 {
+		var cancel context.CancelFunc
+		genCtx, cancel = context.WithTimeout(ctx, time.Duration(model.ImageTimeoutSec)*time.Second)
+		defer cancel()
+	}
+
 	var images []imageBytes
 	switch {
 	case isGemini:
-		images, err = geminiGenerateImages(ctx, channel.BaseURL, channel.APIKey, model.RequestID, in, inputImgs)
+		images, err = geminiGenerateImages(genCtx, channel.BaseURL, channel.APIKey, model.RequestID, in, inputImgs)
 	case channel.Type == "openai":
-		images, err = openaiGenerateImages(ctx, channel.BaseURL, channel.APIKey, model.RequestID, in, inputImgs)
+		images, err = openaiGenerateImages(genCtx, channel.BaseURL, channel.APIKey, model.RequestID, in, inputImgs)
 	default:
 		return "", nil, fmt.Errorf("image generation not supported for channel type %q", channel.Type)
 	}
@@ -853,33 +883,55 @@ func (t *imageGenerateTool) Execute(ctx context.Context, input []byte, tc *llm.T
 		return "", nil, err
 	}
 	if len(images) == 0 {
+		// A per-model timeout (genCtx) can fire DURING a url-fetch of the result;
+		// fetchRemoteImage swallows that error, so surface the deadline here rather
+		// than reporting a misleading "no images" success.
+		if genCtx.Err() != nil {
+			return "", nil, genCtx.Err()
+		}
 		return "The image model returned no images.", nil, nil
 	}
 
+	// The bytes are in hand → persist the artifacts + meter on a DETACHED context
+	// so a stop / timeout landing in this narrow window can't drop a delivered
+	// image or skip its usage row (which feeds the daily limit + per-model quota).
+	persistCtx := context.WithoutCancel(ctx)
 	lastArtifactID := ""
 	for i, img := range images {
 		ext := extForMime(img.mime)
 		name := fmt.Sprintf("image_%d%s", i+1, ext)
-		if art := saveArtifact(ctx, tc, t.artifactDir, name, img.mime, img.data); art != nil {
+		if art := saveArtifact(persistCtx, tc, t.artifactDir, name, img.mime, img.data); art != nil {
 			lastArtifactID = art.ID
 		}
 	}
 	// §4.12-D Gemini 多轮编辑: remember the latest generation on the
 	// conversation so the next image_generate call edits it by default.
 	if isGemini && lastArtifactID != "" && tc != nil && tc.DB != nil && tc.ConvID != "" {
-		_ = store.SetConvProviderStateKey(ctx, tc.DB, tc.ConvID, "image_session", lastArtifactID)
+		_ = store.SetConvProviderStateKey(persistCtx, tc.DB, tc.ConvID, "image_session", lastArtifactID)
+	}
+
+	// §4.20: if the image model's free allotment is exhausted, charge the image
+	// cost in credits (same flow as drawing mode) via ImageBilling, and record the
+	// timed portion on the usage row so the credit window survives restarts.
+	imageCost := float64(len(images)) * model.PricePerImage
+	var imageTimedCredits float64
+	if payImageCredits && imageCost > 0 && tc != nil && tc.ImageBilling != nil {
+		timed, total := tc.ImageBilling.ChargeImageCredits(persistCtx, tc.UserID, imageCost)
+		imageTimedCredits = timed
+		tc.AddImageCredits(total)
 	}
 
 	// Record cost (§8.3) — one usage row, images_count = N.
 	if tc != nil && tc.DB != nil {
-		_ = store.LogUsage(ctx, t.db, store.UsageLog{
+		_ = store.LogUsage(persistCtx, t.db, store.UsageLog{
 			UserID:         tc.UserID,
 			ConversationID: tc.ConvID,
 			MessageID:      tc.MessageID,
 			ModelID:        model.ID,
 			Purpose:        "image",
 			ImagesCount:    len(images),
-			Cost:           float64(len(images)) * model.PricePerImage,
+			Cost:           imageCost,
+			Credits:        imageTimedCredits,
 			Currency:       model.Currency,
 		})
 	}
@@ -975,6 +1027,80 @@ func (t *imageGenerateTool) checkDailyImageLimit(ctx context.Context, userID str
 	return nil
 }
 
+// imageQuotaWindow computes the fixed-window start for a period (mirrors the
+// orchestrator's quotaWindow; blank/0 period defaults to 7 days).
+func imageQuotaWindow(periodSeconds int) int64 {
+	p := int64(periodSeconds)
+	if p <= 0 {
+		p = 604800
+	}
+	now := time.Now().Unix()
+	return (now / p) * p
+}
+
+// imageQuotaMessage is the admin-configurable over-limit prompt.
+func imageQuotaMessage(db *sql.DB) string {
+	if raw, err := store.GetSetting(db, "quota_exceeded_message"); err == nil {
+		var s string
+		if json.Unmarshal(raw, &s) == nil && s != "" {
+			return s
+		}
+	}
+	return "You've reached your plan's image quota for this model."
+}
+
+// checkModelImageQuota enforces the image model's per-group quota (§ user groups)
+// from the shared usage_logs image ledger, so drawing-mode and chat tool-call
+// generations on the SAME model draw from one pool (§4.20). Admins are exempt.
+// This is a hard cap (no credit fallback), consistent with the daily image limit.
+func (t *imageGenerateTool) checkModelImageQuota(ctx context.Context, userID string, model *store.Model, n int) error {
+	if userID == "" {
+		return nil
+	}
+	u, _ := store.FindUserByID(ctx, t.db, userID)
+	if u != nil && u.Role == "admin" {
+		return nil // admins are exempt from usage quotas
+	}
+	has, err := store.ModelHasAnyQuota(ctx, t.db, model.ID)
+	if err != nil || !has {
+		return nil // no quota rows → unlimited (fail-open on error)
+	}
+	groupID := store.DefaultGroupID
+	if u != nil && u.GroupID != "" {
+		groupID = u.GroupID
+	}
+	q, err := store.GetModelQuota(ctx, t.db, model.ID, groupID)
+	if err != nil {
+		// Restricted model with no row for this group → not available to them.
+		return errors.New(imageQuotaMessage(t.db))
+	}
+	if q.LimitValue <= 0 {
+		return nil // granted unlimited
+	}
+	if n <= 0 {
+		n = 1
+	}
+	start := imageQuotaWindow(q.PeriodSeconds)
+	cost, images, err := store.ImageUsageInWindow(ctx, t.db, userID, model.ID, start)
+	if err != nil {
+		// Hard cap → fail CLOSED on a usage-ledger read error rather than silently
+		// disabling the quota (a fail-open here would let the cap be bypassed).
+		return errors.New(imageQuotaMessage(t.db))
+	}
+	over := false
+	if q.LimitType == "count" {
+		over = images+n > int(q.LimitValue+0.5)
+	} else {
+		// Pre-project this request's cost (n × per-image) like the count branch,
+		// so the cap enforces before the overshoot, not after.
+		over = cost+float64(n)*model.PricePerImage > q.LimitValue
+	}
+	if over {
+		return errors.New(imageQuotaMessage(t.db))
+	}
+	return nil
+}
+
 // loadInputImages resolves artifact ids to raw image bytes (ownership-checked)
 // for image-to-image workflows (§4.12-C).
 func (t *imageGenerateTool) loadInputImages(ctx context.Context, tc *llm.ToolContext, ids []string) []imageBytes {
@@ -983,15 +1109,27 @@ func (t *imageGenerateTool) loadInputImages(ctx context.Context, tc *llm.ToolCon
 	}
 	out := []imageBytes{}
 	for _, id := range ids {
-		art, err := store.GetArtifact(ctx, t.db, id, tc.UserID)
-		if err != nil || art == nil || !strings.HasPrefix(art.MimeType, "image/") {
+		// An input image id can be an ARTIFACT (a prior generation) or a user
+		// UPLOAD (files table) — the studio passes reference uploads as file ids,
+		// so try both. Both are ownership-scoped.
+		var data []byte
+		var mime string
+		if art, err := store.GetArtifact(ctx, t.db, id, tc.UserID); err == nil && art != nil && strings.HasPrefix(art.MimeType, "image/") {
+			b, rerr := os.ReadFile(art.StoragePath)
+			if rerr != nil {
+				continue
+			}
+			data, mime = b, art.MimeType
+		} else if f, err := store.GetFile(ctx, t.db, id, tc.UserID); err == nil && f != nil && strings.HasPrefix(f.MimeType, "image/") {
+			b, rerr := os.ReadFile(f.StoragePath)
+			if rerr != nil {
+				continue
+			}
+			data, mime = b, f.MimeType
+		} else {
 			continue
 		}
-		data, err := os.ReadFile(art.StoragePath)
-		if err != nil {
-			continue
-		}
-		out = append(out, imageBytes{data: data, mime: art.MimeType})
+		out = append(out, imageBytes{data: data, mime: mime})
 		if len(out) >= 3 {
 			break
 		}
@@ -1077,6 +1215,10 @@ func openaiGenerateImages(ctx context.Context, baseURL, apiKey, requestID string
 		base = "https://api.openai.com"
 	}
 
+	// gpt-image-1 returns b64_json natively and REJECTS the response_format
+	// param; only the DALL·E models accept it. Send it only for dall-e and parse
+	// both b64_json and url responses so either model family works.
+	isDalle := strings.Contains(strings.ToLower(requestID), "dall")
 	var req *http.Request
 	if len(inputImgs) > 0 {
 		// Image edit (图生图): multipart form with the source image + prompt.
@@ -1086,7 +1228,9 @@ func openaiGenerateImages(ctx context.Context, baseURL, apiKey, requestID string
 		_ = mw.WriteField("prompt", in.Prompt)
 		_ = mw.WriteField("n", fmt.Sprintf("%d", in.N))
 		_ = mw.WriteField("size", in.Size)
-		_ = mw.WriteField("response_format", "b64_json")
+		if isDalle {
+			_ = mw.WriteField("response_format", "b64_json")
+		}
 		fw, err := mw.CreateFormFile("image", "input"+extForMime(inputImgs[0].mime))
 		if err != nil {
 			return nil, err
@@ -1099,11 +1243,13 @@ func openaiGenerateImages(ctx context.Context, baseURL, apiKey, requestID string
 		req.Header.Set("content-type", mw.FormDataContentType())
 	} else {
 		body := map[string]any{
-			"model":           requestID,
-			"prompt":          in.Prompt,
-			"n":               in.N,
-			"size":            in.Size,
-			"response_format": "b64_json",
+			"model":  requestID,
+			"prompt": in.Prompt,
+			"n":      in.N,
+			"size":   in.Size,
+		}
+		if isDalle {
+			body["response_format"] = "b64_json"
 		}
 		raw, _ := json.Marshal(body)
 		req, _ = http.NewRequestWithContext(ctx, "POST", base+"/v1/images/generations", strings.NewReader(string(raw)))
@@ -1134,9 +1280,54 @@ func openaiGenerateImages(ctx context.Context, baseURL, apiKey, requestID string
 			if data, err := base64.StdEncoding.DecodeString(d.B64JSON); err == nil {
 				out = append(out, imageBytes{data: data, mime: "image/png"})
 			}
+			continue
+		}
+		// Some models / gateways return a hosted URL instead of inline base64 —
+		// fetch the bytes so the result is always a stored artifact.
+		if d.URL != "" {
+			if data, mime := fetchRemoteImage(ctx, d.URL); len(data) > 0 {
+				out = append(out, imageBytes{data: data, mime: mime})
+			}
 		}
 	}
 	return out, nil
+}
+
+// fetchRemoteImage downloads an image URL returned by an image API, returning
+// its bytes + MIME (defaulting to image/png). Best-effort: returns nil on error.
+//
+// The URL comes from the upstream RESPONSE body (a gateway/provider we don't
+// fully control), not admin config — so it is NOT trusted. We use the
+// SSRF-safe client (validates the resolved IP at every redirect hop, restricts
+// ports) instead of toolHTTPClient, and require an http(s) scheme, so a
+// malicious/compromised gateway can't point us at 169.254.169.254 / localhost /
+// internal services.
+func fetchRemoteImage(ctx context.Context, rawURL string) ([]byte, string) {
+	u, perr := url.Parse(rawURL)
+	if perr != nil || (u.Scheme != "http" && u.Scheme != "https") {
+		return nil, ""
+	}
+	req, err := http.NewRequestWithContext(ctx, "GET", rawURL, nil)
+	if err != nil {
+		return nil, ""
+	}
+	resp, err := ssrfSafeClient().Do(req)
+	if err != nil {
+		return nil, ""
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		return nil, ""
+	}
+	data, err := io.ReadAll(io.LimitReader(resp.Body, 32<<20)) // 32MB cap
+	if err != nil || len(data) == 0 {
+		return nil, ""
+	}
+	mime := resp.Header.Get("content-type")
+	if !strings.HasPrefix(mime, "image/") {
+		mime = "image/png"
+	}
+	return data, mime
 }
 
 // truncateOutput clips s to max bytes with an explicit marker (pitfall A5).

@@ -33,7 +33,8 @@ const BackupVersion = 1
 // a reply is always created after the message it answers.
 var backupTableOrder = []string{
 	"settings", "users", "user_groups", "channels", "skills", "oauth_providers",
-	"models", "model_group_quotas", "redeem_codes", "redeem_redemptions",
+	"models", "model_group_quotas", "model_tags", "image_styles",
+	"redeem_codes", "redeem_redemptions",
 	"model_skills", "knowledge_bases", "projects", "conversations", "messages",
 	"conversation_shares", "files", "documents", "chunks", "memories",
 	"usage_logs", "artifacts", "refresh_tokens", "oauth_identities",

@@ -39,6 +39,15 @@ type Orchestrator struct {
 	logger *log.Logger
 }
 
+// ToolRefusalError marks a tool failure that is a policy/quota REFUSAL (content
+// moderation, daily image limit, per-model image quota) rather than a transient
+// provider error. The image branch (runImageTurn) renders it as a refusal with
+// the real message instead of a generic "try again" error. Defined here (not in
+// tools) so the orchestrator can errors.As it without an import cycle.
+type ToolRefusalError struct{ Message string }
+
+func (e *ToolRefusalError) Error() string { return e.Message }
+
 // ToolRegistry is the subset of the tools package the orchestrator needs.
 type ToolRegistry interface {
 	List(modelID string) []ToolDef
@@ -64,6 +73,19 @@ type ToolContext struct {
 	DeepResearch bool
 	// ImageModelID is the user's pre-selected image model (§4.12-B).
 	ImageModelID string
+	// SkipImageQuota tells image_generate NOT to meter the image model at all
+	// (§4.20): set on the drawing-mode path, where the orchestrator already ran the
+	// credit-aware checkImageQuota AND charges in runImageTurn, so the tool must not
+	// double-gate / double-charge.
+	SkipImageQuota bool
+	// ImageBilling lets the chat tool-call path run the SAME free→credits→block
+	// decision + debit as drawing mode (§4.20). When set (and not SkipImageQuota),
+	// image_generate consults it instead of its own hard cap.
+	ImageBilling ImageBiller
+
+	// imgMu guards imageCredits — image_generate may run concurrently in a turn.
+	imgMu        sync.Mutex
+	imageCredits float64
 	// OnArtifact lets a tool surface a produced file (sandbox output, image).
 	// The orchestrator persists it + streams an "artifact" SSE event.
 	OnArtifact func(ArtifactRef)
@@ -71,6 +93,32 @@ type ToolContext struct {
 	// budgetMu guards counts; charged centrally by the runner before each call.
 	budgetMu sync.Mutex
 	counts   map[string]int
+}
+
+// AddImageCredits accumulates the total credits the tool charged for images this
+// turn, so the chat finalize can surface them in messages.credits (§4.20).
+func (tc *ToolContext) AddImageCredits(total float64) {
+	tc.imgMu.Lock()
+	tc.imageCredits += total
+	tc.imgMu.Unlock()
+}
+
+// ImageCreditsTotal returns the credits charged for images this turn.
+func (tc *ToolContext) ImageCreditsTotal() float64 {
+	tc.imgMu.Lock()
+	defer tc.imgMu.Unlock()
+	return tc.imageCredits
+}
+
+// ImageBiller meters image generation against the credit system so the chat
+// tool-call path mirrors drawing mode (§4.20). Implemented by *Orchestrator.
+type ImageBiller interface {
+	// CheckImageCredits decides whether the user may generate n images on the
+	// model and whether they cost credits (free allotment → credits → block).
+	CheckImageCredits(ctx context.Context, userID string, model *store.Model, n int) (allow bool, payCredits bool, message string)
+	// ChargeImageCredits debits credits for the produced images (cost in USD),
+	// returning (timed, total) credits charged.
+	ChargeImageCredits(ctx context.Context, userID string, costUSD float64) (timed float64, total float64)
 }
 
 // perTurnToolLimits caps how many times a single tool may run per message
@@ -199,6 +247,10 @@ type RunRequest struct {
 	// Mode selects an alternate turn pipeline. "" = normal chat;
 	// ModeDeepResearch runs the multi-round research engine (deep_research.go).
 	Mode string
+	// ImageStyleID selects an admin-managed image style (§4.20) for an image-mode
+	// turn (conversation model kind=image). Its hidden prompt is composed
+	// server-side into the final image prompt; ignored for chat models.
+	ImageStyleID string
 }
 
 // ModeDeepResearch is the RunRequest.Mode value that triggers the Deep Research
@@ -392,6 +444,16 @@ func (o *Orchestrator) Run(ctx context.Context, req RunRequest, onEvent func(Sse
 		if gerr == nil && existing.Role == "user" && existing.ConversationID == conv.ID {
 			userMsg = existing
 			assistantParent = existing.ID
+			// §4.20: regenerate doesn't resend attachments. The image branch reads
+			// req.Attachments directly (reference / edit images), so restore them
+			// from the existing user turn — otherwise a re-draw of an edit loses its
+			// source image and starts fresh. (The chat path rebuilds from history.)
+			if len(req.Attachments) == 0 && len(existing.Attachments) > 2 {
+				var atts []Attachment
+				if json.Unmarshal(existing.Attachments, &atts) == nil {
+					req.Attachments = atts
+				}
+			}
 		}
 	}
 	if userMsg == nil {
@@ -430,7 +492,17 @@ func (o *Orchestrator) Run(ctx context.Context, req RunRequest, onEvent func(Sse
 	// 2b. Per-model group quota (§ user groups): if the user's group can't use
 	//     this model, or its window quota is exhausted, persist a refusal and
 	//     stop before generating.
-	msg, ok, payWithCredits := o.checkModelQuota(ctx, conv.UserID, model)
+	//     §4.20: image-kind models meter against the purpose='image' ledger
+	//     (checkImageQuota) so drawing mode follows the SAME free-allotment →
+	//     credits flow as chat; the tool's own hard cap is skipped in that path
+	//     (tc.SkipImageQuota) so the orchestrator's credit decision governs.
+	var msg string
+	var ok, payWithCredits bool
+	if model.Kind == "image" {
+		msg, ok, payWithCredits = o.checkImageQuota(ctx, conv.UserID, model, 1)
+	} else {
+		msg, ok, payWithCredits = o.checkModelQuota(ctx, conv.UserID, model)
+	}
 	if !ok {
 		refusalBlocks, _ := json.Marshal([]UnifiedBlock{{Kind: "text", Text: msg}})
 		_ = store.FinishMessage(ctx, o.db, assistantMsg.ID, store.MessageFinishPatch{
@@ -454,6 +526,16 @@ func (o *Orchestrator) Run(ctx context.Context, req RunRequest, onEvent func(Sse
 		onEvent(SseEvent{Type: "done", MessageID: assistantMsg.ID, StopReason: "content_moderation"})
 		assistantMsg.Blocks = refusalBlocks
 		return &RunResult{UserMessage: userMsg, AssistantMessage: assistantMsg}, nil
+	}
+
+	// 2d. §4.20 Image mode: when the conversation model is an image model, this
+	//     turn DRAWS instead of chatting. We force-call the existing image_generate
+	//     tool (which owns the Gemini/OpenAI gen+edit protocols, image_session
+	//     multi-turn, quota and usage logging) and persist its artifacts as the
+	//     assistant message. Chat tools (python/sandbox) stay available by
+	//     switching back to a chat model in the same conversation.
+	if model.Kind == "image" {
+		return o.runImageTurn(ctx, conv, model, userMsg, assistantMsg, req, turnStart, payWithCredits, onEvent)
 	}
 
 	// 3. Build context.
@@ -748,6 +830,8 @@ func (o *Orchestrator) Run(ctx context.Context, req RunRequest, onEvent func(Sse
 			UserID: conv.UserID, ConvID: conv.ID, MessageID: assistantMsg.ID, ModelID: model.ID,
 			KBIDs: kbIDs, ProjectID: conv.ProjectID, ProjectName: projectName,
 			DB: o.db, RAG: o.rag, ImageModelID: imageModelID,
+			// §4.20: meter chat-driven image_generate against the same credit flow.
+			ImageBilling: o,
 			DeepResearch: req.Mode == ModeDeepResearch,
 			OnArtifact: func(a ArtifactRef) {
 				artMu.Lock()
@@ -918,18 +1002,27 @@ func (o *Orchestrator) Run(ctx context.Context, req RunRequest, onEvent func(Sse
 	// turn — chat + any image_generate calls + any embedding queries inside
 	// the loop. The image/embedding rows are still logged separately so
 	// admin/usage breakdowns work.
-	turnTotal := chatCost
-	if extra := tallyTurnSideCosts(ctx, o.db, conv.ID, assistantMsg.ID); extra > 0 {
-		turnTotal += extra
+	sideCost := tallyTurnSideCosts(ctx, o.db, conv.ID, assistantMsg.ID)
+	turnTotal := chatCost + sideCost
+	// §4.20: image_generate already metered its own cost against the image model's
+	// quota and charged any image credits via ImageBilling (free→credits→block),
+	// so EXCLUDE the image cost from the chat credit base to avoid double-charging.
+	// Image cost still counts in messages.cost (full spend) above.
+	imageCost := tallyImageCost(ctx, o.db, assistantMsg.ID)
+	chatCreditBase := turnTotal - imageCost
+	if chatCreditBase < 0 {
+		chatCreditBase = 0
 	}
 	// §credits: when this turn is past the group's free allotment, convert the
-	// full USD spend to credits and debit timed-first-then-permanent. The timed
-	// portion is recorded in usage_logs.credits below so the window survives
-	// restarts.
-	var timedCredits, turnCredits float64
+	// chat spend to credits and debit timed-first-then-permanent. The timed portion
+	// is recorded in usage_logs.credits below so the window survives restarts.
+	var timedCredits, chatCredits float64
 	if payWithCredits {
-		timedCredits, turnCredits = o.chargeTurnCredits(ctx, conv.UserID, turnTotal)
+		timedCredits, chatCredits = o.chargeTurnCredits(ctx, conv.UserID, chatCreditBase)
 	}
+	// Total credits the user sees for this turn = chat credits + image credits the
+	// tool charged (ImageBilling), so a chat turn that drew an image shows both.
+	turnCredits := chatCredits + runner.ctx.ImageCreditsTotal()
 	_ = store.FinishMessage(ctx, o.db, assistantMsg.ID, store.MessageFinishPatch{
 		Blocks:           blocksJSON,
 		Raw:              rawToStore,
@@ -998,6 +1091,221 @@ func (o *Orchestrator) Run(ctx context.Context, req RunRequest, onEvent func(Sse
 	}
 
 	return &RunResult{UserMessage: userMsg, AssistantMessage: finalAssistant}, nil
+}
+
+// runImageTurn handles a §4.20 image-mode turn: compose the final prompt (style
+// hidden prompt + optional text-model optimization), force-call image_generate
+// (the tool owns the Gemini/OpenAI gen+edit protocols, image_session multi-turn,
+// quota and image usage logging), and persist its artifacts as the assistant
+// message. The "image_status" events drive the studio's dedicated generating UI.
+func (o *Orchestrator) runImageTurn(
+	ctx context.Context,
+	conv *store.Conversation,
+	model *store.Model,
+	userMsg, assistantMsg *store.Message,
+	req RunRequest,
+	turnStart time.Time,
+	payWithCredits bool,
+	onEvent func(SseEvent),
+) (*RunResult, error) {
+	onEvent(SseEvent{Type: "image_status", MessageID: assistantMsg.ID, Status: "optimizing"})
+
+	// Style: the composer sends image_style_id on a fresh turn. Regenerate doesn't
+	// resend it, so fall back to the last style remembered on the conversation
+	// (provider_state, like image_session) and re-persist it — so a re-draw keeps
+	// the original look instead of silently dropping the style.
+	styleID := req.ImageStyleID
+	if styleID == "" {
+		styleID, _ = store.GetConvProviderStateKey(ctx, o.db, conv.ID, "image_style")
+	}
+	styleHidden := ""
+	if styleID != "" {
+		if st, err := store.GetImageStyle(ctx, o.db, styleID); err == nil && st.Enabled {
+			styleHidden = strings.TrimSpace(st.HiddenPrompt)
+			_ = store.SetConvProviderStateKey(ctx, o.db, conv.ID, "image_style", styleID)
+		}
+	}
+	finalPrompt := o.optimizeImagePrompt(ctx, conv.UserID, conv.ID, assistantMsg.ID, req.UserText, styleHidden)
+
+	// Reference images: the user's image attachments become input images (edit /
+	// image-to-image). loadInputImages resolves file ids too (§4.20).
+	inputImageIDs := []string{}
+	for _, a := range req.Attachments {
+		if a.Kind == "image" || strings.HasPrefix(a.MimeType, "image/") {
+			inputImageIDs = append(inputImageIDs, a.ID)
+		}
+	}
+
+	onEvent(SseEvent{Type: "image_status", MessageID: assistantMsg.ID, Status: "generating"})
+
+	// Force-call image_generate. tc.ImageModelID = the conversation's image model
+	// so resolveImageModel uses exactly it.
+	toolInput, _ := json.Marshal(map[string]any{
+		"prompt":       finalPrompt,
+		"n":            1,
+		"size":         "1024x1024",
+		"input_images": inputImageIDs,
+	})
+	var mu sync.Mutex
+	artifacts := []ArtifactRef{}
+	tc := &ToolContext{
+		UserID:       conv.UserID,
+		ConvID:       conv.ID,
+		MessageID:    assistantMsg.ID,
+		ModelID:      model.ID,
+		ImageModelID: model.ID,
+		DB:           o.db,
+		// The orchestrator already ran the credit-aware checkImageQuota above, so
+		// the tool must not also hard-cap this turn (§4.20).
+		SkipImageQuota: true,
+		OnArtifact: func(a ArtifactRef) {
+			mu.Lock()
+			artifacts = append(artifacts, a)
+			mu.Unlock()
+			onEvent(SseEvent{Type: "artifact", ID: a.ID, URL: a.URL, Title: a.Filename, Summary: a.MimeType})
+		},
+		counts: map[string]int{},
+	}
+	output, _, err := o.tools.Run(ctx, "image_generate", toolInput, tc)
+
+	// Persist on a DETACHED context: a stop / kill / maxGenDuration cancels `ctx`
+	// mid-generation, and FinishMessage on a cancelled ctx is a no-op — which would
+	// strand the assistant message in Status="streaming" (the ImageGenerating tile
+	// spins forever). Mirror the chat path's context.WithoutCancel guard.
+	persistCtx := context.WithoutCancel(ctx)
+
+	// Snapshot produced artifacts (non-empty even on a mid-stream stop).
+	mu.Lock()
+	artBlocks := make([]UnifiedBlock, 0, len(artifacts))
+	for _, a := range artifacts {
+		artBlocks = append(artBlocks, UnifiedBlock{
+			Kind: "artifact", FileRef: a.ID, Title: a.Filename, URL: a.URL,
+			Summary: a.MimeType, Artifacts: []ArtifactRef{a},
+		})
+	}
+	mu.Unlock()
+
+	if err != nil && len(artBlocks) == 0 {
+		var refusal *ToolRefusalError
+		switch {
+		case errors.As(err, &refusal):
+			// Policy / quota / moderation refusal — show the real message, not a
+			// generic "try again" (mirrors the chat refusal path).
+			rb, _ := json.Marshal([]UnifiedBlock{{Kind: "text", Text: refusal.Message}})
+			_ = store.FinishMessage(persistCtx, o.db, assistantMsg.ID, store.MessageFinishPatch{
+				Blocks: rb, Citations: []byte("[]"), StopReason: "refusal", Status: "complete",
+				GenMs: time.Since(turnStart).Milliseconds(),
+			})
+			onEvent(SseEvent{Type: "refusal", MessageID: assistantMsg.ID, Message: refusal.Message})
+			onEvent(SseEvent{Type: "done", MessageID: assistantMsg.ID, StopReason: "refusal"})
+			fin, _ := store.GetMessage(persistCtx, o.db, assistantMsg.ID)
+			return &RunResult{UserMessage: userMsg, AssistantMessage: fin}, nil
+		case ctx.Err() != nil:
+			// The PARENT turn ctx is cancelled → user stop or max-duration timeout.
+			// Finalize cleanly (no error banner). A per-model image timeout cancels
+			// only the CHILD ctx (ctx.Err()==nil) and falls through to the error case.
+			empty, _ := json.Marshal([]UnifiedBlock{})
+			_ = store.FinishMessage(persistCtx, o.db, assistantMsg.ID, store.MessageFinishPatch{
+				Blocks: empty, Citations: []byte("[]"), StopReason: "stopped", Status: "complete",
+				GenMs: time.Since(turnStart).Milliseconds(),
+			})
+			onEvent(SseEvent{Type: "done", MessageID: assistantMsg.ID, StopReason: "stopped"})
+			fin, _ := store.GetMessage(persistCtx, o.db, assistantMsg.ID)
+			return &RunResult{UserMessage: userMsg, AssistantMessage: fin}, nil
+		default:
+			if o.logger != nil {
+				o.logger.Printf("orchestrator: image generation error (conv=%s msg=%s): %v", conv.ID, assistantMsg.ID, err)
+			}
+			// A per-model image timeout (child-ctx deadline) gets a clearer message.
+			safeErr := "Image generation failed. Please try again."
+			if errors.Is(err, context.DeadlineExceeded) {
+				safeErr = "Image generation timed out. Please try again."
+			}
+			errBlocks, _ := json.Marshal([]UnifiedBlock{{Kind: "text", Text: safeErr}})
+			_ = store.FinishMessage(persistCtx, o.db, assistantMsg.ID, store.MessageFinishPatch{
+				Blocks: errBlocks, Citations: []byte("[]"), Status: "error", Error: safeErr,
+			})
+			onEvent(SseEvent{Type: "error", Message: safeErr})
+			return nil, err
+		}
+	}
+
+	// At least one image was produced (a late `err` on stop still keeps the image).
+	blocks := artBlocks
+	if len(blocks) == 0 && strings.TrimSpace(output) != "" {
+		blocks = append(blocks, UnifiedBlock{Kind: "text", Text: output})
+	}
+	blocksJSON, _ := json.Marshal(blocks)
+
+	// Cost: image_generate logged the image usage row; message.cost = the turn's
+	// side costs (image + any prompt-optimization). Credits debited when the
+	// group's free image allotment is exhausted (§4.20 — same flow as chat).
+	turnTotal := tallyTurnSideCosts(persistCtx, o.db, conv.ID, assistantMsg.ID)
+	var timedCredits, turnCredits float64
+	if payWithCredits && turnTotal > 0 {
+		timedCredits, turnCredits = o.chargeTurnCredits(persistCtx, conv.UserID, turnTotal)
+	}
+	// Record the timed-credit portion in usage_logs.credits so the timed window
+	// survives a cache cold/restart (mirrors the chat path). images_count/cost=0 so
+	// it doesn't perturb the image quota or cost totals.
+	if timedCredits > 0 {
+		_ = store.LogUsage(persistCtx, o.db, store.UsageLog{
+			UserID:         conv.UserID,
+			ConversationID: conv.ID,
+			MessageID:      assistantMsg.ID,
+			ModelID:        model.ID,
+			Purpose:        "image",
+			Credits:        timedCredits,
+			Currency:       model.Currency,
+		})
+	}
+	stopReason := "stop"
+	if err != nil {
+		stopReason = "stopped" // image produced, then the stream was cut
+	}
+	_ = store.FinishMessage(persistCtx, o.db, assistantMsg.ID, store.MessageFinishPatch{
+		Blocks: blocksJSON, Citations: []byte("[]"),
+		StopReason: stopReason, Status: "complete",
+		Cost: turnTotal, Credits: turnCredits,
+		GenMs: time.Since(turnStart).Milliseconds(),
+	})
+
+	if shouldGenerateTitle(conv) {
+		o.scheduleTitle(conv.ID, conv.UserID, req.UserText)
+	}
+
+	finalAssistant, _ := store.GetMessage(persistCtx, o.db, assistantMsg.ID)
+	onEvent(SseEvent{Type: "done", MessageID: assistantMsg.ID, StopReason: stopReason, Credits: turnCredits})
+	return &RunResult{UserMessage: userMsg, AssistantMessage: finalAssistant}, nil
+}
+
+// optimizeImagePrompt expands the user's request into a richer prompt and folds
+// in the style's hidden prompt — using the admin-set text model
+// (settings.image_prompt_model_id). When unset or on error it falls back to a
+// deterministic join so generation always proceeds. The hidden prompt is
+// composed here and NEVER returned to the client.
+func (o *Orchestrator) optimizeImagePrompt(ctx context.Context, userID, convID, msgID, userText, styleHidden string) string {
+	join := strings.TrimSpace(strings.TrimSpace(userText) + "\n" + styleHidden)
+	modelID := settingStr(o.db, "image_prompt_model_id")
+	if modelID == "" || o.task == nil {
+		return join
+	}
+	sys := "You rewrite a user's request into a single vivid, concrete image-generation prompt. " +
+		"Merge any STYLE DIRECTIVES naturally. Preserve the user's subject and intent. " +
+		"Output ONLY the final prompt text — no preamble, no quotes, no markdown."
+	ask := "USER REQUEST:\n" + strings.TrimSpace(userText)
+	if styleHidden != "" {
+		ask += "\n\nSTYLE DIRECTIVES (apply, do not mention):\n" + styleHidden
+	}
+	out, err := o.task.Run(ctx, TaskKind("task.image_prompt"), ask, RunOpts{
+		SystemPrompt: sys, ModelID: modelID,
+		UserID: userID, ConversationID: convID, MessageID: msgID,
+		MaxOutputTokens: 400,
+	})
+	if err != nil || strings.TrimSpace(out) == "" {
+		return join
+	}
+	return strings.TrimSpace(out)
 }
 
 // storeToUnified converts stored messages to the unified history shape.
@@ -1584,9 +1892,26 @@ func tallyTurnSideCosts(ctx context.Context, db *sql.DB, convID, msgID string) f
 		return 0
 	}
 	var total sql.NullFloat64
+	// Include task.image_prompt: the §4.20 prompt-optimization spend is pinned to
+	// this assistant message and is part of the turn's full cost (§8).
 	_ = db.QueryRowContext(ctx,
 		`SELECT COALESCE(SUM(cost),0) FROM usage_logs
-		 WHERE message_id=? AND purpose IN ('image','embedding')`, msgID).Scan(&total)
+		 WHERE message_id=? AND purpose IN ('image','embedding','task.image_prompt')`, msgID).Scan(&total)
+	if total.Valid {
+		return total.Float64
+	}
+	return 0
+}
+
+// tallyImageCost sums just the image-generation cost pinned to a message (§4.20),
+// so the chat credit base can exclude it (image_generate charges its own credits).
+func tallyImageCost(ctx context.Context, db *sql.DB, msgID string) float64 {
+	if db == nil {
+		return 0
+	}
+	var total sql.NullFloat64
+	_ = db.QueryRowContext(ctx,
+		`SELECT COALESCE(SUM(cost),0) FROM usage_logs WHERE message_id=? AND purpose='image'`, msgID).Scan(&total)
 	if total.Valid {
 		return total.Float64
 	}

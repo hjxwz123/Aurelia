@@ -7,6 +7,14 @@
   },
   "empty": {
     "subtitle": "在想些什麼？",
+    "subtitleVariants": [
+      "在想些什麼？",
+      "今天想聊些什麼？",
+      "有什麼我能幫上忙的？",
+      "腦海裡冒出什麼新念頭？",
+      "想從哪裡開始？",
+      "對什麼感到好奇？"
+    ],
     "lead": "隨便問點什麼——提綱、程式碼、決策、閱讀，Aurelia 會與你一起思考。",
     "disclaimer": "Aurelia 也會出錯。重要的內容請自行核驗。"
   },
@@ -37,7 +45,11 @@
     "indexing": "索引中…",
     "ingestFailed": "無法讀取此檔案",
     "knowledgeBases": "知識庫",
-    "noKnowledgeBases": "還沒有知識庫。"
+    "noKnowledgeBases": "還沒有知識庫。",
+    "style": "風格",
+    "styleHeading": "圖片風格",
+    "styleNone": "無",
+    "noStyles": "尚無風格。"
   },
   "assistant": "Aurelia",
   "thinking": "思考中",
@@ -259,7 +271,8 @@
     "upgrade": "升級套餐解鎖",
     "allTags": "全部",
     "noneForTag": "此標籤下暫無模型。",
-    "creditRate": "每 token 消耗點數"
+    "creditRate": "每 token 消耗點數",
+    "imageSection": "圖片生成"
   },
   "commandMenu": {
     "placeholder": "搜尋會話，或執行命令…",
@@ -340,5 +353,9 @@
   "deleteRound": {
     "title": "刪除這一輪對話？",
     "body": "這會從對話中移除這則提問及其回答。之前和之後的訊息都會保留。"
+  },
+  "image": {
+    "optimizing": "正在最佳化提示詞…",
+    "generating": "正在繪製圖片…"
   }
 }
