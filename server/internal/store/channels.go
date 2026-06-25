@@ -70,6 +70,23 @@ func CreateChannel(ctx context.Context, db *sql.DB, name, typ, apiFormat, baseUR
 	return c, nil
 }
 
+// ReorderChannels assigns sort_order = position for each id in one
+// transaction. Ids not present are ignored, matching ReorderModels.
+func ReorderChannels(ctx context.Context, db *sql.DB, ids []string) error {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	now := time.Now().Unix()
+	for i, id := range ids {
+		if _, err := tx.ExecContext(ctx, `UPDATE channels SET sort_order=?, updated_at=? WHERE id=?`, i, now, id); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
 // UpdateChannel writes selective fields. An empty api_key argument leaves the
 // stored key unchanged (so admins can edit other fields without re-entering
 // the secret).

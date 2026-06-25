@@ -8,14 +8,13 @@
  * icon on each row. This avoids a 15-field overflow modal on small screens
  * and matches the editorial-feel "one job per surface" rule.
  */
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { Plus, Settings as SettingsIcon, Trash2, ArrowUp, ArrowDown, GripVertical, Tags as TagsIcon } from 'lucide-react'
+import { Plus, Settings as SettingsIcon, Trash2, Tags as TagsIcon } from 'lucide-react'
 import { adminApi, ApiError } from '@/api'
 import type { ApiChannel, ApiModel } from '@/api/types'
 import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
 import { Field } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -23,6 +22,7 @@ import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
 import { Tooltip } from '@/components/ui/tooltip'
 import { IconUploader } from '@/components/admin/icon-uploader'
+import { AdminSortableList } from '@/components/admin/AdminSortableList'
 import {
   Dialog,
   DialogBody,
@@ -142,9 +142,6 @@ export default function AdminModels() {
 
   // Reordering is optimistic: the list updates instantly (no refetch / loading
   // flash) and the new order is persisted in one PATCH. On failure we revert.
-  const [dragIdx, setDragIdx] = useState<number | null>(null)
-  const dragStart = useRef<ApiModel[] | null>(null)
-
   function persistOrder(next: ApiModel[], prev: ApiModel[]) {
     void adminApi.reorderModels(next.map((m) => m.id)).catch((e) => {
       setModels(prev)
@@ -161,38 +158,6 @@ export default function AdminModels() {
     } catch (e) {
       setModels((list) => list.map((x) => (x.id === m.id ? { ...x, enabled: m.enabled } : x)))
       toast.error(e instanceof ApiError ? e.message : t('admin:common.failed'))
-    }
-  }
-
-  function moveBy(idx: number, dir: -1 | 1) {
-    const to = idx + dir
-    if (to < 0 || to >= models.length) return
-    const prev = models
-    const next = [...models]
-    const [item] = next.splice(idx, 1)
-    next.splice(to, 0, item)
-    setModels(next)
-    persistOrder(next, prev)
-  }
-
-  function onDragStart(idx: number) {
-    dragStart.current = models
-    setDragIdx(idx)
-  }
-  function onDragOverRow(idx: number) {
-    if (dragIdx === null || dragIdx === idx) return
-    const next = [...models]
-    const [item] = next.splice(dragIdx, 1)
-    next.splice(idx, 0, item)
-    setModels(next)
-    setDragIdx(idx)
-  }
-  function onDragEnd() {
-    const prev = dragStart.current
-    dragStart.current = null
-    setDragIdx(null)
-    if (prev && prev.some((m, i) => m.id !== models[i]?.id)) {
-      persistOrder(models, prev)
     }
   }
 
@@ -225,54 +190,18 @@ export default function AdminModels() {
             {t('admin:models.empty')}
           </div>
         ) : (
-          <ul className="flex flex-col divide-y divide-[var(--color-divider)] rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)]">
-            {models.map((m, idx) => {
+          <AdminSortableList
+            items={models}
+            onItemsChange={setModels}
+            onOrderCommit={persistOrder}
+            dragHandleLabel={t('admin:common.dragHandle')}
+            moveUpLabel={t('admin:common.moveUp')}
+            moveDownLabel={t('admin:common.moveDown')}
+            rowClassName="grid grid-cols-[auto_auto_1fr_auto_auto_auto] gap-2 items-center px-5 py-4"
+            renderItem={(m) => {
               const ch = channels.find((c) => c.id === m.channel_id)
               return (
-                <li
-                  key={m.id}
-                  onDragOver={(e) => {
-                    if (dragIdx !== null) {
-                      e.preventDefault()
-                      onDragOverRow(idx)
-                    }
-                  }}
-                  className={cn(
-                    'grid grid-cols-[auto_auto_1fr_auto_auto_auto] gap-2 items-center px-5 py-4 transition-[background-color,opacity] duration-150',
-                    dragIdx === idx && 'bg-[var(--color-bg-muted)] opacity-90',
-                  )}
-                >
-                  {/* Drag handle — grab to reorder; arrows remain for keyboard/touch. */}
-                  <button
-                    type="button"
-                    draggable
-                    onDragStart={() => onDragStart(idx)}
-                    onDragEnd={onDragEnd}
-                    aria-label={t('admin:models.dragHandle', { defaultValue: 'Drag to reorder' })}
-                    className="cursor-grab active:cursor-grabbing rounded p-1 text-[var(--color-fg-faint)] hover:text-[var(--color-fg-muted)] hover:bg-[var(--color-bg-muted)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
-                  >
-                    <GripVertical size={15} strokeWidth={1.5} aria-hidden />
-                  </button>
-                  <div className="flex flex-col gap-0.5">
-                    <button
-                      type="button"
-                      className="rounded p-0.5 text-[var(--color-fg-subtle)] hover:text-[var(--color-fg)] hover:bg-[var(--color-bg-muted)] disabled:opacity-30 disabled:pointer-events-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
-                      disabled={idx === 0}
-                      onClick={() => moveBy(idx, -1)}
-                      aria-label={t('admin:models.moveUp')}
-                    >
-                      <ArrowUp size={14} strokeWidth={1.5} aria-hidden />
-                    </button>
-                    <button
-                      type="button"
-                      className="rounded p-0.5 text-[var(--color-fg-subtle)] hover:text-[var(--color-fg)] hover:bg-[var(--color-bg-muted)] disabled:opacity-30 disabled:pointer-events-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
-                      disabled={idx === models.length - 1}
-                      onClick={() => moveBy(idx, 1)}
-                      aria-label={t('admin:models.moveDown')}
-                    >
-                      <ArrowDown size={14} strokeWidth={1.5} aria-hidden />
-                    </button>
-                  </div>
+                <>
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-medium text-[var(--color-fg)] truncate">{m.label}</span>
@@ -308,10 +237,10 @@ export default function AdminModels() {
                   >
                     {t('admin:common.remove')}
                   </Button>
-                </li>
+                </>
               )
-            })}
-          </ul>
+            }}
+          />
         )}
       </section>
 
