@@ -179,6 +179,7 @@ func NewRouter(d Deps) http.Handler {
 	// Admin endpoints.
 	mux.handle("GET", "/api/admin/channels", requireAdmin(d, listChannelsAdmin))
 	mux.handle("POST", "/api/admin/channels", requireAdmin(d, createChannelAdmin))
+	mux.handle("PATCH", "/api/admin/channels/reorder", requireAdmin(d, reorderChannelsAdmin))
 	mux.handle("PATCH", "/api/admin/channels/:id", requireAdmin(d, updateChannelAdmin))
 	mux.handle("DELETE", "/api/admin/channels/:id", requireAdmin(d, deleteChannelAdmin))
 	mux.handle("GET", "/api/admin/models", requireAdmin(d, listModelsAdmin))
@@ -198,6 +199,7 @@ func NewRouter(d Deps) http.Handler {
 	mux.handle("PUT", "/api/admin/models/:id/quotas", requireAdmin(d, setModelQuotasAdmin))
 	mux.handle("GET", "/api/admin/user-groups", requireAdmin(d, listUserGroupsAdmin))
 	mux.handle("POST", "/api/admin/user-groups", requireAdmin(d, createUserGroupAdmin))
+	mux.handle("PATCH", "/api/admin/user-groups/reorder", requireAdmin(d, reorderUserGroupsAdmin))
 	mux.handle("PATCH", "/api/admin/user-groups/:id", requireAdmin(d, updateUserGroupAdmin))
 	mux.handle("DELETE", "/api/admin/user-groups/:id", requireAdmin(d, deleteUserGroupAdmin))
 	mux.handle("POST", "/api/admin/users/:id/group", requireAdmin(d, setUserGroupAdmin))

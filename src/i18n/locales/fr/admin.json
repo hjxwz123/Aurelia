@@ -8,7 +8,10 @@
     "loading": "Chargement…",
     "createFirst": "Créez votre premier {{kind}}",
     "saved": "Enregistré",
-    "failed": "Échec"
+    "failed": "Échec",
+    "dragHandle": "Faire glisser pour réordonner",
+    "moveUp": "Monter",
+    "moveDown": "Descendre"
   },
   "icon": {
     "upload": "Téléverser",

@@ -57,6 +57,21 @@ func createChannelAdmin(d Deps, w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 201, c)
 }
 
+func reorderChannelsAdmin(d Deps, w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		IDs []string `json:"ids"`
+	}
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, 400, errInvalidInput)
+		return
+	}
+	if err := store.ReorderChannels(r.Context(), d.DB, body.IDs); err != nil {
+		writeError(w, 500, err)
+		return
+	}
+	writeJSON(w, 200, map[string]bool{"ok": true})
+}
+
 func updateChannelAdmin(d Deps, w http.ResponseWriter, r *http.Request) {
 	id := pathParam(r, "id")
 	var p store.ChannelPatch

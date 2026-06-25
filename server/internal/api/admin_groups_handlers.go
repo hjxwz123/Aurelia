@@ -43,6 +43,21 @@ func createUserGroupAdmin(d Deps, w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 201, created)
 }
 
+func reorderUserGroupsAdmin(d Deps, w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		IDs []string `json:"ids"`
+	}
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, 400, errInvalidInput)
+		return
+	}
+	if err := store.ReorderUserGroups(r.Context(), d.DB, body.IDs); err != nil {
+		writeError(w, 500, err)
+		return
+	}
+	writeJSON(w, 200, map[string]bool{"ok": true})
+}
+
 func updateUserGroupAdmin(d Deps, w http.ResponseWriter, r *http.Request) {
 	id := pathParam(r, "id")
 	var p store.UserGroupPatch

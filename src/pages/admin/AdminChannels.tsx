@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input'
 import { Field } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { AdminSortableList } from '@/components/admin/AdminSortableList'
 import {
   Dialog,
   DialogBody,
@@ -95,6 +96,13 @@ export default function AdminChannels() {
     }
   }
 
+  function persistOrder(next: ApiChannel[], prev: ApiChannel[]) {
+    void adminApi.reorderChannels(next.map((r) => r.id)).catch((e) => {
+      setRows(prev)
+      toast.error(e instanceof ApiError ? e.message : t('admin:common.failed'))
+    })
+  }
+
   return (
     <div>
       <header className="flex items-end justify-between gap-4">
@@ -118,9 +126,16 @@ export default function AdminChannels() {
             </div>
           </div>
         ) : (
-          <ul className="flex flex-col divide-y divide-[var(--color-divider)] rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)]">
-            {rows.map((r) => (
-              <li key={r.id} className="grid grid-cols-[1fr_auto_auto] items-center gap-4 px-5 py-4">
+          <AdminSortableList
+            items={rows}
+            onItemsChange={setRows}
+            onOrderCommit={persistOrder}
+            dragHandleLabel={t('admin:common.dragHandle')}
+            moveUpLabel={t('admin:common.moveUp')}
+            moveDownLabel={t('admin:common.moveDown')}
+            rowClassName="grid grid-cols-[auto_auto_1fr_auto_auto] items-center gap-4 px-5 py-4"
+            renderItem={(r) => (
+              <>
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-medium text-[var(--color-fg)] truncate">{r.name}</span>
@@ -138,9 +153,9 @@ export default function AdminChannels() {
                 <Button variant="ghost" size="sm" leadingIcon={<Trash2 size={13} aria-hidden />} onClick={() => setConfirmDelete(r)}>
                   {t('admin:common.remove')}
                 </Button>
-              </li>
-            ))}
-          </ul>
+              </>
+            )}
+          />
         )}
       </section>
 

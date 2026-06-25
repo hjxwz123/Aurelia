@@ -8,7 +8,10 @@
     "loading": "載入中…",
     "createFirst": "建立第一個{{kind}}",
     "saved": "已儲存",
-    "failed": "失敗"
+    "failed": "失敗",
+    "dragHandle": "拖曳排序",
+    "moveUp": "上移",
+    "moveDown": "下移"
   },
   "icon": {
     "upload": "上傳",
