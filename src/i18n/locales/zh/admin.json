@@ -11,7 +11,8 @@
     "failed": "失败",
     "dragHandle": "拖动排序",
     "moveUp": "上移",
-    "moveDown": "下移"
+    "moveDown": "下移",
+    "cancel": "取消"
   },
   "icon": {
     "upload": "上传",
@@ -346,7 +347,9 @@
       "out": "输出",
       "calls": "调用",
       "cost": "费用",
-      "conversation": "关联对话"
+      "conversation": "关联对话",
+      "time": "调用时间",
+      "actions": "操作"
     },
     "purposes": {
       "chat": "对话",
@@ -357,9 +360,30 @@
       "task_compact": "上下文压缩",
       "task_memory_extract": "记忆抽取",
       "task_memory_adjudicate": "记忆裁决",
-      "task_downgrade": "跨厂商降级"
+      "task_downgrade": "跨厂商降级",
+      "task_image_prompt": "图片提示词",
+      "task_research_plan": "研究规划",
+      "task_research_verify": "研究核验",
+      "task_moderation": "内容审核"
     },
-    "empty": "所选窗口内没有调用记录。"
+    "empty": "所选窗口内没有调用记录。",
+    "leadRecords": "每条 API 调用一条记录。在下方筛选并清理日志。",
+    "deleteFiltered": "删除筛选结果",
+    "conversationDeleted": "已删除",
+    "deleteRow": "删除记录",
+    "deleted": "已删除 {{count}} 条记录",
+    "filters": {
+      "range": "时间范围",
+      "user": "用户",
+      "userPlaceholder": "邮箱或 ID",
+      "model": "模型",
+      "allModels": "全部模型"
+    },
+    "deleteConfirm": {
+      "title": "删除这些用量记录？",
+      "body": "将永久删除当前筛选条件下的 {{count}} 条记录。此操作不可撤销。",
+      "action": "删除"
+    }
   },
   "documents": {
     "title": "文档",

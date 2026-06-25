@@ -11,7 +11,8 @@
     "failed": "失敗しました",
     "dragHandle": "ドラッグして並べ替え",
     "moveUp": "上に移動",
-    "moveDown": "下に移動"
+    "moveDown": "下に移動",
+    "cancel": "キャンセル"
   },
   "icon": {
     "upload": "アップロード",
@@ -346,7 +347,9 @@
       "out": "出力",
       "calls": "呼び出し",
       "cost": "コスト",
-      "conversation": "関連する会話"
+      "conversation": "関連する会話",
+      "time": "時刻",
+      "actions": "操作"
     },
     "purposes": {
       "chat": "チャット",
@@ -357,9 +360,30 @@
       "task_compact": "コンテキスト圧縮",
       "task_memory_extract": "メモリー抽出",
       "task_memory_adjudicate": "メモリー判定",
-      "task_downgrade": "ベンダー間ダウングレード"
+      "task_downgrade": "ベンダー間ダウングレード",
+      "task_image_prompt": "画像プロンプト",
+      "task_research_plan": "リサーチ計画",
+      "task_research_verify": "リサーチ検証",
+      "task_moderation": "モデレーション"
     },
-    "empty": "選択した期間内に呼び出しはありません。"
+    "empty": "選択した期間内に呼び出しはありません。",
+    "leadRecords": "API 呼び出しごとに 1 行。下で絞り込み・整理できます。",
+    "deleteFiltered": "絞り込み結果を削除",
+    "conversationDeleted": "削除済み",
+    "deleteRow": "記録を削除",
+    "deleted": "{{count}} 件の記録を削除しました",
+    "filters": {
+      "range": "期間",
+      "user": "ユーザー",
+      "userPlaceholder": "メールまたは ID",
+      "model": "モデル",
+      "allModels": "すべてのモデル"
+    },
+    "deleteConfirm": {
+      "title": "これらの利用記録を削除しますか？",
+      "body": "現在のフィルターに一致する {{count}} 件を完全に削除します。元に戻せません。",
+      "action": "削除"
+    }
   },
   "documents": {
     "title": "ドキュメント",

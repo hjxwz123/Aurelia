@@ -11,7 +11,8 @@
     "failed": "Échec",
     "dragHandle": "Faire glisser pour réordonner",
     "moveUp": "Monter",
-    "moveDown": "Descendre"
+    "moveDown": "Descendre",
+    "cancel": "Annuler"
   },
   "icon": {
     "upload": "Téléverser",
@@ -346,7 +347,9 @@
       "out": "Sortie",
       "calls": "Appels",
       "cost": "Coût",
-      "conversation": "Conversation"
+      "conversation": "Conversation",
+      "time": "Heure",
+      "actions": "Actions"
     },
     "purposes": {
       "chat": "Chat",
@@ -357,9 +360,30 @@
       "task_compact": "Compactage du contexte",
       "task_memory_extract": "Extraction de mémoire",
       "task_memory_adjudicate": "Arbitrage de mémoire",
-      "task_downgrade": "Rétrogradation inter-fournisseurs"
+      "task_downgrade": "Rétrogradation inter-fournisseurs",
+      "task_image_prompt": "Prompt d'image",
+      "task_research_plan": "Plan de recherche",
+      "task_research_verify": "Vérification de recherche",
+      "task_moderation": "Modération"
     },
-    "empty": "Aucun appel dans la fenêtre sélectionnée."
+    "empty": "Aucun appel dans la fenêtre sélectionnée.",
+    "leadRecords": "Un appel API = une ligne. Filtrez et nettoyez le journal ci-dessous.",
+    "deleteFiltered": "Supprimer le filtre",
+    "conversationDeleted": "Supprimée",
+    "deleteRow": "Supprimer l'enregistrement",
+    "deleted": "{{count}} enregistrement(s) supprimé(s)",
+    "filters": {
+      "range": "Période",
+      "user": "Utilisateur",
+      "userPlaceholder": "E-mail ou ID",
+      "model": "Modèle",
+      "allModels": "Tous les modèles"
+    },
+    "deleteConfirm": {
+      "title": "Supprimer ces enregistrements ?",
+      "body": "Cela supprime définitivement les {{count}} enregistrement(s) correspondant au filtre. Action irréversible.",
+      "action": "Supprimer"
+    }
   },
   "documents": {
     "title": "Documents",

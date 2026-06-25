@@ -274,49 +274,158 @@ func SumUsageByUser(ctx context.Context, db *sql.DB, userID string, days int) (f
 	return cost, count, err
 }
 
-// UsageRow is a single row of the report.
-type UsageRow struct {
-	UserID            string  `json:"user_id"`
-	UserEmail         string  `json:"user_email"`
-	ConversationID    string  `json:"conversation_id"`
-	ConversationTitle string  `json:"conversation_title"`
-	ModelID           string  `json:"model_id"`
-	Purpose           string  `json:"purpose"`
-	InputTokens       int     `json:"input_tokens"`
-	OutputTokens      int     `json:"output_tokens"`
-	Calls             int     `json:"calls"`
-	Cost              float64 `json:"cost"`
-	Currency          string  `json:"currency"`
+// AdminUsageRecord is a single usage_logs row (one API call), enriched with the
+// user email + conversation title. ConversationDeleted is true when the row
+// references a conversation that no longer exists — so the UI shows "deleted"
+// instead of a dangling id.
+type AdminUsageRecord struct {
+	ID                  int64   `json:"id"`
+	UserID              string  `json:"user_id"`
+	UserEmail           string  `json:"user_email"`
+	ConversationID      string  `json:"conversation_id"`
+	ConversationTitle   string  `json:"conversation_title"`
+	ConversationDeleted bool    `json:"conversation_deleted"`
+	ModelID             string  `json:"model_id"`
+	Purpose             string  `json:"purpose"`
+	InputTokens         int     `json:"input_tokens"`
+	OutputTokens        int     `json:"output_tokens"`
+	Cost                float64 `json:"cost"`
+	Currency            string  `json:"currency"`
+	CreatedAt           int64   `json:"created_at"`
 }
 
-// AdminUsageReport returns an aggregated report across users/conversations/
-// models/purpose over the past `days` days. Grouping by conversation lets the
-// admin jump from a usage row to the exact conversation that produced it.
-func AdminUsageReport(ctx context.Context, db *sql.DB, days int) ([]UsageRow, error) {
-	since := time.Now().Add(-time.Duration(days) * 24 * time.Hour).Unix()
-	rows, err := db.QueryContext(ctx,
-		`SELECT u.user_id, COALESCE(usr.email, ''), COALESCE(u.conversation_id, ''), COALESCE(c.title, ''), u.model_id, u.purpose,
-		        SUM(u.input_tokens), SUM(u.output_tokens), COUNT(*), SUM(u.cost), MAX(u.currency)
-		 FROM usage_logs u
-		 LEFT JOIN users usr ON usr.id = u.user_id
-		 LEFT JOIN conversations c ON c.id = u.conversation_id
-		 WHERE u.created_at >= ?
-		 GROUP BY u.user_id, usr.email, u.conversation_id, c.title, u.model_id, u.purpose
-		 ORDER BY SUM(u.cost) DESC
-		 LIMIT 10000`, since)
+// UsageFilter scopes the admin usage list / delete. Zero fields = no constraint.
+type UsageFilter struct {
+	Since   int64  // created_at >= Since (0 = no lower bound)
+	Until   int64  // created_at <= Until (0 = no upper bound)
+	UserQ   string // matches user_id exactly OR email substring (case-insensitive)
+	ModelID string // exact model_id
+}
+
+// where builds the shared WHERE clause + args. The user predicate needs the
+// users join (`usr`), which every caller below includes.
+func (f UsageFilter) where() (string, []any) {
+	var conds []string
+	var args []any
+	if f.Since > 0 {
+		conds = append(conds, "u.created_at >= ?")
+		args = append(args, f.Since)
+	}
+	if f.Until > 0 {
+		conds = append(conds, "u.created_at <= ?")
+		args = append(args, f.Until)
+	}
+	if q := strings.TrimSpace(f.UserQ); q != "" {
+		conds = append(conds, "(u.user_id = ? OR LOWER(COALESCE(usr.email,'')) LIKE ?)")
+		args = append(args, q, "%"+strings.ToLower(q)+"%")
+	}
+	if f.ModelID != "" {
+		conds = append(conds, "u.model_id = ?")
+		args = append(args, f.ModelID)
+	}
+	if len(conds) == 0 {
+		return "", nil
+	}
+	return " WHERE " + strings.Join(conds, " AND "), args
+}
+
+// AdminUsageRecords lists individual usage_logs rows (one per API call), newest
+// first, scoped by filter and paginated.
+func AdminUsageRecords(ctx context.Context, db *sql.DB, f UsageFilter, limit, offset int) ([]AdminUsageRecord, error) {
+	if limit <= 0 || limit > 500 {
+		limit = 50
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	where, args := f.where()
+	// CASE → 1/0 keeps the deleted-conversation flag portable across SQLite and
+	// Postgres (a bare boolean expression scans differently between them).
+	q := `SELECT u.id, u.user_id, COALESCE(usr.email,''), COALESCE(u.conversation_id,''), COALESCE(c.title,''),
+	             CASE WHEN u.conversation_id IS NOT NULL AND u.conversation_id <> '' AND c.id IS NULL THEN 1 ELSE 0 END,
+	             u.model_id, u.purpose, u.input_tokens, u.output_tokens, u.cost, u.currency, u.created_at
+	      FROM usage_logs u
+	      LEFT JOIN users usr ON usr.id = u.user_id
+	      LEFT JOIN conversations c ON c.id = u.conversation_id` + where +
+		` ORDER BY u.created_at DESC, u.id DESC LIMIT ? OFFSET ?`
+	args = append(args, limit, offset)
+	rows, err := db.QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	out := []UsageRow{}
+	out := []AdminUsageRecord{}
 	for rows.Next() {
-		var r UsageRow
-		if err := rows.Scan(&r.UserID, &r.UserEmail, &r.ConversationID, &r.ConversationTitle, &r.ModelID, &r.Purpose, &r.InputTokens, &r.OutputTokens, &r.Calls, &r.Cost, &r.Currency); err != nil {
+		var r AdminUsageRecord
+		var gone int
+		if err := rows.Scan(&r.ID, &r.UserID, &r.UserEmail, &r.ConversationID, &r.ConversationTitle, &gone,
+			&r.ModelID, &r.Purpose, &r.InputTokens, &r.OutputTokens, &r.Cost, &r.Currency, &r.CreatedAt); err != nil {
 			return nil, err
 		}
+		r.ConversationDeleted = gone == 1
 		out = append(out, r)
 	}
 	return out, rows.Err()
+}
+
+// AdminUsageCount returns the total matching rows + summed cost (pagination +
+// page totals).
+func AdminUsageCount(ctx context.Context, db *sql.DB, f UsageFilter) (int, float64, error) {
+	where, args := f.where()
+	q := `SELECT COUNT(*), COALESCE(SUM(u.cost),0) FROM usage_logs u
+	      LEFT JOIN users usr ON usr.id = u.user_id` + where
+	var n int
+	var cost float64
+	err := db.QueryRowContext(ctx, q, args...).Scan(&n, &cost)
+	return n, cost, err
+}
+
+// DeleteUsageRecord removes a single usage_logs row by id.
+func DeleteUsageRecord(ctx context.Context, db *sql.DB, id int64) error {
+	res, err := db.ExecContext(ctx, "DELETE FROM usage_logs WHERE id=?", id)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// DeleteUsageByFilter removes every usage_logs row matching the filter, returning
+// the count deleted. We resolve matching ids first (the user predicate needs the
+// users join) then delete by id, which stays portable across SQLite/Postgres
+// without a DELETE … USING.
+func DeleteUsageByFilter(ctx context.Context, db *sql.DB, f UsageFilter) (int64, error) {
+	where, args := f.where()
+	rows, err := db.QueryContext(ctx,
+		`SELECT u.id FROM usage_logs u LEFT JOIN users usr ON usr.id = u.user_id`+where, args...)
+	if err != nil {
+		return 0, err
+	}
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return 0, err
+		}
+		ids = append(ids, id)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+	var deleted int64
+	for _, id := range ids {
+		res, derr := db.ExecContext(ctx, "DELETE FROM usage_logs WHERE id=?", id)
+		if derr != nil {
+			return deleted, derr
+		}
+		n, _ := res.RowsAffected()
+		deleted += n
+	}
+	return deleted, nil
 }
 
 // UsageBucket is one time-bucket row of the usage trend (§8.3 admin charts).

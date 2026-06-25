@@ -11,7 +11,8 @@
     "failed": "Failed",
     "dragHandle": "Drag to reorder",
     "moveUp": "Move up",
-    "moveDown": "Move down"
+    "moveDown": "Move down",
+    "cancel": "Cancel"
   },
   "icon": {
     "upload": "Upload",
@@ -346,7 +347,9 @@
       "out": "Out",
       "calls": "Calls",
       "cost": "Cost",
-      "conversation": "Conversation"
+      "conversation": "Conversation",
+      "time": "Time",
+      "actions": "Actions"
     },
     "purposes": {
       "chat": "Chat",
@@ -357,9 +360,30 @@
       "task_compact": "Context compaction",
       "task_memory_extract": "Memory extraction",
       "task_memory_adjudicate": "Memory adjudication",
-      "task_downgrade": "Cross-vendor downgrade"
+      "task_downgrade": "Cross-vendor downgrade",
+      "task_image_prompt": "Image prompt",
+      "task_research_plan": "Research plan",
+      "task_research_verify": "Research verify",
+      "task_moderation": "Moderation"
     },
-    "empty": "No calls in the selected window."
+    "empty": "No calls in the selected window.",
+    "leadRecords": "Every API call, one row. Filter and prune the log below.",
+    "deleteFiltered": "Delete filtered",
+    "conversationDeleted": "Deleted",
+    "deleteRow": "Delete record",
+    "deleted": "Deleted {{count}} record(s)",
+    "filters": {
+      "range": "Time range",
+      "user": "User",
+      "userPlaceholder": "Email or ID",
+      "model": "Model",
+      "allModels": "All models"
+    },
+    "deleteConfirm": {
+      "title": "Delete these usage records?",
+      "body": "This permanently deletes the {{count}} record(s) matching the current filter. This cannot be undone.",
+      "action": "Delete"
+    }
   },
   "documents": {
     "title": "Documents",

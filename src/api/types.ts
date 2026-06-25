@@ -494,18 +494,22 @@ export interface ApiMemory {
   updated_at: number
 }
 
-export interface ApiUsageReportRow {
+// A single usage_logs row (one API call) for the admin usage list.
+export interface ApiUsageRecord {
+  id: number
   user_id: string
   user_email: string
   conversation_id: string
   conversation_title: string
+  /** True when the row's conversation was deleted — show "deleted", not the id. */
+  conversation_deleted: boolean
   model_id: string
   purpose: string
   input_tokens: number
   output_tokens: number
-  calls: number
   cost: number
   currency: string
+  created_at: number
 }
 
 /** SSE event shapes — matches §6.2. */
