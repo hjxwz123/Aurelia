@@ -21,4 +21,3 @@ export const aureliaShikiTheme = createCssVariablesTheme({
     'token-inserted': 'currentColor',
   },
 })
-
