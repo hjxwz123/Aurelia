@@ -44,4 +44,3 @@ export function useCodeHighlight({ code, lang, live, theme }: UseCodeHighlightOp
 
   return state
 }
-
