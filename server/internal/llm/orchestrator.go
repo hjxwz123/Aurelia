@@ -639,11 +639,22 @@ func (o *Orchestrator) Run(ctx context.Context, req RunRequest, onEvent func(Sse
 		recent := recentHistoryStrings(history, 6)
 		var snippets []rag.Snippet
 		var decision rag.RouteDecision
+		// topK=8 (was 5): a large uploaded doc's relevant section can sit outside a
+		// tight top-5 even when correctly ranked; 8 parent sections stay well within
+		// the context budget while improving recall on specific-reference questions.
+		var ragErr error
 		if ragMode == "inject" {
-			snippets, _ = o.rag.Retrieve(ctx, conv.UserID, conv.ID, kbIDs, req.UserText, 5)
+			snippets, ragErr = o.rag.Retrieve(ctx, conv.UserID, conv.ID, kbIDs, req.UserText, 8)
 			decision = rag.RouteDecision{Strategy: "retrieve"}
 		} else {
-			snippets, decision, _ = o.rag.RouteAndRetrieve(ctx, conv.UserID, conv.ID, kbIDs, req.UserText, recent, 5)
+			snippets, decision, ragErr = o.rag.RouteAndRetrieve(ctx, conv.UserID, conv.ID, kbIDs, req.UserText, recent, 8)
+		}
+		// Never SILENTLY swallow a retrieval failure (e.g. mixed embedding
+		// models/dims, embedder down). We still answer without RAG context — the
+		// turn shouldn't hard-fail — but the reason is now logged instead of
+		// vanishing into a "_", which previously looked like "RAG just found nothing".
+		if ragErr != nil {
+			o.logger.Printf("rag: retrieval failed for conv %s (kbs=%v): %v — answering without knowledge context", conv.ID, kbIDs, ragErr)
 		}
 		if decision.Strategy != "none" {
 			onEvent(SseEvent{Type: "rag", Status: decision.Strategy, Summary: fmt.Sprintf("%d sources", len(snippets))})

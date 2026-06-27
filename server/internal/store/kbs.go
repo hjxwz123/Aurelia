@@ -439,7 +439,12 @@ func ListChunksInScope(ctx context.Context, db *sql.DB, kbIDs []string, convID s
 	if len(legs) == 0 {
 		return nil, nil
 	}
-	q := strings.Join(legs, " UNION ALL ")
+	// Deterministic DOCUMENT ORDER: full-text injection, map-reduce summarisation
+	// and cross-document comparison all assume scope is in document order, but
+	// UNION ALL guarantees no ordering (Postgres especially). Order by the output
+	// columns document_id (2) then seq (5) — positional refs are portable across
+	// SQLite/Postgres — so each doc's chunks stay contiguous and in sequence.
+	q := strings.Join(legs, " UNION ALL ") + " ORDER BY 2, 5"
 	rows, err := db.QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, err

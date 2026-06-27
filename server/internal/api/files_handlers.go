@@ -3,9 +3,11 @@ package api
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"mime"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -325,6 +327,42 @@ func safeMIMEType(filename string) string {
 	return ct
 }
 
+// previewableInline reports whether a content type is safe to render inline in
+// the browser (image preview, PDF viewer, plain text) so a preview pane / iframe
+// shows it instead of triggering a download. safeMIMEType has ALREADY forced the
+// dangerous types (HTML/SVG/XML/JS) to application/octet-stream, and we send
+// X-Content-Type-Options: nosniff, so inline here stays XSS-safe.
+func previewableInline(contentType string) bool {
+	return strings.HasPrefix(contentType, "image/") ||
+		contentType == "application/pdf" ||
+		strings.HasPrefix(contentType, "text/")
+}
+
+// contentDispositionHeader builds an RFC 6266 header with BOTH an ASCII fallback
+// (`filename=`) and an RFC 5987 UTF-8 form (`filename*=`), so non-ASCII names
+// (e.g. Chinese) label/download correctly instead of as mojibake. The old code
+// put raw UTF-8 bytes inside `filename="…"`, which browsers garble.
+func contentDispositionHeader(disp, filename string) string {
+	return fmt.Sprintf("%s; filename=%q; filename*=UTF-8''%s", disp, asciiFilenameFallback(filename), url.PathEscape(filename))
+}
+
+// asciiFilenameFallback replaces control/quote/non-ASCII runes with '_' for the
+// legacy `filename=` parameter (modern browsers use the UTF-8 `filename*=`).
+func asciiFilenameFallback(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		if r < 0x20 || r > 0x7e || r == '"' || r == '\\' {
+			b.WriteByte('_')
+		} else {
+			b.WriteRune(r)
+		}
+	}
+	if b.Len() == 0 {
+		return "file"
+	}
+	return b.String()
+}
+
 // downloadArtifactHandler streams an artifact to the user with ownership
 // check + correct content type. Artifacts are written into the artifact
 // directory by tools (image_generate, python_execute via sandbox); the route
@@ -369,12 +407,14 @@ func downloadArtifactHandler(d Deps, w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("content-type", contentType)
 	w.Header().Set("content-length", strconv.FormatInt(info.Size(), 10))
-	// Disposition: inline for images, attachment for everything else (per A12).
+	// Disposition: inline for browser-previewable, XSS-safe types (images, PDF,
+	// plain text); attachment for everything else. RFC 6266 encoding keeps
+	// non-ASCII names intact.
 	disp := "attachment"
-	if strings.HasPrefix(contentType, "image/") {
+	if previewableInline(contentType) {
 		disp = "inline"
 	}
-	w.Header().Set("content-disposition", disp+`; filename="`+cleanName+`"`)
+	w.Header().Set("content-disposition", contentDispositionHeader(disp, cleanName))
 	_, _ = io.Copy(w, f)
 }
 
@@ -427,9 +467,9 @@ func downloadFileHandler(d Deps, w http.ResponseWriter, r *http.Request) {
 	// so a long TTL is safe; we keep it private since the file is owner-scoped.
 	w.Header().Set("cache-control", "private, max-age=86400")
 	disp := "attachment"
-	if strings.HasPrefix(contentType, "image/") {
+	if previewableInline(contentType) {
 		disp = "inline"
 	}
-	w.Header().Set("content-disposition", disp+`; filename="`+cleanName+`"`)
+	w.Header().Set("content-disposition", contentDispositionHeader(disp, cleanName))
 	_, _ = io.Copy(w, fp)
 }
