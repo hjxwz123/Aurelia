@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { Suspense, useEffect } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { PanelLeftOpen, Menu } from 'lucide-react'
@@ -13,6 +13,7 @@ import { useMediaQuery } from '@/hooks/use-media-query'
 import { mediaQuery } from '@/lib/design-tokens'
 import { useTheme } from '@/store/theme'
 import { Tooltip } from '@/components/ui/tooltip'
+import { PanelFallback } from '@/components/ui/panel-fallback'
 import { useHotkeys } from '@/hooks/use-hotkeys'
 import { Logo } from '@/components/brand/logo'
 import { RouteFade } from '@/components/ui/route-fade'
@@ -116,7 +117,12 @@ export default function ChatLayout() {
               isDesktop && collapsed && 'pl-11',
             )}
           >
-            <Outlet />
+            {/* Content-scoped Suspense: switching section (chat/projects/kb/
+                settings/…) keeps the sidebar on screen and shows a panel loader
+                while the lazy page chunk loads, instead of blanking the whole app. */}
+            <Suspense fallback={<PanelFallback />}>
+              <Outlet />
+            </Suspense>
           </RouteFade>
         </div>
 

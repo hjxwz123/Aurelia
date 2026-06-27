@@ -16,16 +16,25 @@
 # dynamically links glibc.
 
 # ---- Stage 1: build the SPA -------------------------------------------------
-FROM node:20-bookworm-slim AS web
+# Build on the NATIVE build platform, not the target arch. The SPA output (dist)
+# is just static JS/CSS/HTML -- architecture-independent -- so there's no reason
+# to run the heavy `npm ci` + Vite build under QEMU emulation when the image
+# targets a different arch (e.g. linux/amd64 from an Apple-Silicon host). Emulated
+# `npm ci` is slow and routinely crashes mid-install (the `exit code: 146` here).
+# The Go stage below still builds for the target arch. ($BUILDPLATFORM is a
+# BuildKit-provided build arg; this Dockerfile already opts into BuildKit above.)
+FROM --platform=$BUILDPLATFORM node:20-bookworm-slim AS web
 WORKDIR /web
 COPY package.json package-lock.json ./
-RUN npm ci
+# --no-audit/--no-fund trim work + network chatter; the cache mount lets a retry
+# reuse already-downloaded tarballs instead of re-fetching the whole tree.
+RUN --mount=type=cache,target=/root/.npm npm ci --no-audit --no-fund
 # Copy only what the build needs (server/ and node_modules are excluded).
 COPY index.html vite.config.ts tsconfig.json tsconfig.app.json tsconfig.node.json ./
 COPY tailwind.config.ts postcss.config.js eslint.config.js ./
 COPY src ./src
 COPY public ./public
-# The SPA targets a same-origin /api (src/api/client.ts) — no build-time URL.
+# The SPA targets a same-origin /api (src/api/client.ts) -- no build-time URL.
 RUN npm run build
 
 # ---- Stage 2: build the Go API ---------------------------------------------

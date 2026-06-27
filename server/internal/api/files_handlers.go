@@ -407,6 +407,12 @@ func downloadArtifactHandler(d Deps, w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("content-type", contentType)
 	w.Header().Set("content-length", strconv.FormatInt(info.Size(), 10))
+	// Artifacts are immutable — an id maps to one generated file (image-model /
+	// image_generate output, etc.) that never changes — so cache hard. The gallery
+	// and chat re-render the same generated images constantly; without this every
+	// <img> re-streams from the server (slow first paint, wasted bandwidth).
+	// Private because artifacts are owner-scoped. (§ image caching)
+	w.Header().Set("cache-control", "private, max-age=31536000, immutable")
 	// Disposition: inline for browser-previewable, XSS-safe types (images, PDF,
 	// plain text); attachment for everything else. RFC 6266 encoding keeps
 	// non-ASCII names intact.
