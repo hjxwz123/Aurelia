@@ -1,8 +1,10 @@
+import { Suspense } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { User, Wand2, Palette, Sparkles, ShieldCheck, Keyboard, Info } from 'lucide-react'
 import { ContentHeader } from '@/components/layout/content-header'
 import { RouteFade } from '@/components/ui/route-fade'
+import { PanelFallback } from '@/components/ui/panel-fallback'
 import { cn } from '@/lib/utils'
 
 const tabDefs = [
@@ -55,7 +57,9 @@ export default function SettingsLayout() {
       <div className="flex-1 min-h-0 overflow-y-auto">
         <main className="mx-auto w-full max-w-[var(--layout-content-max-w)] px-[var(--layout-gutter-mobile)] sm:px-8 py-8 sm:py-10">
           <RouteFade dep={pathname}>
-            <Outlet />
+            <Suspense fallback={<PanelFallback />}>
+              <Outlet />
+            </Suspense>
           </RouteFade>
         </main>
       </div>

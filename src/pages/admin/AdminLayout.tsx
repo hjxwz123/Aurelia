@@ -4,13 +4,14 @@
  * content area switches between the sibling pages. Every page/route/config is
  * unchanged — this only groups how they're reached. Gates access to admins only.
  */
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { ArrowLeft, BarChart3, Cpu, Menu, Settings2, Sparkles, Users } from 'lucide-react'
 import { useAuth } from '@/store/auth'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import { RouteFade } from '@/components/ui/route-fade'
+import { PanelFallback } from '@/components/ui/panel-fallback'
 import { cn } from '@/lib/utils'
 
 interface AdminTab {
@@ -227,8 +228,14 @@ export default function AdminLayout() {
 
         <div className="mx-auto w-full max-w-[84rem] px-5 sm:px-8 lg:px-12 py-8 sm:py-12">
           <SectionTabs />
+          {/* Content-scoped Suspense: switching tabs/sections keeps the sidebar +
+              tabs on screen (clicked item highlights instantly) and only this
+              panel shows a loader while the lazy page chunk loads — instead of the
+              whole admin shell blanking to the app-level full-screen spinner. */}
           <RouteFade dep={path}>
-            <Outlet />
+            <Suspense fallback={<PanelFallback />}>
+              <Outlet />
+            </Suspense>
           </RouteFade>
         </div>
       </main>
