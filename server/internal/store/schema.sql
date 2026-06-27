@@ -260,6 +260,9 @@ CREATE TABLE IF NOT EXISTS messages (
   -- JSON (which also holds large thinking/tool text). Excludes reasoning/tool/
   -- image data on purpose.
   search_text        TEXT NOT NULL DEFAULT '',
+  -- §verify: secondary auditor (Verify mode) result for this assistant turn —
+  -- JSON {verdict,findings:[{severity,quote,issue}],...}. '' = never audited.
+  verify             TEXT NOT NULL DEFAULT '',
   created_at         INTEGER NOT NULL DEFAULT (strftime('%s','now'))
 );
 CREATE INDEX IF NOT EXISTS idx_messages_conv ON messages(conversation_id);

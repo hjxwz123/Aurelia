@@ -147,6 +147,22 @@ type SseEvent struct {
 	// Credits charged for this turn (emitted on the `done` event so the UI can
 	// show "credits used"). 0 = free / credits disabled.
 	Credits float64 `json:"credits,omitempty"`
+	// Verdict + Finding carry Verify-mode (§verify) audit results: `verify_done`
+	// sends the overall verdict ("clean"|"issues"); `verify_finding` sends one
+	// finding at a time so the UI builds the report live; `verify_started` carries
+	// neither (just the message_id).
+	Verdict string         `json:"verdict,omitempty"`
+	Finding *VerifyFinding `json:"finding,omitempty"`
+}
+
+// VerifyFinding is one issue the auditor model (Verify mode, §verify) flagged in
+// the primary answer: a verbatim quote of the offending sentence + the problem,
+// with a severity. Shared by the SSE wire, the persisted message.verify JSON,
+// and the verifyReport.
+type VerifyFinding struct {
+	Severity string `json:"severity"` // "error" | "warning" | "note"
+	Quote    string `json:"quote"`
+	Issue    string `json:"issue"`
 }
 
 // ArtifactRef is a file a tool produced (sandbox output, generated image). The

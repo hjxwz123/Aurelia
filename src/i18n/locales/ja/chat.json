@@ -32,6 +32,8 @@
     "voiceFailed": "録音を文字起こしできませんでした。",
     "research": "リサーチ",
     "researchTooltip": "ディープリサーチモード",
+    "verify": "検証",
+    "verifyTooltip": "別のモデルで回答をファクトチェック",
     "canvas": "キャンバス",
     "canvasTooltip": "キャンバスモード",
     "send": "送信（{{kbd}} + Enter）",
@@ -117,6 +119,17 @@
     "label": "ソース",
     "open": "ソースを開く",
     "fromDocuments": "あなたのドキュメントから"
+  },
+  "verify": {
+    "verifying": "検証中…",
+    "clean": "検証済み",
+    "issues": "{{count}} 件の問題",
+    "auditedBy": "{{model}} が検証",
+    "severity": {
+      "error": "誤り",
+      "warning": "要注意",
+      "note": "メモ"
+    }
   },
   "research": {
     "title": "ディープリサーチ",
@@ -274,7 +287,9 @@
     "allTags": "すべて",
     "noneForTag": "このタグのモデルはありません。",
     "creditRate": "トークンあたりのクレジット",
-    "imageSection": "画像生成"
+    "imageSection": "画像生成",
+    "creditsPerImage": "画像1枚あたりのクレジット",
+    "creditsUnit": "クレジット"
   },
   "commandMenu": {
     "placeholder": "会話を検索、またはコマンドを実行…",

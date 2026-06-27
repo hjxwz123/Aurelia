@@ -120,8 +120,10 @@ func CreateUserWithRole(ctx context.Context, db *sql.DB, email, name, pwHash, ro
 	}
 	sortOrder := 0
 	_ = db.QueryRowContext(ctx, `SELECT COALESCE(MAX(sort_order), -1) + 1 FROM users`).Scan(&sortOrder)
+	// New accounts default long-term memory OFF (opt-in): the user turns it on in
+	// onboarding / Personalization if the global master switch allows. (§ memory)
 	_, err := db.ExecContext(ctx,
-		`INSERT INTO users(id, email, password_hash, name, role, settings, sort_order) VALUES(?, ?, ?, ?, ?, '{}', ?)`,
+		`INSERT INTO users(id, email, password_hash, name, role, settings, sort_order) VALUES(?, ?, ?, ?, ?, '{"memory_enabled":false}', ?)`,
 		id, email, pwHash, name, role, sortOrder)
 	if err != nil {
 		return nil, err
@@ -165,17 +167,25 @@ func SetUserStatus(ctx context.Context, db *sql.DB, userID, status string) error
 	return nil
 }
 
+// MemoryEnabledGlobal reports the GLOBAL admin `memory_enabled` master switch
+// (default true). When false, long-term memory is unavailable to EVERY user —
+// already-enabled users included — regardless of their per-user override, and the
+// client hides the per-user toggle. Admins flip it on the system settings page.
+func MemoryEnabledGlobal(db *sql.DB) bool {
+	global := true
+	if raw, err := GetSetting(db, "memory_enabled"); err == nil {
+		_ = json.Unmarshal(raw, &global)
+	}
+	return global
+}
+
 // MemoryEnabledForUser reports whether long-term memory is active for this user.
 // Memory is on unless EITHER the global admin setting OR the user's per-user
 // override is explicitly false (both default to enabled). Used to gate both
 // memory injection (orchestrator) and extraction (memory worker) so a user who
 // turns memory off in Personalization gets no memory in any conversation.
 func MemoryEnabledForUser(ctx context.Context, db *sql.DB, userID string) bool {
-	global := true
-	if raw, err := GetSetting(db, "memory_enabled"); err == nil {
-		_ = json.Unmarshal(raw, &global)
-	}
-	if !global {
+	if !MemoryEnabledGlobal(db) {
 		return false
 	}
 	if raw, err := GetUserSettingKey(ctx, db, userID, "memory_enabled"); err == nil && len(raw) > 0 {

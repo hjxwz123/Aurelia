@@ -17,6 +17,9 @@ interface ModelStore {
   /** Admin-managed tags (§ model tags) — drives the picker's filter chips. */
   tags: ApiModelTag[]
   defaultId: string
+  /** §verify: true when an admin configured an auditor model, so the composer
+   *  shows the Verify toggle. */
+  verifyAvailable: boolean
   loaded: boolean
   loading: boolean
   error: string | null
@@ -30,6 +33,7 @@ export const useModels = create<ModelStore>((set, get) => ({
   imageModels: [],
   tags: [],
   defaultId: '',
+  verifyAvailable: false,
   loaded: false,
   loading: false,
   error: null,
@@ -50,6 +54,7 @@ export const useModels = create<ModelStore>((set, get) => ({
         imageModels: img.models,
         tags,
         defaultId: resp.default_id || resp.models[0]?.id || '',
+        verifyAvailable: Boolean(resp.verify_available),
         loaded: true,
         loading: false,
       })

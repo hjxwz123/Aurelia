@@ -14,6 +14,7 @@ import { mediaQuery } from '@/lib/design-tokens'
 import { useTheme } from '@/store/theme'
 import { Tooltip } from '@/components/ui/tooltip'
 import { PanelFallback } from '@/components/ui/panel-fallback'
+import { AnnouncementBar } from '@/components/announcement/announcement-bar'
 import { useHotkeys } from '@/hooks/use-hotkeys'
 import { Logo } from '@/components/brand/logo'
 import { RouteFade } from '@/components/ui/route-fade'
@@ -52,7 +53,7 @@ export default function ChatLayout() {
   return (
     <div
       className={cn(
-        'flex h-svh w-full overflow-hidden bg-[var(--color-bg)] text-[var(--color-fg)]',
+        'flex flex-col h-svh w-full overflow-hidden bg-[var(--color-bg)] text-[var(--color-fg)]',
         // Inset the whole app shell by the device safe areas so that, when
         // launched as an installed PWA (fullscreen/standalone), the header,
         // sidebar and bottom composer never slide under the notch or home
@@ -62,6 +63,9 @@ export default function ChatLayout() {
         'pl-[var(--safe-left)] pr-[var(--safe-right)]',
       )}
     >
+      {/* Pinned announcement bar — pushes the whole shell down when active; null otherwise. */}
+      <AnnouncementBar />
+      <div className="flex flex-1 min-h-0 w-full">
       {isDesktop ? (
         <Sidebar variant="desktop" />
       ) : (
@@ -131,6 +135,7 @@ export default function ChatLayout() {
         <InlineThreadPanel />
         <ConversationFilesPanel />
       </main>
+      </div>
     </div>
   )
 }

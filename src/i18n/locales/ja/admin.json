@@ -508,7 +508,9 @@
       "fallbackTtft": "初回応答タイムアウト(秒)",
       "fallbackTtftHint": "この秒数、上流が無出力なら切断。0 = 無効。",
       "imagePromptModel": "画像プロンプトモデル",
-      "imagePromptModelHint": "描画前にプロンプトを調整するテキストモデル。なし＝スキップ。"
+      "imagePromptModelHint": "描画前にプロンプトを調整するテキストモデル。なし＝スキップ。",
+      "verifyModel": "検証（監査）モデル",
+      "verifyModelHint": "検証モードで回答をチェックする2つ目のモデル。なし＝検証オフ。"
     }
   },
   "groups": {

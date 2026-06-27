@@ -145,13 +145,25 @@ export function ModelPicker({ value, onChange, className }: ModelPickerProps) {
             </DropdownMenuLabel>
             {imageModels.map((m) => {
               const active = m.id === value
+              // Per-image credit price (§4.20): when the model's free allotment is
+              // spent, show "N credits" after the name instead of the active dot —
+              // mirrors the chat section's ×multiplier badge.
+              const credits = typeof m.credits_per_image === 'number' ? m.credits_per_image : 0
+              const showCredits = Boolean(m.uses_credits) && credits > 0
               return (
                 <DropdownMenuItem key={m.id} onSelect={() => onChange(m.id)} className="items-start gap-2 py-2.5">
                   <ModelIcon icon={m.icon} size={16} className="mt-0.5" />
                   <div className="flex min-w-0 flex-1 flex-col gap-1">
                     <div className="flex items-center gap-2">
                       <span className="truncate font-medium text-[var(--color-fg)]">{m.label}</span>
-                      {active ? (
+                      {showCredits ? (
+                        <span
+                          className="ml-auto shrink-0 rounded-full bg-[var(--color-bg-muted)] px-1.5 py-0.5 text-[10.5px] font-medium tabular-nums text-[var(--color-fg-muted)]"
+                          title={t('modelPicker.creditsPerImage', { defaultValue: 'Credits per image' })}
+                        >
+                          {String(Math.round(credits * 100) / 100)} {t('modelPicker.creditsUnit', { defaultValue: 'credits' })}
+                        </span>
+                      ) : active ? (
                         <span
                           className="ml-auto size-1.5 shrink-0 rounded-full bg-[var(--color-accent)]"
                           aria-label={t('modelPicker.current')}

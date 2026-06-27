@@ -417,7 +417,7 @@ func ListMessages(ctx context.Context, db *sql.DB, convID, leafID string) ([]Mes
 // branch — used by clients that render the full tree (sibling counts/branch
 // switching). Sorted by created_at ascending.
 func ListAllMessages(ctx context.Context, db *sql.DB, convID string) ([]Message, error) {
-	rows, err := db.QueryContext(ctx, `SELECT id, conversation_id, COALESCE(parent_id,''), role, provider, model_id, COALESCE(model_label,''), blocks, COALESCE(raw,''), COALESCE(stop_reason,''), attachments, citations, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, cost, currency, credits, status, error, COALESCE(feedback,''), created_at, gen_ms FROM messages WHERE conversation_id=? ORDER BY created_at ASC`, convID)
+	rows, err := db.QueryContext(ctx, `SELECT id, conversation_id, COALESCE(parent_id,''), role, provider, model_id, COALESCE(model_label,''), blocks, COALESCE(raw,''), COALESCE(stop_reason,''), attachments, citations, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, cost, currency, credits, status, error, COALESCE(feedback,''), created_at, gen_ms, COALESCE(verify,'') FROM messages WHERE conversation_id=? ORDER BY created_at ASC`, convID)
 	if err != nil {
 		return nil, err
 	}
@@ -435,7 +435,7 @@ func ListAllMessages(ctx context.Context, db *sql.DB, convID string) ([]Message,
 
 // GetMessage returns one row.
 func GetMessage(ctx context.Context, db *sql.DB, id string) (*Message, error) {
-	row := db.QueryRowContext(ctx, `SELECT id, conversation_id, COALESCE(parent_id,''), role, provider, model_id, COALESCE(model_label,''), blocks, COALESCE(raw,''), COALESCE(stop_reason,''), attachments, citations, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, cost, currency, credits, status, error, COALESCE(feedback,''), created_at, gen_ms FROM messages WHERE id=?`, id)
+	row := db.QueryRowContext(ctx, `SELECT id, conversation_id, COALESCE(parent_id,''), role, provider, model_id, COALESCE(model_label,''), blocks, COALESCE(raw,''), COALESCE(stop_reason,''), attachments, citations, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, cost, currency, credits, status, error, COALESCE(feedback,''), created_at, gen_ms, COALESCE(verify,'') FROM messages WHERE id=?`, id)
 	m, err := scanMessage(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
@@ -448,8 +448,8 @@ func GetMessage(ctx context.Context, db *sql.DB, id string) (*Message, error) {
 
 func scanMessage(s scanner) (Message, error) {
 	var m Message
-	var blocks, raw, atts, cites string
-	if err := s.Scan(&m.ID, &m.ConversationID, &m.ParentID, &m.Role, &m.Provider, &m.ModelID, &m.ModelLabel, &blocks, &raw, &m.StopReason, &atts, &cites, &m.InputTokens, &m.OutputTokens, &m.CacheReadTokens, &m.CacheWriteTokens, &m.Cost, &m.Currency, &m.Credits, &m.Status, &m.Error, &m.Feedback, &m.CreatedAt, &m.GenMs); err != nil {
+	var blocks, raw, atts, cites, verify string
+	if err := s.Scan(&m.ID, &m.ConversationID, &m.ParentID, &m.Role, &m.Provider, &m.ModelID, &m.ModelLabel, &blocks, &raw, &m.StopReason, &atts, &cites, &m.InputTokens, &m.OutputTokens, &m.CacheReadTokens, &m.CacheWriteTokens, &m.Cost, &m.Currency, &m.Credits, &m.Status, &m.Error, &m.Feedback, &m.CreatedAt, &m.GenMs, &verify); err != nil {
 		return m, err
 	}
 	m.Blocks = json.RawMessage(orDefault(blocks, "[]"))
@@ -458,6 +458,10 @@ func scanMessage(s scanner) (Message, error) {
 	}
 	m.Attachments = json.RawMessage(orDefault(atts, "[]"))
 	m.Citations = json.RawMessage(orDefault(cites, "[]"))
+	// Only set Verify when audited, so `omitempty` keeps it off the wire otherwise.
+	if verify != "" {
+		m.Verify = json.RawMessage(verify)
+	}
 	return m, nil
 }
 
@@ -626,6 +630,14 @@ func UpdateMessageContent(ctx context.Context, db *sql.DB, id string, blocks jso
 // Valid values: "like", "dislike", "" (clear).
 func SetMessageFeedback(ctx context.Context, db *sql.DB, id, feedback string) error {
 	_, err := db.ExecContext(ctx, `UPDATE messages SET feedback=? WHERE id=?`, feedback, id)
+	return err
+}
+
+// SetMessageVerify stores the secondary-auditor result (Verify mode, §verify) on
+// an assistant message AFTER the turn has finalized. The value is the verify
+// report JSON; '' clears it.
+func SetMessageVerify(ctx context.Context, db *sql.DB, id string, verify json.RawMessage) error {
+	_, err := db.ExecContext(ctx, `UPDATE messages SET verify=? WHERE id=?`, string(verify), id)
 	return err
 }
 

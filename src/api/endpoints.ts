@@ -71,11 +71,15 @@ export const authApi = {
   setup2fa: () => api<{ secret: string; otpauth_url: string }>('/me/2fa/setup', { method: 'POST' }),
   enable2fa: (code: string) => api<{ ok: true }>('/me/2fa/enable', { method: 'POST', body: { code } }),
   disable2fa: (code: string) => api<{ ok: true }>('/me/2fa/disable', { method: 'POST', body: { code } }),
-  register: (email: string, password: string, name: string, captcha?: { id: string; answer: string }) =>
+  register: (email: string, password: string, name: string, captchaToken?: string) =>
     api<ApiAuthResponse | { verification_required: boolean; email: string }>('/auth/register', {
       method: 'POST',
-      body: { email, password, name, captcha_id: captcha?.id, captcha_answer: captcha?.answer },
+      body: { email, password, name, captcha_token: captchaToken },
     }),
+  // Verify a slider-puzzle solution; on success returns a single-use pass token
+  // the register call presents (lets the dialog show immediate green/red).
+  captchaVerify: (id: string, fraction: number) =>
+    api<{ ok: boolean; token?: string }>('/public/captcha/verify', { method: 'POST', body: { id, fraction } }),
   refresh: () => api<ApiAuthResponse>('/auth/refresh', { method: 'POST' }),
   logout: () => api<{ ok: true }>('/auth/logout', { method: 'POST' }),
   updateProfile: (patch: { name?: string; email?: string }) =>
@@ -97,6 +101,7 @@ export const authApi = {
   updateSettings: (patch: Record<string, unknown>) =>
     api<Record<string, unknown>>('/me/settings', { method: 'PATCH', body: patch }),
   // Global announcement (§ announcement). enabled=false when none is active.
+  // Pinned top bar (bar_*) is independent of the popup.
   announcement: () =>
     api<{
       enabled: boolean
@@ -104,6 +109,9 @@ export const authApi = {
       image_url: string
       remember_dismiss: boolean
       updated_at: number
+      bar_enabled: boolean
+      bar_html: string
+      bar_updated_at: number
     }>('/announcement'),
   // Cost is intentionally NOT exposed to users — only message volume.
   usage: () => api<{ days: number; messages: number }>('/me/usage'),
@@ -135,7 +143,7 @@ export const authApi = {
 // ----- Models / skills -----------------------------------------------------
 
 export const modelsApi = {
-  list: () => api<{ models: ApiModel[]; default_id: string }>('/models'),
+  list: () => api<{ models: ApiModel[]; default_id: string; verify_available?: boolean }>('/models'),
   listImage: () => api<{ models: ApiModel[]; default_id: string }>('/image-models'),
   listEmbedding: () => api<{ models: ApiModel[]; default_id: string }>('/embedding-models'),
   /** Model tags for the picker's filter chips (§ model tags). */

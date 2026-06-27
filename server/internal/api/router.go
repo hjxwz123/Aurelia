@@ -62,8 +62,10 @@ func NewRouter(d Deps) http.Handler {
 		writeJSON(w, 200, map[string]any{"ok": true})
 	})
 	mux.handle("GET", "/api/public/signup-open", wrap(d, signupOpenHandler))
-	// Arithmetic captcha for registration (text math question, no image OCR).
+	// Slider-puzzle captcha for registration. GET issues a challenge; POST /verify
+	// checks a solution and returns a single-use pass token (immediate feedback).
 	mux.handle("GET", "/api/public/captcha", rateLimitedIP(d, "auth", 30, 60*time.Second, wrap(d, captchaHandler)))
+	mux.handle("POST", "/api/public/captcha/verify", rateLimitedIP(d, "auth", 60, 60*time.Second, wrap(d, captchaVerifyHandler)))
 	// First-run setup (§ first-run setup): public probe + create-first-admin.
 	mux.handle("GET", "/api/public/needs-setup", wrap(d, needsSetupHandler))
 	mux.handle("POST", "/api/setup", rateLimitedIP(d, "auth", 10, 60*time.Second, wrap(d, setupHandler)))

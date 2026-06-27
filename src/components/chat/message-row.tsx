@@ -55,6 +55,7 @@ import { ReasoningTrace } from './reasoning-trace'
 import { ImageGenerating } from './image-generating'
 import { ResearchPanel } from './research-panel'
 import { CitationList } from './citation'
+import { VerifyBadge } from './verify-badge'
 import { ImageLightbox } from './image-lightbox'
 import { FilePreview } from './file-preview'
 import { toast } from '@/hooks/use-toast'
@@ -450,6 +451,8 @@ function MessageRowImpl({ message, userName, onRegenerate, onEdit, onSaveEdit, o
                 {message.citations && message.citations.length > 0 ? (
                   <CitationList citations={message.citations} />
                 ) : null}
+                {/* §verify: secondary-auditor trust badge + findings report. */}
+                {message.verify ? <VerifyBadge verify={message.verify} /> : null}
                 {/* Downloadable artifacts produced by tools (§4.5/§4.12) */}
                 {message.artifacts && message.artifacts.length > 0 ? (
                   <div className="mt-3 flex flex-wrap gap-2">

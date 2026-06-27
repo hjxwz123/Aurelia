@@ -36,7 +36,7 @@ interface AuthState {
     email: string,
     password: string,
     name: string,
-    captcha?: { id: string; answer: string },
+    captchaToken?: string,
   ) => Promise<boolean | 'verify'>
   /** First-run: create the initial admin account, then sign in. */
   setup: (name: string, email: string, password: string) => Promise<boolean>
@@ -176,10 +176,10 @@ export const useAuth = create<AuthState>((set, get) => ({
     }
   },
 
-  async register(email, password, name, captcha) {
+  async register(email, password, name, captchaToken) {
     set({ status: 'authenticating', error: null })
     try {
-      const resp = await authApi.register(email, password, name, captcha)
+      const resp = await authApi.register(email, password, name, captchaToken)
       if ('verification_required' in resp && resp.verification_required) {
         set({ pendingVerification: resp.email as string, status: 'unauthenticated' })
         return 'verify'

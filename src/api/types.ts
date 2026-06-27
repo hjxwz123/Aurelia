@@ -38,6 +38,10 @@ export interface ApiUser {
   /** Capability flags from the user's group (e.g. "research"). Populated on the
    *  /api/me response so the client can gate features. */
   features?: string[]
+  /** Global admin master switch for long-term memory. When false, no user may
+   *  enable memory and the per-user toggle is hidden. Transient (auth/me only).
+   *  Absent ⇒ treat as available (older backend). */
+  memory_available?: boolean
   created_at: number
 }
 
@@ -291,6 +295,10 @@ export interface ApiModel {
   uses_credits?: boolean
   /** Relative credit rate = (price_input + price_output) / 5, one decimal (§ credits). */
   multiplier?: number
+  /** Per-image cost in credits (price_per_image × credits_per_usd) for an image
+   *  model that's credit-charged. The picker shows "N credits" after the name;
+   *  0/absent for chat models, free image models, or when credits are off. */
+  credits_per_image?: number
 }
 
 /** One file bundled with a skill (§4.17). use_skill stages these into the
@@ -467,6 +475,9 @@ export interface ApiMessage {
   feedback?: string
   /** Wall-clock generation time for the turn, in ms. */
   gen_ms?: number
+  /** Verify mode (§verify): persisted secondary-auditor result (snake_case from
+   *  the Go json tags). Absent when the turn was never audited. */
+  verify?: ApiVerifyResult
   created_at: number
   /** Sibling navigation (only on the path response). */
   branch_index?: number
@@ -540,6 +551,23 @@ export interface ApiAdminImage {
   url: string
 }
 
+/** Verify mode (§verify): one auditor finding, snake_case as it arrives on the
+ *  wire (SSE `verify_finding` + persisted `message.verify.findings`). */
+export interface ApiVerifyFinding {
+  severity: string
+  quote: string
+  issue: string
+}
+
+/** Verify mode (§verify): persisted auditor result on a message (snake_case). */
+export interface ApiVerifyResult {
+  verdict?: 'clean' | 'issues'
+  findings?: ApiVerifyFinding[]
+  auditor_model_id?: string
+  auditor_label?: string
+  at?: number
+}
+
 export type ApiSseEvent =
   | { type: 'message_start'; message_id: string }
   | { type: 'thinking_delta'; text: string }
@@ -561,3 +589,7 @@ export type ApiSseEvent =
   | { type: 'research_task'; id: string; text?: string; status?: string; name?: string }
   | { type: 'research_source'; id: string; url?: string; title?: string; summary?: string; status?: string }
   | { type: 'research_section'; id: string; title?: string; status?: string }
+  // Verify mode (§verify): auditor lifecycle. started → N findings → done.
+  | { type: 'verify_started'; message_id?: string }
+  | { type: 'verify_finding'; message_id?: string; finding: ApiVerifyFinding }
+  | { type: 'verify_done'; message_id?: string; verdict: 'clean' | 'issues' }

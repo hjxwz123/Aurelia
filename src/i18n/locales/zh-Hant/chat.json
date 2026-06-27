@@ -32,6 +32,8 @@
     "voiceFailed": "無法轉寫本次錄音。",
     "research": "研究",
     "researchTooltip": "深度研究模式",
+    "verify": "審校",
+    "verifyTooltip": "讓另一個模型核查這條回答",
     "canvas": "畫布",
     "canvasTooltip": "畫布模式",
     "send": "傳送（{{kbd}} + Enter）",
@@ -117,6 +119,17 @@
     "label": "來源",
     "open": "開啟來源",
     "fromDocuments": "來自你的文件"
+  },
+  "verify": {
+    "verifying": "審校中…",
+    "clean": "已審校",
+    "issues": "發現 {{count}} 處問題",
+    "auditedBy": "由 {{model}} 審校",
+    "severity": {
+      "error": "錯誤",
+      "warning": "存疑",
+      "note": "提示"
+    }
   },
   "research": {
     "title": "深度研究",
@@ -274,7 +287,9 @@
     "allTags": "全部",
     "noneForTag": "此標籤下暫無模型。",
     "creditRate": "每 token 消耗點數",
-    "imageSection": "圖片生成"
+    "imageSection": "圖片生成",
+    "creditsPerImage": "每張圖片消耗點數",
+    "creditsUnit": "點數"
   },
   "commandMenu": {
     "placeholder": "搜尋會話，或執行命令…",

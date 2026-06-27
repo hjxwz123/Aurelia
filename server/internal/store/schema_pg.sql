@@ -243,6 +243,9 @@ CREATE TABLE IF NOT EXISTS messages (
   error              TEXT NOT NULL DEFAULT '',
   gen_ms             BIGINT NOT NULL DEFAULT 0,
   search_text        TEXT NOT NULL DEFAULT '',
+  -- §verify: secondary auditor (Verify mode) result for this assistant turn —
+  -- JSON {verdict,findings:[{severity,quote,issue}],...}. '' = never audited.
+  verify             TEXT NOT NULL DEFAULT '',
   created_at         BIGINT NOT NULL DEFAULT (extract(epoch from now())::bigint)
 );
 CREATE INDEX IF NOT EXISTS idx_messages_conv ON messages(conversation_id);

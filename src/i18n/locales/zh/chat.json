@@ -32,6 +32,8 @@
     "voiceFailed": "无法转写本次录音。",
     "research": "研究",
     "researchTooltip": "深度研究模式",
+    "verify": "审校",
+    "verifyTooltip": "让另一个模型核查这条回答",
     "canvas": "画布",
     "canvasTooltip": "画布模式",
     "send": "发送（{{kbd}} + Enter）",
@@ -117,6 +119,17 @@
     "label": "来源",
     "open": "打开来源",
     "fromDocuments": "来自你的文档"
+  },
+  "verify": {
+    "verifying": "审校中…",
+    "clean": "已审校",
+    "issues": "发现 {{count}} 处问题",
+    "auditedBy": "由 {{model}} 审校",
+    "severity": {
+      "error": "错误",
+      "warning": "存疑",
+      "note": "提示"
+    }
   },
   "research": {
     "title": "深度研究",
@@ -274,7 +287,9 @@
     "allTags": "全部",
     "noneForTag": "该标签下暂无模型。",
     "creditRate": "每 token 消耗积分",
-    "imageSection": "图片生成"
+    "imageSection": "图片生成",
+    "creditsPerImage": "每张图片消耗积分",
+    "creditsUnit": "积分"
   },
   "commandMenu": {
     "placeholder": "搜索会话，或执行命令…",

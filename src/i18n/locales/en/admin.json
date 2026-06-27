@@ -508,7 +508,9 @@
       "fallbackTtft": "First-token timeout (s)",
       "fallbackTtftHint": "Cut the upstream after this many seconds with no output. 0 = off.",
       "imagePromptModel": "Image prompt model",
-      "imagePromptModelHint": "Text model that refines image prompts before drawing. None = skip."
+      "imagePromptModelHint": "Text model that refines image prompts before drawing. None = skip.",
+      "verifyModel": "Verify (auditor) model",
+      "verifyModelHint": "Second model that fact-checks answers in Verify mode. None = Verify off."
     }
   },
   "groups": {

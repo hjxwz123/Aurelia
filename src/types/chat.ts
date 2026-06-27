@@ -83,6 +83,27 @@ export interface ResearchState {
   rounds?: number
 }
 
+/** Verify mode (§verify): one issue the auditor model flagged in the answer. */
+export interface VerifyFinding {
+  severity: 'error' | 'warning' | 'note'
+  /** Verbatim quote of the offending sentence from the primary answer. */
+  quote: string
+  /** What's wrong with it. */
+  issue: string
+}
+
+/** Verify mode (§verify): the secondary-auditor result for an assistant turn.
+ *  `status` is the LIVE lifecycle ('running' while auditing); `verdict` is the
+ *  settled outcome (also persisted). A reloaded message has `verdict` but no
+ *  `status`. */
+export interface VerifyResult {
+  status?: 'running' | 'clean' | 'issues'
+  verdict?: 'clean' | 'issues'
+  findings: VerifyFinding[]
+  auditorModelId?: string
+  auditorLabel?: string
+}
+
 export interface Attachment {
   id: string
   /** Display name */
@@ -151,6 +172,9 @@ export interface Message {
   disliked?: boolean
   /** Citations attached to this assistant turn. */
   citations?: Citation[]
+  /** Verify mode (§verify): the secondary-auditor result for this assistant
+   *  turn — drives the trust badge + expandable findings report. */
+  verify?: VerifyResult
   /** RAG retrieval lifecycle event surfaced live during streaming so the UI
    *  can render "📚 retrieved 4 sources from KB" or "Injected full document". */
   ragInjection?: { strategy: string; summary: string; at: number }

@@ -34,6 +34,8 @@ func attachGroupInfo(d Deps, r *http.Request, u *store.User) {
 			u.Features = feats
 		}
 	}
+	// Global memory master switch → lets the client show/hide the per-user toggle.
+	u.MemoryAvailable = store.MemoryEnabledGlobal(d.DB)
 }
 
 type updateMeReq struct {

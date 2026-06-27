@@ -30,6 +30,8 @@ import type {
   ResearchState,
   ResearchTask,
   ToolCall,
+  VerifyFinding,
+  VerifyResult,
 } from '@/types/chat'
 import { uid } from '@/lib/utils'
 import { toast } from '@/hooks/use-toast'
@@ -121,6 +123,8 @@ interface ConversationStore {
     mode?: 'default' | 'deep-research' | 'canvas'
     /** §4.20 image mode: selected style id, sent for an image-model turn. */
     imageStyleId?: string
+    /** §verify: enable Verify mode for this turn (a second model audits the answer). */
+    verify?: boolean
   }) => Promise<void>
   regenerate: (conversationId: string, assistantId: string, modelId?: string) => Promise<void>
   /** Edit a user message's text IN PLACE — overwrite, no new branch, no
@@ -579,6 +583,9 @@ export const useConversations = createWithEqualityFn<ConversationStore>((set, ge
       parentId: userId,
       modelId: input.modelId || conv0?.modelId,
       mode: input.mode,
+      // §verify: seed a "running" badge so the audit is visible the moment the
+      // answer settles, not only after verify_started arrives.
+      verify: input.verify ? { status: 'running', findings: [] } : undefined,
     }
     streamControllers.set(assistantId, abort)
     // Optimistically update the local cache. For a normal turn we append to the
@@ -657,6 +664,8 @@ export const useConversations = createWithEqualityFn<ConversationStore>((set, ge
           branch: input.branch,
           // 'deep-research' switches the backend to the research engine.
           mode: input.mode,
+          // §verify: enable the secondary-auditor pass for this turn.
+          verify: input.verify,
           attachments: input.attachments?.map(attachmentToApi),
           params: input.params,
           image_style_id: input.imageStyleId,
@@ -750,6 +759,14 @@ export const useConversations = createWithEqualityFn<ConversationStore>((set, ge
             updateAssistant(set, input.conversationId, serverAssistantId, (m) => ({
               ...m,
               research: applyResearchEvent(m.research, ev),
+            }))
+            break
+          case 'verify_started':
+          case 'verify_finding':
+          case 'verify_done':
+            updateAssistant(set, input.conversationId, serverAssistantId, (m) => ({
+              ...m,
+              verify: applyVerifyEvent(m.verify, ev),
             }))
             break
           case 'tool_start': {
@@ -847,6 +864,10 @@ export const useConversations = createWithEqualityFn<ConversationStore>((set, ge
               ...m,
               streaming: false,
               imageStatus: undefined,
+              // §verify: if the audit never settled by `done` (backend skipped it —
+              // model unset between fetch and send, empty answer), drop the stuck
+              // "running" badge rather than spin forever.
+              verify: m.verify?.status === 'running' ? undefined : m.verify,
               credits: ev.credits && ev.credits > 0 ? ev.credits : m.credits,
               moderation: ev.stop_reason === 'content_moderation' ? true : m.moderation,
               quotaExceeded: ev.stop_reason === 'quota_exceeded' ? true : m.quotaExceeded,
@@ -897,6 +918,9 @@ export const useConversations = createWithEqualityFn<ConversationStore>((set, ge
         // §4.20: a stop / mid-stream drop on a drawing turn must clear the
         // ImageGenerating placeholder (it renders independent of streaming/error).
         imageStatus: undefined,
+        // §verify: a drop between verify_finding and verify_done would leave a
+        // perpetual "Verifying…" chip — settle it (no reconcile runs on error).
+        verify: m.verify?.status === 'running' ? undefined : m.verify,
         error: abort.signal.aborted ? m.error : errorMessage(e),
       }))
     } finally {
@@ -920,6 +944,8 @@ export const useConversations = createWithEqualityFn<ConversationStore>((set, ge
     // Carry the original turn's mode so regenerating a deep-research reply
     // re-runs the research engine (and shows the panel) instead of downgrading.
     const mode = oldAssistant?.mode
+    // §verify: re-audit on regenerate iff the original turn was audited.
+    const verify = oldAssistant?.verify ? true : undefined
     const placeholderId = uid('m')
     // §4.15 R2: regenerate forks at the assistant — the new reply is a SIBLING of
     // the old one under the same user turn. Seed branch metadata on the
@@ -950,6 +976,7 @@ export const useConversations = createWithEqualityFn<ConversationStore>((set, ge
         streaming: true,
         modelId: modelId ?? conv?.modelId,
         mode,
+        verify: verify ? { status: 'running', findings: [] } : undefined,
         branchCount: prevReplyCount + 1,
         branchIndex: prevReplyCount,
         siblings: [...uniqReplies, placeholderId],
@@ -970,7 +997,7 @@ export const useConversations = createWithEqualityFn<ConversationStore>((set, ge
       let lastCitations: Citation[] = []
       for await (const frame of streamSSE(
         `/conversations/${encodeURIComponent(conversationId)}/regenerate`,
-        { assistant_id: assistantId, model_id: modelId, mode, params: conv?.lastParams, locale: currentLocale() },
+        { assistant_id: assistantId, model_id: modelId, mode, verify, params: conv?.lastParams, locale: currentLocale() },
         abort.signal,
       )) {
         const ev = frame.data as ApiSseEvent
@@ -1074,6 +1101,14 @@ export const useConversations = createWithEqualityFn<ConversationStore>((set, ge
               research: applyResearchEvent(m.research, ev),
             }))
             break
+          case 'verify_started':
+          case 'verify_finding':
+          case 'verify_done':
+            updateAssistant(set, conversationId, serverAssistantId, (m) => ({
+              ...m,
+              verify: applyVerifyEvent(m.verify, ev),
+            }))
+            break
           case 'image_status':
             // §4.20 drawing phase (regenerated image turn) → dedicated UI.
             updateAssistant(set, conversationId, serverAssistantId, (m) => ({
@@ -1104,6 +1139,8 @@ export const useConversations = createWithEqualityFn<ConversationStore>((set, ge
               ...m,
               streaming: false,
               imageStatus: undefined,
+              // §verify: clear a never-settled audit badge (see sendMessage).
+              verify: m.verify?.status === 'running' ? undefined : m.verify,
               moderation: ev.stop_reason === 'content_moderation' ? true : m.moderation,
             }))
             break
@@ -1314,6 +1351,25 @@ function applyResearchEvent(prev: ResearchState | undefined, ev: ApiSseEvent): R
   return r
 }
 
+// applyVerifyEvent reduces a Verify-mode (§verify) SSE event into the message's
+// verify state: started → 'running', each finding appended, done → final verdict.
+function applyVerifyEvent(prev: VerifyResult | undefined, ev: ApiSseEvent): VerifyResult {
+  const v: VerifyResult = prev ?? { findings: [] }
+  if (ev.type === 'verify_started') {
+    return { ...v, status: 'running' }
+  }
+  if (ev.type === 'verify_finding') {
+    const f = ev.finding
+    const severity: VerifyFinding['severity'] =
+      f.severity === 'error' || f.severity === 'warning' ? f.severity : 'note'
+    return { ...v, findings: [...v.findings, { severity, quote: f.quote ?? '', issue: f.issue ?? '' }] }
+  }
+  if (ev.type === 'verify_done') {
+    return { ...v, status: ev.verdict, verdict: ev.verdict }
+  }
+  return v
+}
+
 // appendNarration moves the model's pre-tool "let me look this up…" text into
 // the reasoning trace (§4.3) so it doesn't pollute the final answer. Merges
 // into a trailing narration run if one is already open.
@@ -1440,6 +1496,20 @@ export function toLocalMessage(m: ApiMessage): Message {
     credits: m.credits && m.credits > 0 ? m.credits : undefined,
     genMs: m.gen_ms && m.gen_ms > 0 ? m.gen_ms : undefined,
     currency: m.currency || undefined,
+    // §verify: rehydrate the persisted auditor result (snake_case → camelCase).
+    // No `status` ⇒ settled; the badge reads `verdict`.
+    verify: m.verify
+      ? {
+          verdict: m.verify.verdict,
+          findings: (m.verify.findings ?? []).map((f) => ({
+            severity: f.severity === 'error' || f.severity === 'warning' ? f.severity : 'note',
+            quote: f.quote ?? '',
+            issue: f.issue ?? '',
+          })),
+          auditorModelId: m.verify.auditor_model_id,
+          auditorLabel: m.verify.auditor_label,
+        }
+      : undefined,
     citations:
       m.citations && m.citations.length > 0
         ? m.citations.map((c) => ({
