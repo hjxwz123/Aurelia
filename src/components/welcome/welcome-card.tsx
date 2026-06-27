@@ -50,6 +50,8 @@ export function WelcomeCard() {
   const user = useAuth((s) => s.user)
   const status = useAuth((s) => s.status)
   const setUser = useAuth((s) => s.setUser)
+  // Skip the memory onboarding step when the global admin master switch is off.
+  const memoryAvailable = user?.memory_available !== false
 
   const lang = useLanguage((s) => s.lang)
   const setLang = useLanguage((s) => s.setLang)
@@ -100,8 +102,9 @@ export function WelcomeCard() {
 
   if (!mounted) return null
 
-  const last = STEPS.length - 1
-  const current = STEPS[step]
+  const steps = memoryAvailable ? STEPS : STEPS.filter((s) => s !== 'memory')
+  const last = steps.length - 1
+  const current = steps[step]
 
   async function markOnboarded(extra: Record<string, unknown>) {
     const patch = { onboarded: true, ...extra }
@@ -122,7 +125,7 @@ export function WelcomeCard() {
     try {
       // Memory is the only choice with a server-side mirror; the rest are
       // localStorage-backed and already applied live.
-      await markOnboarded({ memory_enabled: memory })
+      await markOnboarded({ memory_enabled: memoryAvailable ? memory : false })
       // Close the wizard (plays the zoom-out), then hand off to the welcome
       // dialog once the exit animation finishes.
       setOpen(false)
@@ -305,7 +308,7 @@ export function WelcomeCard() {
             <div className="flex-1 overflow-y-auto px-6 sm:px-8 pt-7 pb-2">
               {/* Progress */}
               <div className="flex items-center gap-1.5">
-                {STEPS.map((_, i) => (
+                {steps.map((_, i) => (
                   <span
                     key={i}
                     className={cn(
@@ -319,7 +322,7 @@ export function WelcomeCard() {
                   />
                 ))}
                 <span className="ml-auto text-[12px] tabular-nums text-[var(--color-fg-subtle)]">
-                  {step + 1} / {STEPS.length}
+                  {step + 1} / {steps.length}
                 </span>
               </div>
 

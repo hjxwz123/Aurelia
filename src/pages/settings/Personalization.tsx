@@ -14,6 +14,7 @@ import { Field } from '@/components/ui/label'
 import { toast } from '@/hooks/use-toast'
 import { authApi } from '@/api'
 import { useSettings } from '@/store/settings'
+import { useAuth } from '@/store/auth'
 import { MemoryManager } from '@/components/settings/memory-manager'
 import { cn } from '@/lib/utils'
 
@@ -35,6 +36,10 @@ export default function Personalization() {
   const { t } = useTranslation(['settings', 'memory', 'common'])
   const memoriesEnabled = useSettings((s) => s.privacy.memoriesEnabled)
   const setPrivacy = useSettings((s) => s.setPrivacy)
+  // Global admin master switch: when memory is turned off platform-wide, hide the
+  // per-user toggle entirely (no one can enable it; it's gated off server-side too).
+  // Absent flag (older backend) ⇒ treat as available.
+  const memoryAvailable = useAuth((s) => s.user?.memory_available !== false)
 
   const [traits, setTraits] = useState<string[]>([])
   const [nickname, setNickname] = useState('')
@@ -166,35 +171,37 @@ export default function Personalization() {
         </div>
       </section>
 
-      {/* Memory */}
-      <section className="mb-12">
-        <div className="mb-5">
-          <h2 className="font-serif tracking-tight text-xl text-[var(--color-fg)]">
-            {t('settings:personalization.memoryTitle')}
-          </h2>
-          <p className="mt-1.5 text-sm text-[var(--color-fg-muted)]">{t('settings:personalization.memorySubtitle')}</p>
-        </div>
-        <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)]">
-          <div className="px-5 sm:px-6 py-4 sm:py-5 flex items-center justify-between gap-6 border-b border-[var(--color-divider)]">
-            <div className="min-w-0">
-              <div className="text-sm font-medium text-[var(--color-fg)]">
-                {t('settings:personalization.memoryToggle')}
+      {/* Memory — only shown when the global admin master switch allows it. */}
+      {memoryAvailable && (
+        <section className="mb-12">
+          <div className="mb-5">
+            <h2 className="font-serif tracking-tight text-xl text-[var(--color-fg)]">
+              {t('settings:personalization.memoryTitle')}
+            </h2>
+            <p className="mt-1.5 text-sm text-[var(--color-fg-muted)]">{t('settings:personalization.memorySubtitle')}</p>
+          </div>
+          <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)]">
+            <div className="px-5 sm:px-6 py-4 sm:py-5 flex items-center justify-between gap-6 border-b border-[var(--color-divider)]">
+              <div className="min-w-0">
+                <div className="text-sm font-medium text-[var(--color-fg)]">
+                  {t('settings:personalization.memoryToggle')}
+                </div>
+                <p className="mt-1 text-xs text-[var(--color-fg-muted)] leading-relaxed max-w-md">
+                  {t('settings:personalization.memoryToggleBody')}
+                </p>
               </div>
-              <p className="mt-1 text-xs text-[var(--color-fg-muted)] leading-relaxed max-w-md">
-                {t('settings:personalization.memoryToggleBody')}
-              </p>
+              <Switch checked={memoriesEnabled} onCheckedChange={(v) => void onToggleMemory(Boolean(v))} />
             </div>
-            <Switch checked={memoriesEnabled} onCheckedChange={(v) => void onToggleMemory(Boolean(v))} />
+            <div className="px-5 sm:px-6 py-5">
+              {memoriesEnabled ? (
+                <MemoryManager />
+              ) : (
+                <p className="text-sm text-[var(--color-fg-subtle)]">{t('settings:personalization.memoryDisabled')}</p>
+              )}
+            </div>
           </div>
-          <div className="px-5 sm:px-6 py-5">
-            {memoriesEnabled ? (
-              <MemoryManager />
-            ) : (
-              <p className="text-sm text-[var(--color-fg-subtle)]">{t('settings:personalization.memoryDisabled')}</p>
-            )}
-          </div>
-        </div>
-      </section>
+        </section>
+      )}
     </div>
   )
 }

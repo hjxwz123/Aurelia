@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ChevronsRight, RefreshCw, Check } from 'lucide-react'
+import { ChevronsRight, RefreshCw, Check, X, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 /** The slider-puzzle challenge returned by GET /api/public/captcha. */
@@ -14,34 +14,39 @@ export interface PuzzleData {
   piece_y: number
 }
 
+/** idle → user is sliding; verifying → server is checking; success/error → result. */
+export type PuzzleStatus = 'idle' | 'verifying' | 'success' | 'error'
+
 interface PuzzleCaptchaProps {
   data: PuzzleData | null
   loading: boolean
-  /** Fired with the final drop position as a fraction of the track (0–1). */
+  status: PuzzleStatus
+  /** Fired with the final drop position as a fraction of the track (0–1) on release. */
   onChange: (fraction: number | null) => void
   onRefresh: () => void
-  invalid?: boolean
 }
+
+const HANDLE_W = 44 // px — keep in sync with the size-11 handle below
 
 /**
  * PuzzleCaptcha — drag the piece into the gap. The handle's position along its
- * track IS the answer fraction (0–1), so it's resolution-independent: the piece
- * renders at `fraction × (track width)` and we submit the same fraction. The
- * server holds the true gap fraction and checks it on register.
+ * track IS the answer fraction (0–1), resolution-independent: the piece renders
+ * at `fraction × track` and we submit the same fraction; the server holds the
+ * true gap fraction. Modern slider chrome: a coloured fill trails the handle and
+ * the track reflects the verify result (green / red).
  */
-export function PuzzleCaptcha({ data, loading, onChange, onRefresh, invalid }: PuzzleCaptchaProps) {
+export function PuzzleCaptcha({ data, loading, status, onChange, onRefresh }: PuzzleCaptchaProps) {
   const { t } = useTranslation('auth')
   const trackRef = useRef<HTMLDivElement>(null)
   const [fraction, setFraction] = useState(0)
   const [dragging, setDragging] = useState(false)
-  const [dropped, setDropped] = useState(false)
 
   // Reset whenever a fresh puzzle arrives.
   useEffect(() => {
     setFraction(0)
-    setDropped(false)
   }, [data?.id])
 
+  const locked = status === 'verifying' || status === 'success'
   const pieceWidthPct = data ? (data.piece_size / data.w) * 100 : 0
   const pieceTopPct = data ? (data.piece_y / data.h) * 100 : 0
   const pieceLeftPct = fraction * (100 - pieceWidthPct)
@@ -50,18 +55,16 @@ export function PuzzleCaptcha({ data, loading, onChange, onRefresh, invalid }: P
     const track = trackRef.current
     if (!track) return 0
     const rect = track.getBoundingClientRect()
-    const handleW = 40
-    const usable = rect.width - handleW
+    const usable = rect.width - HANDLE_W
     if (usable <= 0) return 0
-    return Math.min(1, Math.max(0, (clientX - rect.left - handleW / 2) / usable))
+    return Math.min(1, Math.max(0, (clientX - rect.left - HANDLE_W / 2) / usable))
   }
 
   function onPointerDown(e: React.PointerEvent) {
-    if (!data) return
+    if (!data || locked) return
     e.preventDefault()
     ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
     setDragging(true)
-    setDropped(false)
     onChange(null)
     setFraction(fractionFromClientX(e.clientX))
   }
@@ -72,28 +75,45 @@ export function PuzzleCaptcha({ data, loading, onChange, onRefresh, invalid }: P
   function onPointerUp(e: React.PointerEvent) {
     if (!dragging) return
     setDragging(false)
-    setDropped(true)
-    // Commit the value at the release position rather than the `fraction` state,
-    // which can lag the final pointermove by a frame (stale-closure).
+    // Commit the release position (state can lag the final pointermove a frame).
     const f = fractionFromClientX(e.clientX)
     setFraction(f)
     onChange(f)
   }
-
   function nudge(delta: number) {
+    if (locked) return
     const next = Math.min(1, Math.max(0, fraction + delta))
     setFraction(next)
-    setDropped(true)
     onChange(next)
   }
 
+  const fillColor =
+    status === 'success'
+      ? 'bg-[var(--color-success-soft)]'
+      : status === 'error'
+        ? 'bg-[var(--color-danger-soft)]'
+        : 'bg-[var(--color-accent-soft)]'
+
+  const hint =
+    status === 'verifying'
+      ? t('register.captchaVerifying', { defaultValue: '验证中…' })
+      : status === 'success'
+        ? t('register.captchaSuccess', { defaultValue: '验证成功' })
+        : status === 'error'
+          ? t('register.captchaWrong', { defaultValue: '验证失败，请重试' })
+          : t('register.captchaSlideHint', { defaultValue: '拖动滑块完成拼图' })
+
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-3">
       {/* Puzzle surface */}
       <div
         className={cn(
-          'relative w-full overflow-hidden rounded-[10px] border bg-[var(--color-bg-muted)]',
-          invalid ? 'border-[var(--color-danger)]' : 'border-[var(--color-border)]',
+          'relative w-full overflow-hidden rounded-[12px] border bg-[var(--color-bg-muted)]',
+          status === 'success'
+            ? 'border-[var(--color-success)]'
+            : status === 'error'
+              ? 'border-[var(--color-danger)]'
+              : 'border-[var(--color-border)]',
         )}
         style={{ aspectRatio: data ? `${data.w} / ${data.h}` : '280 / 160' }}
       >
@@ -104,33 +124,55 @@ export function PuzzleCaptcha({ data, loading, onChange, onRefresh, invalid }: P
               src={data.piece}
               alt=""
               draggable={false}
-              className="absolute select-none drop-shadow-[0_1px_3px_rgba(0,0,0,0.35)]"
+              className={cn(
+                'absolute select-none drop-shadow-[0_2px_6px_rgba(0,0,0,0.45)]',
+                !dragging && 'transition-[left] duration-150',
+              )}
               style={{ width: `${pieceWidthPct}%`, top: `${pieceTopPct}%`, left: `${pieceLeftPct}%`, height: 'auto' }}
             />
           </>
         ) : (
           <div className="grid size-full place-items-center text-[12px] text-[var(--color-fg-subtle)]">
-            {t('register.captchaLoading', { defaultValue: 'Loading…' })}
+            <Loader2 size={18} aria-hidden className="animate-[spin_0.8s_linear_infinite]" />
           </div>
         )}
+        {/* Refresh — dark glass chip, top-right (like a native slider captcha). */}
         <button
           type="button"
           onClick={onRefresh}
-          disabled={loading}
-          aria-label={t('register.captchaRefresh')}
-          className="absolute right-1.5 top-1.5 inline-flex size-7 items-center justify-center rounded-[8px] bg-[var(--color-surface)]/85 text-[var(--color-fg-muted)] backdrop-blur-sm hover:text-[var(--color-fg)] interactive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
+          disabled={loading || status === 'verifying'}
+          aria-label={t('register.captchaRefresh', { defaultValue: 'Refresh' })}
+          className="absolute right-2 top-2 inline-flex size-9 items-center justify-center rounded-[10px] bg-black/45 text-white backdrop-blur-sm hover:bg-black/60 interactive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60 disabled:opacity-60"
         >
-          <RefreshCw size={13} aria-hidden className={cn(loading && 'animate-[spin_0.8s_linear_infinite]')} />
+          <RefreshCw size={15} aria-hidden className={cn(loading && 'animate-[spin_0.8s_linear_infinite]')} />
         </button>
       </div>
 
       {/* Slider track */}
       <div
         ref={trackRef}
-        className="relative h-10 w-full select-none rounded-[10px] border border-[var(--color-border)] bg-[var(--color-bg-muted)]"
+        className={cn(
+          'relative h-12 w-full select-none overflow-hidden rounded-[10px] border bg-[var(--color-bg-muted)]',
+          status === 'error' ? 'border-[var(--color-danger)]' : 'border-[var(--color-border)]',
+        )}
       >
-        <span className="pointer-events-none absolute inset-0 grid place-items-center text-[12px] text-[var(--color-fg-subtle)]">
-          {dropped ? t('register.captchaDropped', { defaultValue: 'Release to verify on submit' }) : t('register.captchaSlide', { defaultValue: 'Slide to fit the piece' })}
+        {/* Coloured fill trailing the handle. */}
+        <span
+          aria-hidden
+          className={cn('pointer-events-none absolute inset-y-0 left-0 rounded-l-[10px]', fillColor)}
+          style={{ width: `calc(${fraction} * (100% - ${HANDLE_W}px) + ${HANDLE_W}px)` }}
+        />
+        <span
+          className={cn(
+            'pointer-events-none absolute inset-0 grid place-items-center text-[13px]',
+            status === 'success'
+              ? 'text-[var(--color-success)]'
+              : status === 'error'
+                ? 'text-[var(--color-danger)]'
+                : 'text-[var(--color-fg-subtle)]',
+          )}
+        >
+          {hint}
         </span>
         <button
           type="button"
@@ -138,8 +180,8 @@ export function PuzzleCaptcha({ data, loading, onChange, onRefresh, invalid }: P
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={Math.round(fraction * 100)}
-          aria-label={t('register.captchaSlide', { defaultValue: 'Slide to fit the piece' })}
-          disabled={!data}
+          aria-label={t('register.captchaSlideHint', { defaultValue: '拖动滑块完成拼图' })}
+          disabled={!data || locked}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
@@ -148,15 +190,26 @@ export function PuzzleCaptcha({ data, loading, onChange, onRefresh, invalid }: P
             if (e.key === 'ArrowLeft') { e.preventDefault(); nudge(-0.02) }
           }}
           className={cn(
-            'absolute top-1/2 flex h-9 w-10 -translate-y-1/2 touch-none items-center justify-center rounded-[8px]',
-            'border interactive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]',
-            dropped
-              ? 'border-[var(--color-accent)] bg-[var(--color-accent)] text-[var(--color-accent-fg)]'
-              : 'border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-fg-muted)] shadow-[var(--shadow-sm)]',
+            'absolute top-1/2 flex size-11 -translate-y-1/2 touch-none items-center justify-center rounded-[9px]',
+            'shadow-[var(--shadow-md)] interactive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]',
+            !dragging && 'transition-[left] duration-150',
+            status === 'success'
+              ? 'bg-[var(--color-success)] text-white'
+              : status === 'error'
+                ? 'bg-[var(--color-danger)] text-white'
+                : 'bg-[var(--color-surface)] text-[var(--color-fg-muted)]',
           )}
-          style={{ left: `calc(${fraction} * (100% - 40px))` }}
+          style={{ left: `calc(${fraction} * (100% - ${HANDLE_W}px))` }}
         >
-          {dropped ? <Check size={15} aria-hidden /> : <ChevronsRight size={15} aria-hidden />}
+          {status === 'verifying' ? (
+            <Loader2 size={17} aria-hidden className="animate-[spin_0.8s_linear_infinite]" />
+          ) : status === 'success' ? (
+            <Check size={17} aria-hidden />
+          ) : status === 'error' ? (
+            <X size={17} aria-hidden />
+          ) : (
+            <ChevronsRight size={18} aria-hidden />
+          )}
         </button>
       </div>
     </div>

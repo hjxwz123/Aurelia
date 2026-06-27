@@ -48,6 +48,11 @@ type User struct {
 	// "tier" label shown in the sidebar). Populated alongside Features on the
 	// auth/me responses; never persisted on the users table.
 	GroupName string `json:"group_name,omitempty"`
+	// MemoryAvailable mirrors the GLOBAL admin `memory_enabled` master switch so the
+	// client can show/hide the per-user memory toggle (when off, no one can enable
+	// memory). Transient — populated alongside the group fields on auth/me; never
+	// persisted on the users table.
+	MemoryAvailable bool `json:"memory_available"`
 }
 
 // UserGroup is a membership tier (§ user groups). Features is a JSON array of
@@ -252,8 +257,12 @@ type Message struct {
 	Error    string  `json:"error"`
 	Feedback string  `json:"feedback"` // "" | "like" | "dislike" (§ message feedback)
 	// GenMs is the wall-clock time the assistant turn took to generate (ms).
-	GenMs     int64 `json:"gen_ms"`
-	CreatedAt int64 `json:"created_at"`
+	GenMs int64 `json:"gen_ms"`
+	// Verify holds the secondary-auditor result (Verify mode, §verify) for this
+	// assistant turn: JSON {verdict,findings:[{severity,quote,issue}],...}.
+	// Omitted from the wire when the turn was never audited.
+	Verify    json.RawMessage `json:"verify,omitempty"`
+	CreatedAt int64           `json:"created_at"`
 }
 
 // KnowledgeBase — §5 knowledge_bases row.

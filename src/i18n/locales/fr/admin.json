@@ -508,7 +508,9 @@
       "fallbackTtft": "Délai 1er token (s)",
       "fallbackTtftHint": "Couper l'amont après ce délai sans sortie. 0 = désactivé.",
       "imagePromptModel": "Modèle de prompt d'image",
-      "imagePromptModelHint": "Modèle texte qui affine les prompts avant le dessin. Aucun = ignorer."
+      "imagePromptModelHint": "Modèle texte qui affine les prompts avant le dessin. Aucun = ignorer.",
+      "verifyModel": "Modèle vérificateur",
+      "verifyModelHint": "Second modèle qui vérifie les réponses en mode Vérifier. Aucun = désactivé."
     }
   },
   "groups": {

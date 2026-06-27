@@ -32,6 +32,8 @@
     "voiceFailed": "Impossible de transcrire l'enregistrement.",
     "research": "Recherche",
     "researchTooltip": "Mode recherche approfondie",
+    "verify": "Vérifier",
+    "verifyTooltip": "Faire vérifier la réponse par un second modèle",
     "canvas": "Canvas",
     "canvasTooltip": "Mode Canvas",
     "send": "Envoyer ({{kbd}} + Enter)",
@@ -117,6 +119,17 @@
     "label": "Sources",
     "open": "Ouvrir la source",
     "fromDocuments": "depuis vos documents"
+  },
+  "verify": {
+    "verifying": "Vérification…",
+    "clean": "Vérifié",
+    "issues": "{{count}} problème(s) trouvé(s)",
+    "auditedBy": "Vérifié par {{model}}",
+    "severity": {
+      "error": "Erreur",
+      "warning": "Attention",
+      "note": "Note"
+    }
   },
   "research": {
     "title": "Recherche approfondie",
@@ -274,7 +287,9 @@
     "allTags": "Tous",
     "noneForTag": "Aucun modèle avec cette étiquette.",
     "creditRate": "Crédits par token",
-    "imageSection": "Génération d'images"
+    "imageSection": "Génération d'images",
+    "creditsPerImage": "Crédits par image",
+    "creditsUnit": "crédits"
   },
   "commandMenu": {
     "placeholder": "Rechercher des conversations, lancer une commande…",

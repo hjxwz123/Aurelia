@@ -17,6 +17,13 @@ type announcement struct {
 	ImageURL        string `json:"image_url"`
 	RememberDismiss bool   `json:"remember_dismiss"`
 	UpdatedAt       int64  `json:"updated_at"`
+	// Pinned top bar (§ announcement bar) — a thin strip pinned to the top of the
+	// app, independent of the popup. BarHTML is sanitized client-side before
+	// render (links allowed). BarUpdatedAt is the dismiss version: editing the bar
+	// bumps it so it re-shows for everyone who dismissed the previous one.
+	BarEnabled   bool   `json:"bar_enabled"`
+	BarHTML      string `json:"bar_html"`
+	BarUpdatedAt int64  `json:"bar_updated_at"`
 }
 
 // announcementHandler returns the active announcement for the client to render.
@@ -29,7 +36,10 @@ func announcementHandler(d Deps, w http.ResponseWriter, _ *http.Request) {
 		return
 	}
 	var a announcement
-	if json.Unmarshal(raw, &a) != nil || !a.Enabled {
+	// Return the config when EITHER the popup or the pinned bar is active; the
+	// client renders each independently (popup gated on Enabled, bar on
+	// BarEnabled). Both off / malformed → {} so the client shows nothing.
+	if json.Unmarshal(raw, &a) != nil || (!a.Enabled && !a.BarEnabled) {
 		writeJSON(w, 200, announcement{})
 		return
 	}

@@ -5,10 +5,22 @@ import (
 	"encoding/json"
 	"math"
 	"net/http"
+	"strings"
 	"time"
 
 	"aurelia/server/internal/store"
 )
+
+// imageCreditCost is the per-image cost in CREDITS for an image model:
+// price_per_image × the global USD→credit rate (e.g. $0.2/image × 100 = 20). The
+// picker shows it after the name when the model is credit-charged. 0 for chat
+// models, when the model is free, or when the credit system is off (rate 0).
+func imageCreditCost(m store.Model, ratePerUSD float64) float64 {
+	if m.Kind != "image" || m.PricePerImage <= 0 || ratePerUSD <= 0 {
+		return 0
+	}
+	return math.Round(m.PricePerImage*ratePerUSD*100) / 100
+}
 
 // creditMultiplier is the relative credit rate shown in the picker: the model's
 // (input + output price) / 5 (so a $5 combined price = ×1.0), one decimal.
@@ -110,6 +122,10 @@ func modelsResponse(d Deps, r *http.Request, models []store.Model) map[string]an
 		// Multiplier is the relative credit rate shown next to the name: the model's
 		// (input price + output price) / 5, where 5 = ×1.0. One decimal.
 		Multiplier float64 `json:"multiplier"`
+		// CreditsPerImage is an IMAGE model's per-image cost in credits
+		// (price_per_image × credits_per_usd). The picker shows "N credits" after the
+		// name when the model is credit-charged; 0 for chat / free / credits-off.
+		CreditsPerImage float64 `json:"credits_per_image"`
 	}
 
 	// Resolve per-model free-allotment state for the caller's group. Restricted =
@@ -127,28 +143,51 @@ func modelsResponse(d Deps, r *http.Request, models []store.Model) map[string]an
 	}
 	grants, _ := store.QuotasForGroup(r.Context(), d.DB, groupID)
 
+	// Global USD→credit rate, read once. 0 (default / unset) disables the credit
+	// system, so image models show no per-image credit cost.
+	creditsPerUSD := 0.0
+	if raw, err := store.GetSetting(d.DB, "credits_per_usd"); err == nil {
+		_ = json.Unmarshal(raw, &creditsPerUSD)
+	}
+
 	items := []item{}
 	for _, m := range models {
 		tags := m.Tags
 		if tags == nil {
 			tags = json.RawMessage("[]")
 		}
+		usesCredits := !isAdmin && modelUsesCredits(r.Context(), d, userID, m, restricted[m.ID], grants)
+		creditsPerImage := 0.0
+		if usesCredits {
+			creditsPerImage = imageCreditCost(m, creditsPerUSD)
+		}
 		items = append(items, item{
 			ID: m.ID, Label: m.Label, Description: m.Description, Icon: m.Icon,
 			Kind: m.Kind, Vision: m.Vision, Stream: m.Stream, ToolMode: m.ToolMode,
 			ParamControls: m.ParamControls, ChannelID: m.ChannelID, SortOrder: m.SortOrder,
-			Currency:    m.Currency,
-			Tags:        tags,
-			UsesCredits: !isAdmin && modelUsesCredits(r.Context(), d, userID, m, restricted[m.ID], grants),
-			Multiplier:  creditMultiplier(m),
+			Currency:        m.Currency,
+			Tags:            tags,
+			UsesCredits:     usesCredits,
+			Multiplier:      creditMultiplier(m),
+			CreditsPerImage: creditsPerImage,
 		})
 	}
 	defaultID := ""
 	if raw, err := store.GetSetting(d.DB, "default_model_id"); err == nil {
 		_ = json.Unmarshal(raw, &defaultID)
 	}
+	// §verify: whether an auditor model is configured, so the composer can show
+	// the Verify toggle only when the feature is actually usable.
+	verifyAvailable := false
+	if raw, err := store.GetSetting(d.DB, "verify_model_id"); err == nil {
+		var id string
+		if json.Unmarshal(raw, &id) == nil && strings.TrimSpace(id) != "" {
+			verifyAvailable = true
+		}
+	}
 	return map[string]any{
-		"models":     items,
-		"default_id": defaultID,
+		"models":           items,
+		"default_id":       defaultID,
+		"verify_available": verifyAvailable,
 	}
 }

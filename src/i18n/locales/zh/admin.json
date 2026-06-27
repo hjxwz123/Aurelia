@@ -508,7 +508,9 @@
       "fallbackTtft": "首字超时(秒)",
       "fallbackTtftHint": "上游这么多秒无任何输出就切断。0 = 关闭。",
       "imagePromptModel": "图片提示词模型",
-      "imagePromptModelHint": "绘图前用于润色提示词的文本模型。选「无」则跳过。"
+      "imagePromptModelHint": "绘图前用于润色提示词的文本模型。选「无」则跳过。",
+      "verifyModel": "审校（审计）模型",
+      "verifyModelHint": "在审校模式下核查答案的第二个模型。选「无」则关闭审校。"
     }
   },
   "groups": {

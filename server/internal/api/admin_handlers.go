@@ -865,6 +865,9 @@ var settingsKeys = []string{
 	// Blank = no optimization (deterministic join). Image MODELS are picked per
 	// conversation from the model picker, so there's no default-image-model key.
 	"image_prompt_model_id",
+	// §verify: the secondary auditor model that fact-checks answers in Verify
+	// mode. Blank = Verify mode off platform-wide.
+	"verify_model_id",
 }
 
 // sensitiveKeywords lists substrings that identify secret settings fields.

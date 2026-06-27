@@ -76,6 +76,41 @@ func captchaHandler(d Deps, w http.ResponseWriter, _ *http.Request) {
 	})
 }
 
+// captchaVerifyHandler checks a slider solution NOW (so the client shows
+// immediate green/red feedback — the modern UX) and, on success, issues a
+// single-use PASS token that the register call presents instead of re-solving.
+// The underlying challenge is consumed on every attempt (verifyPuzzleCaptcha is
+// single-use), so a wrong drag forces a fresh puzzle.
+func captchaVerifyHandler(d Deps, w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ID       string  `json:"id"`
+		Fraction float64 `json:"fraction"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeJSON(w, 200, map[string]any{"ok": false})
+		return
+	}
+	if !verifyPuzzleCaptcha(d, req.ID, strconv.FormatFloat(req.Fraction, 'f', 6, 64)) {
+		writeJSON(w, 200, map[string]any{"ok": false})
+		return
+	}
+	token := randToken(24)
+	d.Cache.Set("captcha_pass:"+token, "1", 10*time.Minute)
+	writeJSON(w, 200, map[string]any{"ok": true, "token": token})
+}
+
+// consumeCaptchaPass validates and single-use-consumes a pass token minted by
+// captchaVerifyHandler. The register handler calls it when a captcha is required.
+func consumeCaptchaPass(d Deps, token string) bool {
+	if strings.TrimSpace(token) == "" {
+		return false
+	}
+	key := "captcha_pass:" + token
+	_, ok := d.Cache.Get(key)
+	d.Cache.Delete(key)
+	return ok
+}
+
 // verifyPuzzleCaptcha consumes the cached challenge and checks the submitted drop
 // fraction against the true gap fraction within capTol. Single-use: the entry is
 // deleted on any attempt so a guessed id can't be hammered.

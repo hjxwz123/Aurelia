@@ -150,10 +150,21 @@ export function ConversationOutline({ conversation, scrollContainerRef, onClose 
   const didFit = useRef(false)
 
   // Full branch tree (all branches). ?mode=tree gives parent_id edges straight
-  // from the server; refetch only when the tree shape can change (gated on "not
-  // streaming" so we don't refetch per token).
+  // from the server; refetch when the tree SHAPE can change. We key on a signature
+  // of the settled active-path messages (ids + branch counts), NOT just their
+  // count: a RETRY swaps the active leaf for a NEW sibling, which keeps the path
+  // length identical — so a count-based trigger would never refetch and the
+  // outline would show a stale single branch (§ branch tree). Gated on "not
+  // streaming" so we don't refetch per token.
   const convId = conversation.id
-  const settledCount = conversation.messages.filter((m) => !m.streaming).length
+  const treeSig = useMemo(
+    () =>
+      conversation.messages
+        .filter((m) => !m.streaming)
+        .map((m) => `${m.id}:${m.branchCount ?? 1}`)
+        .join('|'),
+    [conversation.messages],
+  )
   const [treeMsgs, setTreeMsgs] = useState<Message[] | null>(null)
   useEffect(() => {
     let alive = true
@@ -164,7 +175,7 @@ export function ConversationOutline({ conversation, scrollContainerRef, onClose 
     return () => {
       alive = false
     }
-  }, [convId, settledCount])
+  }, [convId, treeSig])
 
   const activeIds = useMemo(() => new Set(conversation.messages.map((m) => m.id)), [conversation.messages])
   const activeLeafId = useMemo(() => {

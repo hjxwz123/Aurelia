@@ -101,9 +101,9 @@ type registerReq struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
 	Name     string `json:"name"`
-	// Arithmetic captcha (only checked when register_captcha_required is on).
-	CaptchaID     string `json:"captcha_id"`
-	CaptchaAnswer string `json:"captcha_answer"`
+	// Single-use slider-captcha PASS token from POST /api/public/captcha/verify
+	// (only checked when register_captcha_required is on).
+	CaptchaToken string `json:"captcha_token"`
 }
 
 type authResp struct {
@@ -157,14 +157,15 @@ func registerHandler(d Deps, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Arithmetic captcha gate. The answer is single-use: consume it whether or
-	// not it matched so a guessed id can't be hammered.
+	// Slider-captcha gate. The client solves the puzzle via /captcha/verify, which
+	// returns a single-use pass token; we consume it here (single-use whether or
+	// not it was valid, so a guessed token can't be hammered).
 	captchaRequired := false
 	if raw, _ := store.GetSetting(d.DB, "register_captcha_required"); len(raw) > 0 {
 		_ = json.Unmarshal(raw, &captchaRequired)
 	}
 	if captchaRequired {
-		if !verifyPuzzleCaptcha(d, req.CaptchaID, req.CaptchaAnswer) {
+		if !consumeCaptchaPass(d, req.CaptchaToken) {
 			writeError(w, 400, errCaptcha)
 			return
 		}

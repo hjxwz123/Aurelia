@@ -60,12 +60,14 @@ func (o *Orchestrator) checkModelQuota(ctx context.Context, userID string, model
 	groupID := o.userGroupID(ctx, userID)
 	q, err := store.GetModelQuota(ctx, o.db, model.ID, groupID)
 	if err != nil {
-		// The model has quota rows (it's restricted) but this group has no
-		// matching row → the model is not available for this plan (H-14).
-		// Fall through to credits is NOT allowed when the model is explicitly
-		// restricted; credits are only a payment mechanism for groups that are
-		// granted access, not a bypass for groups that are excluded.
-		return o.quotaMessage(), false, false
+		// Restricted model, but THIS group has no free-allotment row → it gets no
+		// free uses, yet it can still PAY with credits. This MUST match the model
+		// picker's `uses_credits` badge (modelUsesCredits returns true for exactly
+		// this case), or the user is shown "pay with credits" and then blocked when
+		// they actually send. creditDecision still blocks when credits are disabled
+		// (credits_per_usd=0) or the user can't cover the cost, so non-credit
+		// deployments stay hard-locked exactly as before.
+		return o.creditDecision(ctx, userID, groupID)
 	}
 	if q.LimitValue <= 0 {
 		return "", true, false // granted unlimited free
@@ -168,10 +170,12 @@ func (o *Orchestrator) creditDecision(ctx context.Context, userID, groupID strin
 		// Credits disabled (no global rate) → nothing to charge against.
 		return o.quotaMessage(), false, false
 	}
-	// Timed credits only apply when an explicit refresh period is set; otherwise
-	// the group is permanent-credits-only.
+	// A group credit allowance is honoured even with no explicit refresh period:
+	// the admin form defaults the period to 0, and silently ignoring a configured
+	// allowance ("100 credits") is a footgun. With period<=0 it uses the default
+	// window (creditWindow → 7 days); set a period to change the refresh cadence.
 	timedRemaining := 0.0
-	if g.CreditPeriodSeconds > 0 && g.CreditAllowance > 0 {
+	if g.CreditAllowance > 0 {
 		start, ttl := creditWindow(g.CreditPeriodSeconds)
 		timedRemaining = g.CreditAllowance - o.readTimedCreditsUsed(ctx, userID, start, ttl)
 		if timedRemaining < 0 {
@@ -201,12 +205,14 @@ func (o *Orchestrator) chargeTurnCredits(ctx context.Context, userID string, usd
 		return 0, 0
 	}
 	credits := usdCost * ratio
-	// Timed credits only exist with an explicit refresh period; otherwise charge
-	// entirely against the permanent balance.
+	// Spend the group allowance (timed) first, then the permanent balance. Mirror
+	// creditDecision: a configured allowance counts even with no explicit period
+	// (default window via creditWindow). Read/charge MUST agree or the decision and
+	// the debit drift apart.
 	var remaining float64
 	var start int64
 	var ttl time.Duration
-	if g.CreditPeriodSeconds > 0 && g.CreditAllowance > 0 {
+	if g.CreditAllowance > 0 {
 		start, ttl = creditWindow(g.CreditPeriodSeconds)
 		remaining = g.CreditAllowance - o.readTimedCreditsUsed(ctx, userID, start, ttl)
 		if remaining < 0 {

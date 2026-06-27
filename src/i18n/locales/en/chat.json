@@ -32,6 +32,8 @@
     "voiceFailed": "Couldn't transcribe the recording.",
     "research": "Research",
     "researchTooltip": "Deep research mode",
+    "verify": "Verify",
+    "verifyTooltip": "Have a second model fact-check the answer",
     "canvas": "Canvas",
     "canvasTooltip": "Canvas mode",
     "send": "Send ({{kbd}} + Enter)",
@@ -117,6 +119,17 @@
     "label": "Sources",
     "open": "Open source",
     "fromDocuments": "from your documents"
+  },
+  "verify": {
+    "verifying": "Verifying…",
+    "clean": "Verified",
+    "issues": "{{count}} issues found",
+    "auditedBy": "Audited by {{model}}",
+    "severity": {
+      "error": "Error",
+      "warning": "Caution",
+      "note": "Note"
+    }
   },
   "research": {
     "title": "Deep research",
@@ -274,7 +287,9 @@
     "allTags": "All",
     "noneForTag": "No models with this tag.",
     "creditRate": "Credits per token",
-    "imageSection": "Image generation"
+    "imageSection": "Image generation",
+    "creditsPerImage": "Credits per image",
+    "creditsUnit": "credits"
   },
   "commandMenu": {
     "placeholder": "Search conversations, run a command…",

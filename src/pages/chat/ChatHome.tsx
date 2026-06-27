@@ -130,6 +130,7 @@ export default function ChatHome() {
       mode?: 'default' | 'deep-research' | 'canvas'
       params?: Record<string, unknown>
       imageStyleId?: string
+      verify?: boolean
     } = {},
   ) {
     // Reuse the conversation created up front for an attachment (so its uploads
@@ -154,6 +155,7 @@ export default function ChatHome() {
       mode: opts.mode,
       params: opts.params,
       imageStyleId: opts.imageStyleId,
+      verify: opts.verify,
     })
   }
 
@@ -189,7 +191,10 @@ export default function ChatHome() {
               </p>
             </header>
 
-            <div className="home-rise mt-7 sm:mt-10 mx-auto w-full max-w-[var(--layout-message-max-w)]">
+            {/* Fixed, comfortable width — deliberately NOT --layout-message-max-w,
+                so the home input doesn't widen with the appearance → chat-width
+                ("full") setting (that governs the conversation column, not this). */}
+            <div className="home-rise mt-7 sm:mt-10 mx-auto w-full max-w-[44rem]">
               <Composer
                 modelId={modelId}
                 onModelChange={setPickedModelId}
@@ -200,7 +205,7 @@ export default function ChatHome() {
             </div>
 
             {!drawMode && (
-              <div className="mt-8 sm:mt-10 mx-auto w-full max-w-[var(--layout-message-max-w)]">
+              <div className="mt-8 sm:mt-10 mx-auto w-full max-w-[44rem]">
                 {/* Single row, fixed-width cards, horizontally scrollable (snap).
                     Scrollbar hidden; on phones the rail bleeds to the screen edges
                     so the next card peeks. */}

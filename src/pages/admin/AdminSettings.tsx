@@ -25,6 +25,7 @@ const OWNED_KEYS = [
   'default_model_id',
   'task_model_id',
   'image_prompt_model_id',
+  'verify_model_id',
   'fallback_model_id',
   'fallback_ttft_sec',
   'keep_recent_rounds',
@@ -166,6 +167,34 @@ export default function AdminSettings() {
               onValueChange={(v) => setDraft({ ...draft, image_prompt_model_id: v === 'none' ? '' : v })}
             >
               <SelectTrigger id="image-prompt-model">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">{t('admin:settings.fields.fallbackNone', { defaultValue: 'None' })}</SelectItem>
+                {models.map((m) => (
+                  <SelectItem key={m.id} value={m.id}>
+                    {m.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+
+          {/* §verify: the secondary auditor model that fact-checks answers when a
+              user enables Verify mode. "none" disables Verify mode platform-wide.
+              Ideally a strong model from a DIFFERENT provider than the user's. */}
+          <Field
+            label={t('admin:settings.fields.verifyModel', { defaultValue: 'Verify (auditor) model' })}
+            htmlFor="verify-model"
+            hint={t('admin:settings.fields.verifyModelHint', {
+              defaultValue: 'Second model that fact-checks answers in Verify mode. None = Verify off.',
+            })}
+          >
+            <Select
+              value={readString('verify_model_id') || 'none'}
+              onValueChange={(v) => setDraft({ ...draft, verify_model_id: v === 'none' ? '' : v })}
+            >
+              <SelectTrigger id="verify-model">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

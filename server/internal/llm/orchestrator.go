@@ -247,6 +247,10 @@ type RunRequest struct {
 	// Mode selects an alternate turn pipeline. "" = normal chat;
 	// ModeDeepResearch runs the multi-round research engine (deep_research.go).
 	Mode string
+	// Verify enables Verify mode (§verify) for this turn: after the primary
+	// answer finalizes, a secondary auditor model fact-checks it. Honoured only
+	// when an admin has configured `verify_model_id`; otherwise a no-op.
+	Verify bool
 	// ImageStyleID selects an admin-managed image style (§4.20) for an image-mode
 	// turn (conversation model kind=image). Its hidden prompt is composed
 	// server-side into the final image prompt; ignored for chat models.
@@ -914,6 +918,19 @@ func (o *Orchestrator) Run(ctx context.Context, req RunRequest, onEvent func(Sse
 			if result != nil {
 				usage = result.Usage
 			}
+			// §发出就算: a user-stopped turn is finalized like a completed one — the
+			// partial output is billed, burns the window quota, and (past the free
+			// allotment) is charged in credits for exactly what was produced. Only
+			// true provider failures and pre-send refusals stay free.
+			stopChatCost := computeCost(*model, usage)
+			produced := usage.InputTokens > 0 || usage.OutputTokens > 0
+			var timedCredits, stopCredits float64
+			if payWithCredits && produced {
+				timedCredits, stopCredits = o.chargeTurnCredits(ctx, conv.UserID, stopChatCost)
+			}
+			// Image credits (a tool that drew before the stop) are already debited by
+			// ImageBilling; fold them into the per-turn total the user sees.
+			turnCredits := stopCredits + runner.ctx.ImageCreditsTotal()
 			_ = store.FinishMessage(ctx, o.db, assistantMsg.ID, store.MessageFinishPatch{
 				Blocks:           partialJSON,
 				Citations:        citesJSON,
@@ -922,12 +939,15 @@ func (o *Orchestrator) Run(ctx context.Context, req RunRequest, onEvent func(Sse
 				OutputTokens:     usage.OutputTokens,
 				CacheReadTokens:  usage.CacheReadTokens,
 				CacheWriteTokens: usage.CacheWriteTokens,
-				Cost:             computeCost(*model, usage),
+				Cost:             stopChatCost,
+				Credits:          turnCredits,
 				Status:           "stopped",
 				GenMs:            time.Since(turnStart).Milliseconds(),
 			})
-			// Bill what the model actually produced before we cancelled.
-			if usage.InputTokens > 0 || usage.OutputTokens > 0 {
+			// Bill + count what the model produced before the stop. The usage_logs row
+			// and the window-quota increment go together so the cache counter and the
+			// usage_logs COUNT(*) cold-reseed stay in agreement (§B3).
+			if produced {
 				_ = store.LogUsage(ctx, o.db, store.UsageLog{
 					UserID:           conv.UserID,
 					ConversationID:   conv.ID,
@@ -938,11 +958,13 @@ func (o *Orchestrator) Run(ctx context.Context, req RunRequest, onEvent func(Sse
 					OutputTokens:     usage.OutputTokens,
 					CacheReadTokens:  usage.CacheReadTokens,
 					CacheWriteTokens: usage.CacheWriteTokens,
-					Cost:             computeCost(*model, usage),
+					Cost:             stopChatCost,
 					Currency:         model.Currency,
+					Credits:          timedCredits,
 				})
+				o.recordQuotaUsage(ctx, conv.UserID, model, stopChatCost)
 			}
-			onEvent(SseEvent{Type: "done", MessageID: assistantMsg.ID, StopReason: "stopped", Usage: &usage})
+			onEvent(SseEvent{Type: "done", MessageID: assistantMsg.ID, StopReason: "stopped", Usage: &usage, Credits: turnCredits})
 			finalAssistant, _ := store.GetMessage(ctx, o.db, assistantMsg.ID)
 			return &RunResult{UserMessage: userMsg, AssistantMessage: finalAssistant}, nil
 		}
@@ -1014,6 +1036,13 @@ func (o *Orchestrator) Run(ctx context.Context, req RunRequest, onEvent func(Sse
 		rawToStore = nil
 	}
 	chatCost := computeCost(*model, result.Usage)
+	// §verify: when Verify mode is on, a secondary auditor model fact-checks A's
+	// finished answer. Runs HERE — after the answer is final but BEFORE
+	// tallyTurnSideCosts — so its usage row (purpose='verify', pinned to this
+	// message) folds into the turn cost + credit charge below. Fail-open.
+	if req.Verify {
+		o.runVerify(ctx, conv, assistantMsg.ID, req.UserText, result, onEvent)
+	}
 	// §8 cost rule: messages.cost is the FULL spend the user incurred for this
 	// turn — chat + any image_generate calls + any embedding queries inside
 	// the loop. The image/embedding rows are still logged separately so
@@ -1960,10 +1989,11 @@ func tallyTurnSideCosts(ctx context.Context, db *sql.DB, convID, msgID string) f
 	}
 	var total sql.NullFloat64
 	// Include task.image_prompt: the §4.20 prompt-optimization spend is pinned to
-	// this assistant message and is part of the turn's full cost (§8).
+	// this assistant message and is part of the turn's full cost (§8). Include
+	// 'verify': the §verify auditor call is also part of this turn's full cost.
 	_ = db.QueryRowContext(ctx,
 		`SELECT COALESCE(SUM(cost),0) FROM usage_logs
-		 WHERE message_id=? AND purpose IN ('image','embedding','task.image_prompt')`, msgID).Scan(&total)
+		 WHERE message_id=? AND purpose IN ('image','embedding','task.image_prompt','verify')`, msgID).Scan(&total)
 	if total.Valid {
 		return total.Float64
 	}

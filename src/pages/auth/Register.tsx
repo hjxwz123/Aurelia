@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Trans, useTranslation } from 'react-i18next'
 import { motion } from 'framer-motion'
@@ -13,7 +13,7 @@ import { useAuth } from '@/store/auth'
 import { authApi, setAccessToken, ApiError } from '@/api'
 import { useOAuthProviders } from '@/hooks/use-oauth-providers'
 import { OAuthButtons } from '@/components/auth/oauth-buttons'
-import { PuzzleCaptcha, type PuzzleData } from '@/components/auth/puzzle-captcha'
+import { PuzzleCaptchaDialog } from '@/components/auth/puzzle-captcha-dialog'
 
 const ease: [number, number, number, number] = [0.2, 0.8, 0.2, 1]
 const stagger = { hidden: {}, visible: { transition: { staggerChildren: 0.06, delayChildren: 0.04 } } }
@@ -38,27 +38,11 @@ export default function Register() {
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState<{ name?: string; email?: string; pw?: string; agree?: string; captcha?: string; general?: string }>({})
 
-  // Slider-puzzle captcha (only when the admin requires it). Single-use
-  // server-side, so we fetch a fresh one on mount and after every failed attempt.
-  // captchaAnswer holds the drop position as a fraction (0–1), null until dragged.
-  const [captcha, setCaptcha] = useState<PuzzleData | null>(null)
-  const [captchaAnswer, setCaptchaAnswer] = useState<number | null>(null)
-  const [captchaLoading, setCaptchaLoading] = useState(false)
-
-  async function loadCaptcha() {
-    setCaptchaLoading(true)
-    try {
-      setCaptcha(await authApi.captcha())
-      setCaptchaAnswer(null)
-    } catch {
-      /* leave the previous puzzle in place; the user can retry */
-    } finally {
-      setCaptchaLoading(false)
-    }
-  }
-  useEffect(() => {
-    if (captchaRequired) void loadCaptcha()
-  }, [captchaRequired])
+  // Slider-puzzle captcha (only when the admin requires it) — solved in a modal
+  // (PuzzleCaptchaDialog) that returns a single-use pass token. The register call
+  // consumes the token; on captcha failure we clear it and re-open the dialog.
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null)
+  const [captchaOpen, setCaptchaOpen] = useState(false)
 
   // Verification step state
   const [code, setCode] = useState('')
@@ -66,7 +50,7 @@ export default function Register() {
   const [verifyError, setVerifyError] = useState<string | undefined>()
   const [resending, setResending] = useState(false)
 
-  async function submit(e: React.FormEvent) {
+  function submit(e: React.FormEvent) {
     e.preventDefault()
     const next: typeof errors = {}
     if (!name.trim()) next.name = t('errors.required')
@@ -75,16 +59,20 @@ export default function Register() {
     if (!pw) next.pw = t('errors.required')
     else if (pw.length < 8) next.pw = t('errors.minPassword')
     if (!agree) next.agree = t('errors.acceptTerms')
-    if (captchaRequired && captchaAnswer == null) next.captcha = t('register.captchaSlide', { defaultValue: 'Slide to fit the piece' })
     setErrors(next)
     if (Object.keys(next).length) return
+    // Captcha gate: pop the modal first (it hands back a pass token via onSolved,
+    // which then continues the registration). No captcha required → go straight on.
+    if (captchaRequired && !captchaToken) {
+      setCaptchaOpen(true)
+      return
+    }
+    void finishRegister(captchaToken)
+  }
+
+  async function finishRegister(token: string | null) {
     setLoading(true)
-    const result = await register(
-      email,
-      pw,
-      name.trim(),
-      captchaRequired && captcha && captchaAnswer != null ? { id: captcha.id, answer: String(captchaAnswer) } : undefined,
-    )
+    const result = await register(email, pw, name.trim(), captchaRequired ? token ?? undefined : undefined)
     setLoading(false)
     if (result === 'verify') {
       // verification_required — the store sets pendingVerification, UI will switch
@@ -92,24 +80,29 @@ export default function Register() {
     }
     if (!result) {
       const err = useAuth.getState().error
-      // Map the backend's stable machine codes to friendly copy, and refresh the
-      // single-use captcha so the user can immediately retry.
+      // The pass token is single-use server-side, so any failure invalidates it —
+      // clear it so the next attempt re-solves the puzzle.
+      setCaptchaToken(null)
       if (err === 'captcha_failed') {
-        void loadCaptcha()
-        setErrors({ captcha: t('register.captchaWrong') })
+        setErrors({ captcha: t('register.captchaWrong', { defaultValue: '验证失败，请重试' }) })
+        if (captchaRequired) setCaptchaOpen(true)
         return
       }
       if (err === 'register_ip_limit') {
-        if (captchaRequired) void loadCaptcha()
         setErrors({ general: t('register.ipLimited') })
         return
       }
-      if (captchaRequired) void loadCaptcha()
       setErrors({ general: err ?? t('errors.required') })
       return
     }
     toast.success(t('register.welcome'), t('register.welcomeBody'))
     navigate('/')
+  }
+
+  // The dialog verified a solution and minted a token → store it and continue.
+  function onCaptchaSolved(token: string) {
+    setCaptchaToken(token)
+    void finishRegister(token)
   }
 
   async function submitCode(e: React.FormEvent) {
@@ -310,19 +303,6 @@ export default function Register() {
             />
           </Field>
         </motion.div>
-        {captchaRequired ? (
-          <motion.div variants={fadeUp}>
-            <Field label={t('register.captchaLabel')} error={errors.captcha}>
-              <PuzzleCaptcha
-                data={captcha}
-                loading={captchaLoading}
-                onChange={setCaptchaAnswer}
-                onRefresh={() => void loadCaptcha()}
-                invalid={!!errors.captcha}
-              />
-            </Field>
-          </motion.div>
-        ) : null}
         <motion.label variants={fadeUp} className="flex items-start gap-3 mt-1 cursor-pointer select-none">
           <Switch
             checked={agree}
@@ -355,6 +335,11 @@ export default function Register() {
           {t('register.haveAccountAction')}
         </Link>
       </motion.p>
+
+      {/* Modal security check — opens on submit when a captcha is required. */}
+      {captchaRequired ? (
+        <PuzzleCaptchaDialog open={captchaOpen} onOpenChange={setCaptchaOpen} onSolved={onCaptchaSolved} />
+      ) : null}
     </motion.div>
   )
 }

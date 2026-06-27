@@ -252,6 +252,7 @@ export default function ChatThread() {
       mode?: 'default' | 'deep-research' | 'canvas'
       params?: Record<string, unknown>
       imageStyleId?: string
+      verify?: boolean
     },
   ) {
     if (!conversation) return
@@ -263,6 +264,7 @@ export default function ChatThread() {
       mode: opts.mode,
       params: opts.params,
       imageStyleId: opts.imageStyleId,
+      verify: opts.verify,
     })
     // Force the view to the freshly appended turn now — don't rely on the
     // auto-follow effect, whose scroll a content reflow or a stale autoFollow

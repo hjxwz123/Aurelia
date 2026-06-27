@@ -20,6 +20,7 @@ import {
   Mic,
   StopCircle,
   Telescope,
+  ShieldCheck,
   X,
   Loader2,
   BookOpen,
@@ -57,6 +58,8 @@ interface ComposerProps {
       params?: Record<string, unknown>
       /** §4.20 image mode: chosen style id (sent for an image-model turn). */
       imageStyleId?: string
+      /** §verify: run the secondary-auditor pass on this turn. */
+      verify?: boolean
     },
   ) => void
   onStop?: () => void
@@ -121,6 +124,8 @@ export function Composer({
   const [value, setValue] = useState(initialValue)
   const [attachments, setAttachments] = useState<PendingAttachment[]>([])
   const [mode, setMode] = useState<'default' | 'deep-research' | 'canvas'>('default')
+  // §verify: when on, the answer is fact-checked by a second model this turn.
+  const [verify, setVerify] = useState(false)
   const [paramValues, setParamValues] = useState<Record<string, unknown>>({})
   const [kbList, setKBList] = useState<{ id: string; name: string }[]>([])
   // Drag-and-drop file upload over the composer surface.
@@ -215,6 +220,8 @@ export function Composer({
   const researchEnabled = useAuth(
     (s) => s.user?.role === 'admin' || Boolean(s.user?.features?.includes('research')),
   )
+  // §verify: only offer the toggle when an admin has configured an auditor model.
+  const verifyAvailable = useModels((s) => s.verifyAvailable)
   const paramControls = currentModel?.param_controls
 
   // Reset param values whenever the model changes (different schemas).
@@ -258,6 +265,7 @@ export function Composer({
         mode: mode === 'default' ? undefined : mode,
         params: Object.keys(params).length > 0 ? params : undefined,
         imageStyleId: isImageMode && imageStyleId ? imageStyleId : undefined,
+        verify: verify && verifyAvailable && !isImageMode ? true : undefined,
       })
       setValue('')
       // Stop any leftover pollers and revoke blob: URLs — uploadAttachment already
@@ -749,6 +757,23 @@ export function Composer({
                 </>
               ) : null}
 
+              {verifyAvailable && !isImageMode ? (
+                <button
+                  type="button"
+                  onClick={() => setVerify((v) => !v)}
+                  aria-pressed={verify}
+                  className={cn(
+                    'flex w-full items-center gap-2.5 rounded-[8px] px-2.5 py-2 text-left text-sm hover:bg-[var(--color-bg-muted)]',
+                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]',
+                    verify ? 'text-[var(--color-secondary)]' : 'text-[var(--color-fg)]',
+                  )}
+                >
+                  <ShieldCheck size={16} className={cn(!verify && 'text-[var(--color-fg-muted)]')} aria-hidden />
+                  <span className="flex-1">{t('composer.verify', { defaultValue: 'Verify' })}</span>
+                  {verify ? <Check size={15} aria-hidden /> : null}
+                </button>
+              ) : null}
+
               {onKBChange && !isImageMode ? (
                 <>
                   <div className="my-1 h-px bg-[var(--color-divider)]" aria-hidden />
@@ -857,6 +882,27 @@ export function Composer({
                 >
                   <Telescope size={14} aria-hidden />
                   <span>{t('composer.research')}</span>
+                </button>
+              </Tooltip>
+            ) : null}
+
+            {verifyAvailable && !isImageMode ? (
+              <Tooltip content={t('composer.verifyTooltip', { defaultValue: 'Have a second model fact-check the answer' })}>
+                <button
+                  type="button"
+                  onClick={() => setVerify((v) => !v)}
+                  aria-pressed={verify}
+                  aria-label={t('composer.verifyTooltip', { defaultValue: 'Have a second model fact-check the answer' })}
+                  className={cn(
+                    'inline-flex items-center gap-1.5 h-8 px-2 rounded-[8px] text-[12px] font-medium interactive',
+                    verify
+                      ? 'bg-[var(--color-secondary-soft)] text-[var(--color-secondary)]'
+                      : 'text-[var(--color-fg-muted)] hover:bg-[var(--color-bg-muted)] hover:text-[var(--color-fg)]',
+                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]',
+                  )}
+                >
+                  <ShieldCheck size={14} aria-hidden />
+                  <span>{t('composer.verify', { defaultValue: 'Verify' })}</span>
                 </button>
               </Tooltip>
             ) : null}

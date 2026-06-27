@@ -25,6 +25,9 @@ type postMessageReq struct {
 	ParentID       string           `json:"parent_id"`
 	Branch         bool             `json:"branch"`
 	Mode           string           `json:"mode"`
+	// Verify enables Verify mode (§verify) — a secondary auditor model checks the
+	// answer. No-op unless an admin configured `verify_model_id`.
+	Verify         bool             `json:"verify"`
 	Attachments    []llm.Attachment `json:"attachments"`
 	ParamOverrides map[string]any   `json:"params"`
 	// ImageStyleID selects an admin image style for an image-mode turn (§4.20).
@@ -137,6 +140,7 @@ func postMessageHandler(d Deps, w http.ResponseWriter, r *http.Request) {
 		ParentID:       req.ParentID,
 		Branch:         req.Branch,
 		Mode:           req.Mode,
+		Verify:         req.Verify,
 		ParamOverrides: req.ParamOverrides,
 		ImageStyleID:   req.ImageStyleID,
 		Locale:         req.Locale,
@@ -166,6 +170,7 @@ func regenerateHandler(d Deps, w http.ResponseWriter, r *http.Request) {
 		AssistantID    string         `json:"assistant_id"`
 		ModelID        string         `json:"model_id"`
 		Mode           string         `json:"mode"`
+		Verify         bool           `json:"verify"`
 		ParamOverrides map[string]any `json:"params"`
 		Locale         string         `json:"locale"`
 	}
@@ -277,6 +282,7 @@ func regenerateHandler(d Deps, w http.ResponseWriter, r *http.Request) {
 		ParentID:       user.ID, // assistant sibling under SAME user — §4.15
 		ReuseExistingUserMessage: true,
 		Mode:           body.Mode,
+		Verify:         body.Verify,
 		ParamOverrides: body.ParamOverrides,
 		Locale:         body.Locale,
 	}, func(ev llm.SseEvent) {
