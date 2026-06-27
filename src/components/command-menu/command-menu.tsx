@@ -147,21 +147,23 @@ export function CommandMenu() {
         <DialogPrimitive.Content
           aria-describedby={undefined}
           className={cn(
-            'fixed left-1/2 top-[18%] z-[70] -translate-x-1/2 w-[min(92vw,560px)]',
-            'rounded-[18px] bg-[var(--color-surface-raised)] border border-[var(--color-border)]',
-            'shadow-[var(--shadow-xl)] overflow-hidden',
-            'data-[state=open]:animate-[pop-in_220ms_var(--ease-out)]',
-            'data-[state=closed]:animate-[fade-out_140ms_var(--ease-in)]',
-            'focus:outline-none',
+            'fixed z-[70] bg-[var(--color-surface-raised)] shadow-[var(--shadow-xl)] overflow-hidden focus:outline-none',
+            // Desktop: a centered floating palette.
+            'left-1/2 top-[18%] -translate-x-1/2 w-[min(92vw,560px)] rounded-[18px] border border-[var(--color-border)]',
+            'data-[state=open]:animate-[pop-in_220ms_var(--ease-out)] data-[state=closed]:animate-[fade-out_140ms_var(--ease-in)]',
+            // Phone: a full-screen search surface (with safe-area insets).
+            'max-sm:inset-0 max-sm:left-0 max-sm:top-0 max-sm:w-full max-sm:translate-x-0 max-sm:rounded-none max-sm:border-0',
+            'max-sm:pt-[var(--safe-top)] max-sm:pb-[var(--safe-bottom)] max-sm:data-[state=open]:animate-[fade-in_160ms_var(--ease-out)]',
           )}
         >
           <DialogPrimitive.Title className="sr-only">{t('chat:commandMenu.title')}</DialogPrimitive.Title>
-          <Command>
+          <Command className="max-sm:h-full">
             <CommandInput
               placeholder={t('chat:commandMenu.placeholder')}
               autoFocus
               value={query}
               onValueChange={setQuery}
+              onClose={() => setOpen(false)}
             />
             <CommandList>
               {/* While a content search is in flight, don't flash "No results" —

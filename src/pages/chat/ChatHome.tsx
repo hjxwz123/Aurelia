@@ -95,6 +95,9 @@ export default function ChatHome() {
   // behind prefers-reduced-motion via gsap.matchMedia (reduced → static, fully
   // visible). useGSAP sets the `from` state before paint, so there's no flash.
   const root = useRef<HTMLDivElement>(null)
+  // Drawing mode: the gallery sits below the centered hero; the scroll cue jumps
+  // to it, and the gallery itself defers loading until scrolled into view.
+  const galleryRef = useRef<HTMLDivElement>(null)
   useGSAP(
     () => {
       const mm = gsap.matchMedia()
@@ -161,79 +164,89 @@ export default function ChatHome() {
         className="home-glow pointer-events-none absolute left-1/2 top-[14%] -z-0 size-[20rem] sm:size-[34rem] max-w-[88vw] -translate-x-1/2 rounded-full bg-[var(--color-accent)] opacity-[0.07] blur-[90px]"
         aria-hidden
       />
-      <div
-        className={cn(
-          'relative z-10 mx-auto w-full max-w-[var(--layout-message-max-w)] px-[var(--layout-gutter-mobile)] sm:px-8 pt-6 pb-8 sm:py-12 flex flex-col',
-          // Phones top-align (composer stays in thumb reach, keyboard-safe);
-          // ≥sm centers the hero vertically. Drawing mode always top-aligns so the
-          // gallery below the composer is reachable by scrolling.
-          !drawMode && 'flex-1 sm:justify-center',
-        )}
-      >
-        <header className="text-center">
-          <h1 className="home-rise font-sans font-semibold tracking-tight text-[1.6rem] sm:text-[2.5rem] leading-[1.14] sm:leading-[1.12] text-[var(--color-fg)] text-balance">
-            {greeting}{' '}
-            <span className="text-[var(--color-fg-muted)] font-normal">{subtitle}</span>
-          </h1>
-          <p
-            className={cn(
-              'home-rise mt-3.5 text-[var(--color-fg-muted)] text-sm sm:text-base text-pretty mx-auto max-w-2xl',
-              // The lead is a desktop nicety; on a phone it just pushes the input
-              // down, so hide it for chat (drawing mode keeps its instruction).
-              !drawMode && 'max-sm:hidden',
-            )}
-          >
-            {drawMode
-              ? t('empty.drawLead', { defaultValue: 'Describe what you want to create — your gallery is below.' })
-              : t('empty.lead')}
-          </p>
-        </header>
+      <div className="relative z-10 mx-auto flex min-h-full w-full max-w-[var(--layout-message-max-w)] flex-col px-[var(--layout-gutter-mobile)] sm:px-8">
+        {/* HERO — greeting + composer, vertically centered in the first screenful
+            (both chat and drawing mode, PC and mobile). In drawing mode it caps at
+            ~one viewport so the gallery sits just below the fold. */}
+        <div className={cn('flex flex-col', drawMode ? 'min-h-[90dvh]' : 'flex-1')}>
+          <div className="flex flex-1 flex-col justify-center py-10 sm:py-12">
+            <header className="text-center">
+              <h1 className="home-rise font-sans font-semibold tracking-tight text-[1.6rem] sm:text-[2.5rem] leading-[1.14] sm:leading-[1.12] text-[var(--color-fg)] text-balance">
+                {greeting}{' '}
+                <span className="text-[var(--color-fg-muted)] font-normal">{subtitle}</span>
+              </h1>
+              <p
+                className={cn(
+                  'home-rise mt-3.5 text-[var(--color-fg-muted)] text-sm sm:text-base text-pretty mx-auto max-w-2xl',
+                  // The lead is a desktop nicety; on a phone it just pushes the
+                  // input down, so hide it for chat (drawing mode keeps its line).
+                  !drawMode && 'max-sm:hidden',
+                )}
+              >
+                {drawMode
+                  ? t('empty.drawLead', { defaultValue: 'Describe what you want to create — your gallery is below.' })
+                  : t('empty.lead')}
+              </p>
+            </header>
 
-        <div className="home-rise mt-7 sm:mt-10 mx-auto w-full max-w-[var(--layout-message-max-w)]">
-          <Composer
-            modelId={modelId}
-            onModelChange={setPickedModelId}
-            onSubmit={(text, atts, opts) => void startNew(text, atts, opts)}
-            ensureConversationId={ensureConversation}
-            autoFocus
-          />
+            <div className="home-rise mt-7 sm:mt-10 mx-auto w-full max-w-[var(--layout-message-max-w)]">
+              <Composer
+                modelId={modelId}
+                onModelChange={setPickedModelId}
+                onSubmit={(text, atts, opts) => void startNew(text, atts, opts)}
+                ensureConversationId={ensureConversation}
+                autoFocus
+              />
+            </div>
+
+            {!drawMode && (
+              <div className="mt-8 sm:mt-10 mx-auto w-full max-w-[var(--layout-message-max-w)]">
+                {/* Single row, fixed-width cards, horizontally scrollable (snap).
+                    Scrollbar hidden; on phones the rail bleeds to the screen edges
+                    so the next card peeks. */}
+                <div className="flex gap-3 overflow-x-auto px-1 -mx-1 max-sm:-mx-[var(--layout-gutter-mobile)] max-sm:px-[var(--layout-gutter-mobile)] max-sm:scroll-px-[var(--layout-gutter-mobile)] pb-2 snap-x snap-mandatory [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  {cards.map((s) => {
+                    const title = t(s.titleKey)
+                    const prompt = t(s.promptKey)
+                    return (
+                      <div key={s.id} className="home-card w-[13.5rem] sm:w-[15.5rem] shrink-0 snap-start">
+                        <SuggestionCard
+                          icon={s.icon}
+                          title={title}
+                          prompt={prompt}
+                          onClick={() => void startNew(prompt, [])}
+                          className="h-full"
+                        />
+                      </div>
+                    )
+                  })}
+                </div>
+                <p className="mt-6 text-center text-xs text-[var(--color-fg-subtle)]">
+                  {t('empty.disclaimer')}
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Drawing mode: a bobbing cue at the bottom of the first screen that
+              jumps to the (below-the-fold, lazily-loaded) gallery. */}
+          {drawMode && (
+            <button
+              type="button"
+              onClick={() => galleryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+              aria-label={t('empty.galleryScrollCue', { defaultValue: '下拉查看我的画廊' })}
+              className="home-rise mx-auto mb-6 inline-flex size-10 items-center justify-center rounded-full text-[var(--color-fg-faint)] interactive hover:bg-[var(--color-bg-muted)] hover:text-[var(--color-fg-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
+            >
+              <ChevronDown size={20} strokeWidth={1.5} aria-hidden className="animate-[bob_1.6s_ease-in-out_infinite]" />
+            </button>
+          )}
         </div>
 
-        {drawMode ? (
-          /* §4.20 drawing mode: no suggestion prompts — a gentle scroll cue, then
-             the gallery "plate section" (which owns its editorial header + reveal).
-             Wider than the composer column so images get a larger field. */
-          <div className="mt-16 w-full sm:mt-20">
-            <div className="home-rise mb-12 flex justify-center text-[var(--color-fg-faint)]">
-              <ChevronDown size={18} strokeWidth={1.5} aria-hidden className="animate-[bob_1.6s_ease-in-out_infinite]" />
-            </div>
+        {/* §4.20 gallery — below the fold; defers its own image fetch until it
+            scrolls into view (shows just the heading + a "scroll to view" hint). */}
+        {drawMode && (
+          <div ref={galleryRef} className="pb-16 sm:pb-20">
             <MyGallery />
-          </div>
-        ) : (
-          <div className="mt-8 sm:mt-10 mx-auto w-full max-w-[var(--layout-message-max-w)]">
-            {/* Single row, fixed-width cards, horizontally scrollable (snap). The
-                scrollbar is hidden; cards overflow the rail and swipe. On phones
-                the rail bleeds to the screen edges so the next card peeks. */}
-            <div className="flex gap-3 overflow-x-auto px-1 -mx-1 max-sm:-mx-[var(--layout-gutter-mobile)] max-sm:px-[var(--layout-gutter-mobile)] max-sm:scroll-px-[var(--layout-gutter-mobile)] pb-2 snap-x snap-mandatory [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {cards.map((s) => {
-                const title = t(s.titleKey)
-                const prompt = t(s.promptKey)
-                return (
-                  <div key={s.id} className="home-card w-[13.5rem] sm:w-[15.5rem] shrink-0 snap-start">
-                    <SuggestionCard
-                      icon={s.icon}
-                      title={title}
-                      prompt={prompt}
-                      onClick={() => void startNew(prompt, [])}
-                      className="h-full"
-                    />
-                  </div>
-                )
-              })}
-            </div>
-            <p className="mt-6 text-center text-xs text-[var(--color-fg-subtle)]">
-              {t('empty.disclaimer')}
-            </p>
           </div>
         )}
       </div>

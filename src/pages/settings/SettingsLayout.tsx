@@ -26,7 +26,7 @@ export default function SettingsLayout() {
     <div className="flex-1 min-h-0 flex flex-col bg-[var(--color-bg)] text-[var(--color-fg)]">
       <ContentHeader title={t('settings:title')} backTo="/chat" backLabel={t('chat:sidebar.recents')}>
         <nav
-          className="mx-auto w-full max-w-[var(--layout-content-max-w)] px-5 sm:px-8 flex items-center gap-1 overflow-x-auto scrollbar-none -mb-px"
+          className="mx-auto w-full max-w-[var(--layout-content-max-w)] px-[var(--layout-gutter-mobile)] sm:px-8 flex items-center gap-1 overflow-x-auto scrollbar-none -mb-px"
           aria-label={t('settings:title')}
         >
           {tabDefs.map((tab) => (
@@ -36,7 +36,7 @@ export default function SettingsLayout() {
               end={tab.to === '/settings/account' ? false : undefined}
               className={({ isActive }) =>
                 cn(
-                  'inline-flex items-center gap-1.5 px-3 h-10 text-sm font-medium whitespace-nowrap',
+                  'inline-flex items-center gap-1.5 px-3 h-10 max-sm:h-12 text-sm font-medium whitespace-nowrap',
                   'text-[var(--color-fg-muted)] border-b-2 border-transparent interactive',
                   (isActive || (tab.to === '/settings/account' && (pathname === '/settings' || pathname === '/settings/'))) &&
                     'text-[var(--color-fg)] border-[var(--color-fg)]',
@@ -53,7 +53,7 @@ export default function SettingsLayout() {
       </ContentHeader>
 
       <div className="flex-1 min-h-0 overflow-y-auto">
-        <main className="mx-auto w-full max-w-[var(--layout-content-max-w)] px-5 sm:px-8 py-10">
+        <main className="mx-auto w-full max-w-[var(--layout-content-max-w)] px-[var(--layout-gutter-mobile)] sm:px-8 py-8 sm:py-10">
           <RouteFade dep={pathname}>
             <Outlet />
           </RouteFade>

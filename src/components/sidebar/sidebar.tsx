@@ -234,7 +234,7 @@ export function Sidebar({ variant = 'desktop', onClose }: SidebarProps) {
               <Plus size={15} className="text-[var(--color-accent)]" aria-hidden />
               {!collapsed && <span>{t('sidebar.newChat')}</span>}
             </span>
-            {!collapsed && <KeyboardShortcut combo={[modKey(), 'Shift', 'O']} />}
+            {!collapsed && <KeyboardShortcut combo={[modKey(), 'Shift', 'O']} className="max-lg:hidden" />}
           </button>
         </Tooltip>
 
@@ -253,7 +253,7 @@ export function Sidebar({ variant = 'desktop', onClose }: SidebarProps) {
               <Search size={15} aria-hidden />
               {!collapsed && <span>{t('sidebar.search')}</span>}
             </span>
-            {!collapsed && <KeyboardShortcut combo={[modKey(), 'K']} />}
+            {!collapsed && <KeyboardShortcut combo={[modKey(), 'K']} className="max-lg:hidden" />}
           </button>
         </Tooltip>
 
@@ -408,7 +408,7 @@ function Group({
 }) {
   return (
     <div className="py-1.5">
-      <h3 className="px-4 py-1 text-[10px] font-medium uppercase tracking-wider text-[var(--color-fg-subtle)]">
+      <h3 className="px-4 py-1 max-lg:py-1.5 text-[10px] max-lg:text-[11px] font-medium uppercase tracking-wider text-[var(--color-fg-subtle)]">
         {label}
       </h3>
       <ul>
@@ -468,7 +468,7 @@ function ConversationItem({
         >
           <span
             className={cn(
-              'block truncate text-[13.5px] leading-snug',
+              'block truncate text-[13.5px] max-lg:text-[15px] leading-snug',
               active ? 'text-[var(--color-fg)] font-medium' : 'text-[var(--color-fg-muted)]',
             )}
           >

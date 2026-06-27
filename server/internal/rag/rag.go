@@ -19,6 +19,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"aurelia/server/internal/queue"
 	"aurelia/server/internal/storage"
@@ -175,6 +177,21 @@ func (s *Service) runPipeline(ctx context.Context, docID string, cache *parseCac
 	if err != nil {
 		return err
 	}
+	// Idempotent re-ingest: drop any chunks AND vectors from a previous, partial,
+	// or retried run BEFORE doing anything else. Doing it FIRST (not after parse /
+	// embedder-resolve) means a failure later in THIS run — parse error, MinerU
+	// outage, KB embedder-resolve error — can't leave stale rows behind; and
+	// repeats (RequeueIncomplete, the 3× retry loop, a manual re-Ingest) never
+	// duplicate. Unconditional: skip-embed docs write chunk rows too, and every
+	// insert below mints a new id. (§4.11-C-3)
+	if err := store.DeleteChunksByDocument(ctx, s.db, docID); err != nil {
+		return err
+	}
+	if s.vec.Enabled() {
+		if derr := s.vec.DeleteByDocument(ctx, docID); derr != nil {
+			s.logger.Printf("rag: clear old vectors for %s: %v", docID, derr)
+		}
+	}
 	_ = store.UpdateDocumentStatus(ctx, s.db, docID, "parsing", "", 0)
 
 	// Resolve MinerU + sandbox + storage from admin settings (live), falling
@@ -259,7 +276,7 @@ func (s *Service) runPipeline(ctx context.Context, docID string, cache *parseCac
 	// (md/txt/log) still embeds. KB uploads always embed — a KB is an explicit
 	// cross-document search index, so skipping there would silently break search.
 	skipEmbed := d.KBID == "" && d.ConversationID != "" &&
-		(isCodeOrConfigText(d.Filename) || len(content)/4 <= fullTextThresholdTokens)
+		(isCodeOrConfigText(d.Filename) || estimateTokens(content) <= fullTextThresholdTokens)
 
 	// §4.11-B2 lock: ingest into a KB MUST use the KB's locked embedding model;
 	// global setting changes never re-route an existing KB's vectors. For pure
@@ -279,14 +296,9 @@ func (s *Service) runPipeline(ctx context.Context, docID string, cache *parseCac
 		} else {
 			em, emName, dim = s.resolveEmbedder(ctx)
 		}
-		// Re-ingest is idempotent at the row level (chunks are rewritten); clear any
-		// previous vectors for this document so stale points don't linger in Qdrant.
-		if s.vec.Enabled() {
-			if err := s.vec.DeleteByDocument(ctx, docID); err != nil {
-				s.logger.Printf("rag: clear old vectors for %s: %v", docID, err)
-			}
-		}
 	}
+	// (Old chunks/vectors were already cleared at the top of runPipeline, so a
+	// failure between there and here never leaves stale rows.)
 	written := 0
 	totalTokens := 0
 	seq := 0
@@ -371,7 +383,7 @@ func (s *Service) runPipeline(ctx context.Context, docID string, cache *parseCac
 			}
 			seq++
 			written++
-			totalTokens += len(child) / 4
+			totalTokens += estimateTokens(child)
 		}
 	}
 	if s.vec.Enabled() && len(points) > 0 {
@@ -496,117 +508,82 @@ func (s *Service) Retrieve(ctx context.Context, userID, convID string, kbIDs []s
 	if strings.TrimSpace(query) == "" {
 		return nil, nil
 	}
-	var (
-		em     Embedder
-		emName string
-		dim    int
-		err    error
-	)
-	if len(kbIDs) > 0 {
-		em, emName, dim, err = s.resolveEmbedderForKB(ctx, kbIDs[0])
-		if err != nil {
-			return nil, err
-		}
-		// Best-effort dimension sanity check: refuse to fan out to KBs with a
-		// different dim than the first one. Caller should split the call.
-		for _, other := range kbIDs[1:] {
-			_, _, otherDim, oerr := s.resolveEmbedderForKB(ctx, other)
-			if oerr != nil {
-				return nil, oerr
-			}
-			if otherDim != dim {
-				return nil, fmt.Errorf("rag: cross-KB query has mixed embedding dims (%d vs %d) — re-create the KB to align", dim, otherDim)
-			}
-		}
-	} else {
-		em, emName, dim = s.resolveEmbedder(ctx)
-	}
-	qVec, cached, err := s.embedQueryCached(ctx, em, emName, query)
-	if err != nil {
-		return nil, err
-	}
-	// Mirror the ingest-side reconciliation: trust the actual query-vector width
-	// over the configured dim so we search the same Qdrant collection the vectors
-	// were written into (a model that emits 1024 despite a 1536 config still
-	// retrieves correctly).
-	if len(qVec) > 0 && len(qVec) != dim {
-		dim = len(qVec)
-	}
-	// Query embedding is billable (§8.3 purpose=embedding) — but only when we
-	// actually called the API. On a §2.4 query-vector cache hit, no call was made.
-	if !cached && !strings.HasPrefix(emName, "aurelia-local") && userID != "" {
-		_ = store.LogUsage(ctx, s.db, store.UsageLog{
-			UserID: userID, ConversationID: convID,
-			ModelID: strings.TrimPrefix(emName, "emb:"),
-			Purpose: "embedding", InputTokens: len(query) / 4,
-		})
-	}
 	terms := tokenize(strings.ToLower(query))
 	if topK <= 0 {
 		topK = 5
 	}
 
+	// Resolve the embedding model(s) covering the scope and search each model's
+	// chunks with ITS OWN query vector. KB docs use the KB's locked model; a
+	// conversation's own (large, embedded) uploads use the GLOBAL model. A single
+	// query vector can't meaningfully score — or even reach, since Qdrant
+	// collections are per-dimension — vectors from a different model, so when a
+	// bound KB and the conversation disagree on the model we search them as two
+	// groups and merge. (§4.11 model split)
 	var cands []retrievalCandidate
-	if s.vec.Enabled() {
-		// §4.11-E independent legs: 30 dense ∥ 30 keyword, RRF k=60 → top-K.
-		// Both are run with the SAME scope filter so a chunk that hits in only
-		// one leg still survives fusion. We dedupe by chunk id post-merge.
-		denseN := 30
-		keywordN := 30
-		hits, err := s.vec.Search(ctx, dim, qVec, vector.Scope{KBIDs: kbIDs, ConversationID: convID}, denseN)
-		if err != nil {
-			// Qdrant down / mis-keyed: degrade to the Postgres brute-force copy
-			// instead of failing retrieval (the vectors are dual-written there).
-			s.logger.Printf("rag: qdrant search failed (%v) — falling back to Postgres brute-force", err)
-			bf, bfErr := s.bruteForceCandidates(ctx, kbIDs, convID, qVec, terms)
-			if bfErr != nil {
-				return nil, bfErr
-			}
-			cands = bf
-		} else {
-			kwHits, _ := s.vec.SearchKeyword(ctx, dim, query, vector.Scope{KBIDs: kbIDs, ConversationID: convID}, keywordN)
-			merged := map[string]retrievalCandidate{}
-			for _, h := range hits {
-				merged[h.Payload.ChunkID] = retrievalCandidate{
-					chunkID:    h.Payload.ChunkID,
-					documentID: h.Payload.DocumentID,
-					parentID:   h.Payload.ParentID,
-					filename:   h.Payload.Filename,
-					content:    h.Payload.Content,
-					sim:        h.Score,
-					bm:         keywordScore(terms, h.Payload.Content),
-				}
-			}
-			for _, h := range kwHits {
-				if cur, ok := merged[h.Payload.ChunkID]; ok {
-					// Combine: keep dense sim, refresh bm from independent ranking.
-					cur.bm += keywordScore(terms, h.Payload.Content)
-					merged[h.Payload.ChunkID] = cur
-					continue
-				}
-				merged[h.Payload.ChunkID] = retrievalCandidate{
-					chunkID:    h.Payload.ChunkID,
-					documentID: h.Payload.DocumentID,
-					parentID:   h.Payload.ParentID,
-					filename:   h.Payload.Filename,
-					content:    h.Payload.Content,
-					sim:        0,
-					bm:         keywordScore(terms, h.Payload.Content),
-				}
-			}
-			cands = make([]retrievalCandidate, 0, len(merged))
-			for _, c := range merged {
-				cands = append(cands, c)
-			}
-		}
-	} else {
-		// Dev / no-Qdrant path: brute-force cosine over the vectors kept in the
-		// relational store (the dual-write insurance copy).
-		bf, err := s.bruteForceCandidates(ctx, kbIDs, convID, qVec, terms)
+	if len(kbIDs) > 0 {
+		kbEm, kbName, kbDim, err := s.resolveEmbedderForKB(ctx, kbIDs[0])
 		if err != nil {
 			return nil, err
 		}
-		cands = bf
+		// Cross-KB consistency: all bound KBs must share ONE embedding model (same
+		// dim + same model). A mismatch would score one model's query against
+		// another's vectors; erroring surfaces it instead of returning garbage.
+		for _, other := range kbIDs[1:] {
+			_, otherName, otherDim, oerr := s.resolveEmbedderForKB(ctx, other)
+			if oerr != nil {
+				return nil, oerr
+			}
+			if otherDim != kbDim || otherName != kbName {
+				return nil, fmt.Errorf("rag: cross-KB query mixes embedding models (%s/%dd vs %s/%dd) — search these KBs separately or re-embed to align", kbName, kbDim, otherName, otherDim)
+			}
+		}
+		gEm, gName, gDim := s.resolveEmbedder(ctx)
+		if convID != "" && (gName != kbName || gDim != kbDim) {
+			// Two model groups: KBs under the KB model, conversation docs under the
+			// global model — each with its own query embedding + per-dim collection.
+			kbCands, err := s.searchScope(ctx, userID, convID, kbEm, kbName, kbDim, vector.Scope{KBIDs: kbIDs}, query, terms)
+			if err != nil {
+				return nil, err
+			}
+			cands = kbCands
+			if convCands, cerr := s.searchScope(ctx, userID, convID, gEm, gName, gDim, vector.Scope{ConversationID: convID}, query, terms); cerr == nil {
+				cands = appendUniqueCandidates(cands, convCands)
+			} else {
+				s.logger.Printf("rag: conversation-scope retrieval failed for %s: %v", convID, cerr)
+			}
+		} else {
+			// One model across KBs (+ the conversation when its model matches): a
+			// single combined-scope search — exactly the prior behaviour.
+			cands, err = s.searchScope(ctx, userID, convID, kbEm, kbName, kbDim, vector.Scope{KBIDs: kbIDs, ConversationID: convID}, query, terms)
+			if err != nil {
+				return nil, err
+			}
+		}
+	} else {
+		gEm, gName, gDim := s.resolveEmbedder(ctx)
+		var err error
+		cands, err = s.searchScope(ctx, userID, convID, gEm, gName, gDim, vector.Scope{ConversationID: convID}, query, terms)
+		if err != nil {
+			return nil, err
+		}
+	}
+	// Surface in-scope chunks that were intentionally left UNEMBEDDED (small
+	// conversation docs, code/config — runPipeline's skipEmbed). They live in
+	// neither Qdrant nor the dense brute-force set, so without this the
+	// search_knowledge_base tool and inject-mode retrieval couldn't find a
+	// freshly-uploaded small/code file at all — only auto-mode's pinned injection
+	// covered them. Conversation-scoped only (KB docs always embed). (§4.11 skip-embed)
+	if convID != "" {
+		seen := make(map[string]bool, len(cands))
+		for _, c := range cands {
+			seen[c.chunkID] = true
+		}
+		for _, c := range s.keywordOnlyUnembedded(ctx, kbIDs, convID, terms) {
+			if !seen[c.chunkID] {
+				cands = append(cands, c)
+			}
+		}
 	}
 	if len(cands) == 0 {
 		return nil, nil
@@ -620,24 +597,26 @@ func (s *Service) Retrieve(ctx context.Context, userID, convID string, kbIDs []s
 	result := []Snippet{}
 	seenParent := map[string]bool{}
 	for _, c := range ranked {
-		// Small-to-big expansion: a child hit returns its PARENT section so the
-		// model gets surrounding context, deduped per parent (§4.11-C-2).
-		content := c.content
+		// Small-to-big expansion: pull the PARENT section for surrounding context,
+		// but return a window CENTERED on the matched child so the hit is always
+		// present — even deep in a long section or past the parent's truncation
+		// (§4.11-C-2). One window per parent section (deduped on the top-ranked
+		// child of that section), so distinct sections aren't crowded out.
+		snippet := snippetOf(c.content, retrievedSnippetChars)
 		if c.parentID != "" {
 			if seenParent[c.parentID] {
 				continue
 			}
-			if parent, err := store.GetChunkContent(ctx, s.db, c.parentID); err == nil && parent != "" {
-				content = parent
-				seenParent[c.parentID] = true
-			}
+			seenParent[c.parentID] = true
+			parent, _ := store.GetChunkContent(ctx, s.db, c.parentID)
+			snippet = expandHit(parent, c.content, retrievedSnippetChars)
 		}
 		result = append(result, Snippet{
 			ID:      c.chunkID,
 			Index:   len(result) + 1,
 			Title:   c.filename,
 			URL:     "doc://" + c.documentID,
-			Snippet: snippetOf(content, 1200),
+			Snippet: snippet,
 			Source:  "kb",
 		})
 	}
@@ -675,6 +654,137 @@ func (s *Service) bruteForceCandidates(ctx context.Context, kbIDs []string, conv
 		})
 	}
 	return cands, nil
+}
+
+// keywordOnlyUnembedded returns in-scope CHILD chunks that were intentionally not
+// embedded (runPipeline's skipEmbed: small conversation docs, code/config),
+// scored by keyword overlap only. Such chunks have no vector in Qdrant and are
+// skipped by the dense brute-force leg, so this is the ONLY way the
+// search_knowledge_base tool / inject-mode retrieval can reach them. Only chunks
+// that actually match the query (bm > 0) are surfaced — a query-driven search
+// shouldn't dump every unembedded chunk into context.
+func (s *Service) keywordOnlyUnembedded(ctx context.Context, kbIDs []string, convID string, terms []string) []retrievalCandidate {
+	if len(terms) == 0 {
+		return nil
+	}
+	rows, err := store.ListChunksInScope(ctx, s.db, kbIDs, convID)
+	if err != nil {
+		return nil
+	}
+	out := []retrievalCandidate{}
+	for _, r := range rows {
+		// Parents carry no own text vector; embedded children are already covered
+		// by the dense/keyword legs above.
+		if r.ChunkType == "parent" || len(r.Embedding) != 0 {
+			continue
+		}
+		bm := keywordScore(terms, r.Content)
+		if bm <= 0 {
+			continue
+		}
+		out = append(out, retrievalCandidate{
+			chunkID:    r.ID,
+			documentID: r.DocumentID,
+			parentID:   r.ParentID,
+			filename:   r.Filename,
+			content:    r.Content,
+			sim:        0,
+			bm:         bm,
+		})
+	}
+	return out
+}
+
+// searchScope runs the dense + keyword retrieval legs for ONE embedding model over
+// the given vector scope, returning fusion-input candidates. Factored out of
+// Retrieve so a query whose scope spans sources embedded by DIFFERENT models (a
+// KB's locked model vs the global model used for conversation uploads) searches
+// each with its OWN query vector — never scoring one model's vectors against
+// another's, nor missing a doc whose vectors sit in a different per-dim
+// collection. (§4.11 model split)
+func (s *Service) searchScope(ctx context.Context, userID, convID string, em Embedder, emName string, dim int, scope vector.Scope, query string, terms []string) ([]retrievalCandidate, error) {
+	qVec, cached, err := s.embedQueryCached(ctx, em, emName, query)
+	if err != nil {
+		return nil, err
+	}
+	// Trust the actual query-vector width over the configured dim (a model that
+	// emits 1024 despite a 1536 config still hits the right collection).
+	if len(qVec) > 0 && len(qVec) != dim {
+		dim = len(qVec)
+	}
+	// Query embedding is billable (§8.3) — but only when we actually called the API
+	// (no call on a query-vector cache hit, or for the local embedder).
+	if !cached && !strings.HasPrefix(emName, "aurelia-local") && userID != "" {
+		_ = store.LogUsage(ctx, s.db, store.UsageLog{
+			UserID: userID, ConversationID: convID,
+			ModelID: strings.TrimPrefix(emName, "emb:"),
+			Purpose: "embedding", InputTokens: estimateTokens(query),
+		})
+	}
+	if !s.vec.Enabled() {
+		// Dev / no-Qdrant: brute-force cosine over the relational vector copy.
+		return s.bruteForceCandidates(ctx, scope.KBIDs, scope.ConversationID, qVec, terms)
+	}
+	// §4.11-E independent legs: 30 dense ∥ 30 keyword, fused later; the same scope
+	// so a chunk that hits in only one leg survives.
+	hits, err := s.vec.Search(ctx, dim, qVec, scope, 30)
+	if err != nil {
+		s.logger.Printf("rag: qdrant search failed (%v) — falling back to Postgres brute-force", err)
+		return s.bruteForceCandidates(ctx, scope.KBIDs, scope.ConversationID, qVec, terms)
+	}
+	kwHits, _ := s.vec.SearchKeyword(ctx, dim, query, scope, 30)
+	merged := map[string]retrievalCandidate{}
+	for _, h := range hits {
+		merged[h.Payload.ChunkID] = retrievalCandidate{
+			chunkID:    h.Payload.ChunkID,
+			documentID: h.Payload.DocumentID,
+			parentID:   h.Payload.ParentID,
+			filename:   h.Payload.Filename,
+			content:    h.Payload.Content,
+			sim:        h.Score,
+			bm:         keywordScore(terms, h.Payload.Content),
+		}
+	}
+	for _, h := range kwHits {
+		if cur, ok := merged[h.Payload.ChunkID]; ok {
+			cur.bm += keywordScore(terms, h.Payload.Content)
+			merged[h.Payload.ChunkID] = cur
+			continue
+		}
+		merged[h.Payload.ChunkID] = retrievalCandidate{
+			chunkID:    h.Payload.ChunkID,
+			documentID: h.Payload.DocumentID,
+			parentID:   h.Payload.ParentID,
+			filename:   h.Payload.Filename,
+			content:    h.Payload.Content,
+			sim:        0,
+			bm:         keywordScore(terms, h.Payload.Content),
+		}
+	}
+	out := make([]retrievalCandidate, 0, len(merged))
+	for _, c := range merged {
+		out = append(out, c)
+	}
+	return out, nil
+}
+
+// appendUniqueCandidates appends candidates from src not already in dst (by chunk
+// id), used to merge two model-group searches without double-counting.
+func appendUniqueCandidates(dst, src []retrievalCandidate) []retrievalCandidate {
+	if len(src) == 0 {
+		return dst
+	}
+	seen := make(map[string]bool, len(dst))
+	for _, c := range dst {
+		seen[c.chunkID] = true
+	}
+	for _, c := range src {
+		if !seen[c.chunkID] {
+			dst = append(dst, c)
+			seen[c.chunkID] = true
+		}
+	}
+	return dst
 }
 
 // retrievalCandidate is one scored chunk feeding the reciprocal-rank fusion in
@@ -761,14 +871,193 @@ func snippetOf(s string, max int) string {
 		max = 240
 	}
 	if len(s) > max {
-		return s[:max-1] + "…"
+		// Rune-safe cut — a byte slice mid-rune produces invalid UTF-8 (mojibake /
+		// a Postgres-rejected trailing byte) for CJK content.
+		return s[:clampRune(s, max-1)] + "…"
 	}
 	return s
 }
 
+// clampRune clamps a byte offset into [0,len(s)] and snaps it forward to a UTF-8
+// rune boundary so substring slices never split a multi-byte (e.g. CJK) rune.
+func clampRune(s string, i int) int {
+	if i <= 0 {
+		return 0
+	}
+	if i >= len(s) {
+		return len(s)
+	}
+	for i < len(s) && !utf8.RuneStart(s[i]) {
+		i++
+	}
+	return i
+}
+
+// Budget (bytes) for a retrieved chunk's injected snippet. Sized to hold a full
+// child chunk (childTargetChars) plus a little surrounding section context, so a
+// hit deep in a long section is shown in full rather than truncated to the
+// section head. (§4.11 retrieval fidelity)
+const retrievedSnippetChars = 2000
+
+// expandHit returns a snippet that is GUARANTEED to contain the matched child
+// chunk, with surrounding section context when available. The old small-to-big
+// path returned snippetOf(parent, …) — i.e. always the SECTION HEAD — so a hit
+// located deep in a long section, or past the parent's truncation, was dropped
+// from what the model saw (it "matched 案例98 but couldn't answer"). Here we find
+// the child inside its parent section and center a budget-sized window on it;
+// when the child lies beyond the parent's truncation we return the child itself.
+func expandHit(parent, child string, budget int) string {
+	child = strings.TrimSpace(child)
+	if parent != "" {
+		needle := stripBreadcrumb(child)
+		if needle != "" {
+			if idx := strings.Index(parent, needle); idx >= 0 {
+				win := windowAround(parent, idx, idx+len(needle), budget)
+				if bc := breadcrumbOf(child); bc != "" {
+					win = bc + " " + win
+				}
+				return win
+			}
+		}
+	}
+	// No parent, or the child sits past the parent's truncation → the child IS
+	// the hit; return it directly.
+	return snippetOf(child, budget)
+}
+
+// windowAround returns a rune-safe, budget-sized window of s spanning the byte
+// range [start,end], centered on it, with ellipses where trimmed and newlines
+// collapsed.
+func windowAround(s string, start, end, budget int) string {
+	if end-start >= budget {
+		return snippetOf(s[clampRune(s, start):], budget)
+	}
+	pad := (budget - (end - start)) / 2
+	ws := clampRune(s, start-pad)
+	we := clampRune(s, end+pad)
+	out := strings.TrimSpace(strings.ReplaceAll(s[ws:we], "\n", " "))
+	if ws > 0 {
+		out = "…" + out
+	}
+	if we < len(s) {
+		out = out + "…"
+	}
+	return out
+}
+
+// stripBreadcrumb removes the leading "[breadcrumb]\n" prefix added to a child at
+// ingest, so the child text can be located inside its (un-prefixed) parent.
+func stripBreadcrumb(s string) string {
+	if strings.HasPrefix(s, "[") {
+		if nl := strings.IndexByte(s, '\n'); nl > 0 && strings.IndexByte(s[:nl], ']') > 0 {
+			return strings.TrimSpace(s[nl+1:])
+		}
+	}
+	return s
+}
+
+// breadcrumbOf returns the "[breadcrumb]" prefix of a child chunk (heading path),
+// or "" when absent.
+func breadcrumbOf(s string) string {
+	if strings.HasPrefix(s, "[") {
+		if nl := strings.IndexByte(s, '\n'); nl > 0 && strings.IndexByte(s[:nl], ']') > 0 {
+			return strings.TrimSpace(s[:nl])
+		}
+	}
+	return ""
+}
+
+// tokenize splits text into lexical terms for keyword scoring AND the hashed
+// local embedder. ASCII/Latin words are kept whole (so existing Latin indexes +
+// embeddings are byte-for-byte unchanged), but spaceless CJK is segmented into
+// overlapping bigrams (plus any embedded digits/Latin).
+//
+// Why: the old `[\p{L}\p{N}_]+` regex collapsed an entire Chinese phrase into ONE
+// token (Han chars are \p{L} with no spaces between them). `keywordScore` then did
+// `strings.Count(doc, term)` with that whole-phrase term, which never matched, and
+// the FNV-hashed embedder put the whole phrase in one bucket — so a reference
+// buried inside the phrase, e.g. "案例98" inside "讲解案例98及相关知识点", was
+// unretrievable. Bigram segmentation makes "案例"/"98"/"知识"… matchable units that
+// a query and a document share. (§4.11 CJK retrieval)
 func tokenize(s string) []string {
 	re := regexp.MustCompile(`[\p{L}\p{N}_]+`)
-	return re.FindAllString(s, -1)
+	runs := re.FindAllString(s, -1)
+	out := make([]string, 0, len(runs))
+	for _, run := range runs {
+		if !hasCJK(run) {
+			out = append(out, run) // Latin/alphanumeric — unchanged
+			continue
+		}
+		out = append(out, cjkGrams(run)...)
+	}
+	return out
+}
+
+func isCJKRune(r rune) bool {
+	return unicode.Is(unicode.Han, r) ||
+		unicode.Is(unicode.Hiragana, r) ||
+		unicode.Is(unicode.Katakana, r) ||
+		unicode.Is(unicode.Hangul, r)
+}
+
+func hasCJK(s string) bool {
+	for _, r := range s {
+		if isCJKRune(r) {
+			return true
+		}
+	}
+	return false
+}
+
+// estimateTokens approximates a string's token count. The plain byte-len/4
+// heuristic is tuned for English and badly UNDER-counts CJK: each Han/Kana/Hangul
+// char is ~3 UTF-8 bytes but ~1 token, so len/4 scores it ~0.75 tokens — which let
+// long Chinese documents be misjudged as "fits the full-text window" and silently
+// overflow the prompt. We count CJK runes as ~1 token each and apply byte/4 to the
+// rest. (§4.11 token budgeting)
+func estimateTokens(s string) int {
+	cjk, other := 0, 0
+	for _, r := range s {
+		if isCJKRune(r) {
+			cjk++
+		} else {
+			other += utf8.RuneLen(r)
+		}
+	}
+	return cjk + other/4
+}
+
+// cjkGrams segments a mixed CJK run: maximal CJK spans become overlapping bigrams
+// (a lone CJK char → itself), and ASCII/Latin/digit spans are kept whole (so an
+// id like "98" inside "案例98" survives as its own matchable token).
+func cjkGrams(run string) []string {
+	runes := []rune(run)
+	out := []string{}
+	for i := 0; i < len(runes); {
+		if isCJKRune(runes[i]) {
+			j := i
+			for j < len(runes) && isCJKRune(runes[j]) {
+				j++
+			}
+			seg := runes[i:j]
+			if len(seg) == 1 {
+				out = append(out, string(seg))
+			} else {
+				for k := 0; k+1 < len(seg); k++ {
+					out = append(out, string(seg[k:k+2]))
+				}
+			}
+			i = j
+		} else {
+			j := i
+			for j < len(runes) && !isCJKRune(runes[j]) {
+				j++
+			}
+			out = append(out, string(runes[i:j]))
+			i = j
+		}
+	}
+	return out
 }
 
 func keywordScore(terms []string, doc string) float32 {
@@ -938,12 +1227,14 @@ func splitByHeadings(content string) []section {
 	stack := []string{}
 	prevDepth := 0
 	cursor := 0
-	for i, m := range matches {
-		// Body of the previous section: from cursor up to the start of this
-		// heading line.
+	for _, m := range matches {
+		// Body BEFORE this heading line. For the first heading this is the document
+		// preamble (frontmatter / abstract / intro / title blurb) — keep it with an
+		// empty breadcrumb (stack is empty here) instead of dropping it; for later
+		// headings it's the previous section's body under the current stack.
 		headingStart := m[0]
 		body := content[cursor:headingStart]
-		if i > 0 && strings.TrimSpace(body) != "" {
+		if strings.TrimSpace(body) != "" {
 			out = append(out, section{breadcrumb: strings.Join(stack, " > "), body: body})
 		}
 		depth := m[5] - m[4] // length of the # run (group 2)
@@ -1159,7 +1450,7 @@ func truncateAt(s string, max int) string {
 	if len(s) <= max {
 		return s
 	}
-	return s[:max]
+	return s[:clampRune(s, max)]
 }
 
 // mineruImageMarker matches the markdown image syntax parser.go emits for
@@ -1242,9 +1533,9 @@ func (s *Service) RouteAndRetrieve(ctx context.Context, userID, convID string, k
 		}
 		if len(c.Embedding) == 0 {
 			pinned = append(pinned, c)
-			pinnedTokens += len(c.Content) / 4
+			pinnedTokens += estimateTokens(c.Content)
 		} else {
-			embeddedTokens += len(c.Content) / 4
+			embeddedTokens += estimateTokens(c.Content)
 		}
 	}
 	// Whole scope fits (or nothing is embedded) → inject everything in full.
@@ -1293,7 +1584,7 @@ func (s *Service) RouteAndRetrieve(ctx context.Context, userID, convID string, k
 		estTokens := 0
 		for _, c := range scope {
 			if c.ChunkType != "parent" {
-				estTokens += len(c.Content) / 4
+				estTokens += estimateTokens(c.Content)
 			}
 		}
 		if estTokens <= contextBudgetTokens {
@@ -1347,7 +1638,7 @@ func fullTextSnippets(scope []store.Chunk, budgetTokens int) []Snippet {
 		if c.ChunkType == "parent" {
 			continue
 		}
-		t := len(c.Content) / 4
+		t := estimateTokens(c.Content)
 		if used+t > budgetTokens {
 			break
 		}
@@ -1382,7 +1673,7 @@ func (s *Service) mapReduceSummarise(ctx context.Context, userID, convID string,
 		if c.ChunkType == "parent" {
 			continue
 		}
-		t := len(c.Content) / 4
+		t := estimateTokens(c.Content)
 		if used+t > groupTokens && len(cur) > 0 {
 			groups = append(groups, cur)
 			cur, used = nil, 0
