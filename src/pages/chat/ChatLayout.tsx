@@ -63,8 +63,6 @@ export default function ChatLayout() {
         'pl-[var(--safe-left)] pr-[var(--safe-right)]',
       )}
     >
-      {/* Pinned announcement bar — pushes the whole shell down when active; null otherwise. */}
-      <AnnouncementBar />
       <div className="flex flex-1 min-h-0 w-full">
       {isDesktop ? (
         <Sidebar variant="desktop" />
@@ -78,6 +76,9 @@ export default function ChatLayout() {
 
       <main className="relative flex-1 min-w-0 flex">
         <div className="flex-1 min-w-0 flex flex-col">
+          {/* Pinned announcement bar — spans only the chat/content column (NOT the
+              sidebar), pinned to the top of the content area; null when inactive. */}
+          <AnnouncementBar />
           {/* Mobile top bar — suppressed when the page renders its own combined
               header (e.g. a chat thread) so the two don't stack into two rows. */}
           {!isDesktop && !pageOwnsTopBar && (
