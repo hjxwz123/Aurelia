@@ -1,7 +1,7 @@
 /**
- * AnnouncementBar — a thin notice strip pinned to the very top of the app shell
- * (§ announcement bar), spanning the FULL width above both the sidebar and the
- * content column. Driven by the same GET /api/announcement config as the popup
+ * AnnouncementBar — a thin notice strip pinned to the top of the chat/content
+ * column (§ announcement bar); it spans the content area only, NOT the history
+ * sidebar. Driven by the same GET /api/announcement config as the popup
  * but independent: it renders when `bar_enabled` is set, shows the admin's HTML
  * (links allowed, sanitized) centered, and is dismissible per-version (editing
  * the bar bumps `bar_updated_at` so it re-appears for everyone who closed the
