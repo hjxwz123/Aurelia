@@ -234,7 +234,7 @@ func resolveTaskModelID(db *sql.DB) (string, error) {
 
 // defaultSystem returns the system prompt used when callers don't supply one.
 func defaultSystem(kind TaskKind, jsonOutput bool) string {
-	base := "You are an internal helper for the Aurelia product. Be concise."
+	base := "You are an internal helper. Be concise."
 	switch kind {
 	case TaskTitle:
 		// Reply language is appended authoritatively by scheduleTitle (it forces

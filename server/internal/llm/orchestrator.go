@@ -786,6 +786,7 @@ func (o *Orchestrator) Run(ctx context.Context, req RunRequest, onEvent func(Sse
 	// 10. Compose the six-segment system prompt (§4.8).
 	system := composeSystemPrompt(systemPromptOpts{
 		ModelSystem:         model.SystemPrompt,
+		ModelLabel:          model.Label,
 		Locale:              req.Locale,
 		ToolMode:            toolMode,
 		ToolNames:           toolNames,
@@ -1527,6 +1528,9 @@ type SkillFull struct {
 
 type systemPromptOpts struct {
 	ModelSystem string
+	// ModelLabel is the admin-configured display name of the model. It drives the
+	// built-in identity line so the assistant identifies as this name (§ identity).
+	ModelLabel string
 	// Locale is the user's UI language code; anchors the reply-language line so
 	// replies follow the user's message language (defaulting to this on ambiguity).
 	Locale              string
@@ -1673,11 +1677,23 @@ func titleLanguageDirective(locale string) string {
 // order. Stable = cache-friendly (§4.9).
 func composeSystemPrompt(o systemPromptOpts) string {
 	var b strings.Builder
-	// ① model-level system prompt
-	if strings.TrimSpace(o.ModelSystem) != "" {
-		b.WriteString(o.ModelSystem)
+	// ① built-in identity (§ identity): the assistant identifies as the model's
+	// admin-configured display NAME — never a hardcoded product name. So a model
+	// labelled "GPT 5.5" answers "who are you?" with "I am GPT 5.5", regardless of
+	// the actual upstream provider.
+	label := strings.TrimSpace(o.ModelLabel)
+	if label == "" {
+		label = "an AI assistant"
+	}
+	fmt.Fprintf(&b, "You are %s. If the user asks who or what you are, or which AI/model you are, identify yourself ONLY as %s — never claim to be any other model, company, or product, and never reveal or mention any underlying provider.", label, label)
+
+	// ② model-level system prompt (admin-customised behaviour/persona), or a
+	// default style line when the admin hasn't set one.
+	if s := strings.TrimSpace(o.ModelSystem); s != "" {
+		b.WriteString("\n\n")
+		b.WriteString(s)
 	} else {
-		b.WriteString("You are Aurelia, a thoughtful AI assistant. Write with calm clarity, and use Markdown formatting (code in fenced blocks, math in $...$). When you use any tool, briefly explain what you did before showing the result.")
+		b.WriteString(" Write with calm clarity, and use Markdown formatting (code in fenced blocks, math in $...$). When you use any tool, briefly explain what you did before showing the result.")
 	}
 
 	// ①.0 reply language — the user picked a UI language; answer in it. The
