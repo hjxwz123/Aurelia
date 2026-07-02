@@ -6,7 +6,7 @@
 
 <p align="center">
   <strong>A self-hosted AI chat platform that actually competes with the hosted products.</strong><br>
-  Multi-model · Interleaved tool calls · Persistent Python sandbox · RAG · Deep Research · Full admin backend.
+  Multi-model · Interleaved tool calls · Persistent Python sandbox · RAG · Team workspaces · Deep Research · Full admin backend.
 </p>
 
 <p align="center">
@@ -28,6 +28,26 @@
 ## Why Aurelia
 
 Most self-hosted AI frontends are thin proxies — one model, one message, one response. Aurelia is built as a production platform: the same depth you expect from Claude.ai or ChatGPT, with the control of running it yourself.
+
+## Feature highlights
+
+| | Feature | What you get |
+|---|---|---|
+| 🔀 | **Multi-model** | Claude / GPT / Gemini behind one UI; per-message model attribution; tag-filtered picker; any OpenAI-compatible endpoint |
+| 🛠 | **Interleaved tool calls** | Up to **48 tool calls across 12 provider cycles in one turn** — search → fetch → compute → plot, chained autonomously; native function calling with a prompt-protocol fallback for models without it |
+| 🐍 | **Python sandbox** | Self-hosted sandbox cluster with **per-conversation persistent files**; uploads staged in, artifacts (plots, CSVs) streamed back inline; browser-side Pyodide runner too |
+| 📚 | **RAG & knowledge bases** | Query router (intent → full-text / retrieve / none), hierarchical chunking, hybrid retrieval + RRF, similarity-based dynamic top-K, cited answers; text-layer PDFs parse locally in ms, scanned docs go to MinerU OCR |
+| 👥 | **Team workspaces** | Fully-isolated shared spaces: invite-link membership, shared conversations/projects/KBs, per-sender billing, author-attributed bubbles, owner moderation, admin oversight |
+| 🌳 | **Conversation tree** | Edit/retry creates real branches with `< 2/3 >` switching that never interrupts streaming; draggable outline window with a zoomable node graph; a minimap rail for long chats |
+| ✅ | **Verify mode** | A second model adversarially fact-checks each reply and pins structured findings (quote + issue + severity) with a trust badge |
+| 🔬 | **Deep Research** | Multi-round plan → search → read → verify pipeline with a live progress panel and cited synthesis |
+| 🎨 | **Image generation** | Drawing mode with admin-curated styles, credit metering, a personal gallery, and image models managed like any other channel |
+| 🧠 | **Memory** | Async fact extraction across conversations with supersedence tracking — never in shared workspaces (privacy) |
+| 📦 | **Projects & skills** | Project containers with shared libraries + instructions; admin-managed skill packs progressively loaded at runtime |
+| 🗜 | **Long-context compaction** | Keep-N verbatim + rolling task-model summaries, cache-stable prefixes, inline compaction on real token spikes |
+| 💳 | **Credits & tiers** | User groups with timed allowances + permanent credits, per-model quotas, pre-flight cost gating, redeem codes, subscription-page visibility control |
+| 🛡 | **Security** | Backend-proxied keys, per-request HMAC signing, capability-token shares/invites, sandboxed HTML preview, upload validation, rate limits everywhere |
+| 🌍 | **Polish** | 5 languages (en / 简中 / 繁中 / 日 / fr), installable PWA, mobile-first redesign, light/dark, editorial design system |
 
 ---
 
@@ -110,6 +130,18 @@ Per-turn budget:
 ---
 
 ## Other features
+
+### Team workspaces
+
+Create a workspace from the avatar menu and share an invite link — members see the same conversations, projects and knowledge bases, completely isolated from everyone's personal space. Anyone can continue any conversation (each sender pays from their own quota); bubbles attribute every question to its author, and only creators can delete their conversations. Owners moderate members and can rotate the invite link or delete the space (cascade). Admins get a dedicated Workspaces page with full drill-down, including read-only transcript viewing.
+
+### Verify mode
+
+Toggle Verify on a turn and a second, admin-configured model audits the primary answer — quoting the exact sentences it disputes, with severity levels, surfaced as a trust badge on the reply ("Verified" or "N issues found").
+
+### Image generation
+
+A dedicated drawing mode with admin-curated style presets: prompts are optimized by a task model, generation is credit-metered per image model, and results land in a personal gallery. Reference images allow edit/variation workflows.
 
 ### Conversation branching
 
@@ -218,45 +250,39 @@ Open `http://localhost:5173`. First launch shows the setup screen.
 
 ## Architecture
 
-```
-               ┌────────────────────────────────┐
-               │  Browser (SPA, SSE streaming)  │
-               └─────────────┬──────────────────┘
-                             │ HTTPS
-                 ┌───────────▼────────────────────────────┐
-                 │  app container (one process, :8787)     │
-                 │  /       → built SPA (static files)     │
-                 │  /api/*  → Go API below                 │
-                 └───────────┬────────────────────────────┘
-                             │
-            ┌────────────────▼────────────────────────────┐
-            │  Go API — REST + SSE orchestrator           │
-            │  ┌──────────────────────────────────────┐   │
-            │  │ Provider registry                    │   │
-            │  │  Anthropic · OpenAI · Gemini · Mock  │   │
-            │  └──────────────────────────────────────┘   │
-            │  ┌──────────────────────────────────────┐   │
-            │  │ Tool layer  (up to 48 calls / turn)  │   │
-            │  │  web_search · web_fetch · fetch_image│   │
-            │  │  python_execute · image_generate     │   │
-            │  │  search_knowledge_base · save_memory │   │
-            │  │  use_skill                           │   │
-            │  └──────────────────────────────────────┘   │
-            │  ┌────────────────┐  ┌────────────────┐     │
-            │  │ Task LLM       │  │ Memory worker  │     │
-            │  │ (title/router/ │  │ (async extract │     │
-            │  │  compact/etc)  │  │  per turn)     │     │
-            │  └────────────────┘  └────────────────┘     │
-            └──┬──────────┬──────────┬──────────┬─────────┘
-               │          │          │          │
-       ┌───────▼──┐  ┌────▼────┐  ┌──▼─────┐  ┌▼──────────────┐
-       │ Postgres │  │  Redis  │  │ Qdrant │  │ Sandbox sidecar│
-       │ + SQLite │  │  cache  │  │ vectors│  │ (Python, files)│
-       └──────────┘  └─────────┘  └────────┘  └───────────────┘
+```mermaid
+graph TB
+    B["🌐 Browser — React 19 SPA<br/>SSE streaming · installable PWA"]
 
-  Optional (admin-configured, live-reload, no restart required):
-   MinerU cloud · S3 / Aliyun OSS · SearXNG · Any OpenAI-compatible provider
+    subgraph APP["app container — one process, :8787"]
+        SPA["/ &nbsp;→ static SPA"]
+        API["Go API — REST + SSE<br/>JWT auth · per-request HMAC signing · rate limits"]
+        subgraph ORCH["Orchestrator"]
+            PROV["Provider registry<br/>Anthropic · OpenAI · Gemini · Mock<br/>(any OpenAI-compatible endpoint)"]
+            TOOLS["Tool layer — ≤48 calls / turn<br/>web_search · web_fetch · fetch_image<br/>python_execute · image_generate<br/>search_knowledge_base · save_memory · use_skill"]
+            TASK["Task LLM<br/>title · RAG router · compaction · verify · moderation"]
+            RAGP["RAG pipeline<br/>parse → chunk → embed → route → retrieve"]
+            MEMW["Memory worker<br/>async per-turn extraction"]
+            WS["Workspaces<br/>membership ACL · per-sender billing"]
+        end
+    end
+
+    B -->|HTTPS| SPA
+    B -->|"/api/*"| API
+    API --> ORCH
+
+    PROV <-->|streaming| LLM["☁️ Model providers"]
+    TOOLS --> SBX["Sandbox sidecar<br/>Python · per-conversation files"]
+    RAGP --> QD[("Qdrant<br/>vectors")]
+    RAGP -.->|"scanned docs only"| MRU["MinerU cloud OCR"]
+
+    ORCH --> DB[("SQLite dev /<br/>Postgres prod")]
+    ORCH --> RDS[("Redis<br/>cache · pub/sub")]
+    ORCH -.-> OBJ["S3 / Aliyun OSS<br/>(optional)"]
 ```
+
+> Everything admin-configurable hot-reloads — providers, models, tools, RAG, storage — no restarts.
+
 
 ---
 
