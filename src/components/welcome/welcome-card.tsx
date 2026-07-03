@@ -11,6 +11,12 @@ import { toast } from '@/hooks/use-toast'
 import { SUPPORTED_LANGUAGES, type LanguageCode } from '@/i18n'
 import { ACCENT_PRESETS, type AccentPref, type ChatWidthPref, type ThemePref } from '@/types/settings'
 import { Logo } from '@/components/brand/logo'
+import { Aurora } from '@/components/landing/fx/aurora'
+import { BlurText } from '@/components/landing/fx/blur-text'
+import { GradientText } from '@/components/landing/fx/gradient-text'
+import { ShinyText } from '@/components/landing/fx/shiny-text'
+import { SplitText } from '@/components/landing/fx/split-text'
+import { StarBorder } from '@/components/landing/fx/star-border'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
@@ -266,15 +272,30 @@ export function WelcomeCard() {
         <DialogDescription className="sr-only">{t('welcome:config.subtitle')}</DialogDescription>
 
         <div className="flex flex-col md:flex-row min-h-0 flex-1">
-          {/* Editorial intro with a live, accent-tinted aurora. */}
+          {/* Editorial intro with a live, accent-tinted aurora — the same WebGL
+              curtain as the landing/auth heroes. It re-tints as the user picks
+              an accent (the ramp re-resolves on data-accent changes) and falls
+              back to the static bg-muted panel under reduced-motion. */}
           <aside className="relative hidden md:flex md:w-[42%] flex-col justify-between gap-10 overflow-hidden p-8 bg-[var(--color-bg-muted)] border-r border-[var(--color-divider)]">
-            <div aria-hidden className="pointer-events-none absolute inset-0">
-              <div
-                className="absolute -inset-[25%] blur-2xl opacity-[0.16] animate-[welcome-aurora_20s_var(--ease-out)_infinite]"
-                style={{
-                  background:
-                    'radial-gradient(38% 38% at 28% 30%, var(--color-accent), transparent 72%), radial-gradient(42% 42% at 72% 70%, var(--color-accent), transparent 72%)',
-                }}
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-0"
+              style={{
+                maskImage: 'linear-gradient(to bottom, #000 0%, #000 40%, transparent 90%)',
+                WebkitMaskImage: 'linear-gradient(to bottom, #000 0%, #000 40%, transparent 90%)',
+              }}
+            >
+              <Aurora
+                className="opacity-45"
+                colorStops={[
+                  'color-mix(in oklch, var(--color-accent) 58%, var(--color-bg))',
+                  'color-mix(in oklch, var(--color-accent) 26%, var(--color-bg))',
+                  'color-mix(in oklch, var(--color-accent) 58%, var(--color-bg))',
+                ]}
+                amplitude={1.0}
+                blend={0.6}
+                speed={0.45}
+                intensity={1.1}
               />
             </div>
 
@@ -282,11 +303,22 @@ export function WelcomeCard() {
               <Logo size="lg" />
             </div>
             <div className="relative z-10">
-              <div className="text-[12px] uppercase tracking-[0.1em] text-[var(--color-fg-subtle)]">
-                {t('welcome:intro.eyebrow')}
+              <div className="text-[12px] uppercase tracking-[0.1em]">
+                <ShinyText text={t('welcome:intro.eyebrow')} baseColor="var(--color-fg-subtle)" speed={5} />
               </div>
-              <h2 className="mt-3 font-serif text-[2rem] leading-[1.1] tracking-[-0.01em] text-[var(--color-fg)]">
-                {t('welcome:intro.title')}
+              <h2 className="mt-3 overflow-hidden font-serif text-[2rem] leading-[1.1] tracking-[-0.01em] text-[var(--color-fg)]">
+                {/* Per-character masked rise — the landing headline language. */}
+                <SplitText
+                  text={t('welcome:intro.title')}
+                  splitType="chars"
+                  delay={24}
+                  duration={0.8}
+                  from={{ yPercent: 115 }}
+                  to={{ yPercent: 0 }}
+                  threshold={0}
+                  rootMargin="0px"
+                  className="block pb-[0.08em] -mb-[0.08em]"
+                />
               </h2>
               <p className="mt-3 text-sm leading-relaxed text-[var(--color-fg-muted)]">
                 {t('welcome:intro.subtitle')}
@@ -331,10 +363,11 @@ export function WelcomeCard() {
                 </span>
               </div>
 
-              {/* Step content — re-keyed so it animates in on each change. */}
+              {/* Step content — re-keyed so it animates in on each change; the
+                  step title drifts into focus with it (BlurText replays per key). */}
               <div key={step} className="mt-7 animate-[welcome-step_300ms_var(--ease-out)]">
                 <h3 className="font-serif text-2xl tracking-tight text-[var(--color-fg)]">
-                  {t(`welcome:fields.${current === 'style' ? 'chatStyle' : current}`)}
+                  <BlurText text={t(`welcome:fields.${current === 'style' ? 'chatStyle' : current}`)} delay={90} />
                 </h3>
                 <p className="mt-1.5 text-sm text-[var(--color-fg-muted)] leading-relaxed">
                   {t(`welcome:stepHints.${current}`)}
@@ -378,15 +411,24 @@ export function WelcomeCard() {
           <Logo size="lg" />
           <div>
             <DialogTitle className="font-serif text-2xl tracking-tight text-[var(--color-fg)]">
-              {t('welcome:ready.title')}
+              {/* One warm clay glint pans through the celebration line. */}
+              <GradientText
+                colors={['var(--color-fg)', 'var(--color-accent)', 'var(--color-fg)']}
+                animationSpeed={7}
+              >
+                {t('welcome:ready.title')}
+              </GradientText>
             </DialogTitle>
             <DialogDescription className="mt-2 text-sm leading-relaxed text-[var(--color-fg-muted)] max-w-[34ch]">
               {t('welcome:ready.body')}
             </DialogDescription>
           </div>
-          <Button className="mt-2 w-full" onClick={finishWelcome}>
-            {t('welcome:ready.cta')}
-          </Button>
+          {/* The "enter the studio" moment gets the orbiting glow. */}
+          <StarBorder as="span" className="mt-2 w-full rounded-[12px]" speed="7s" thickness={2}>
+            <Button className="w-full" onClick={finishWelcome}>
+              {t('welcome:ready.cta')}
+            </Button>
+          </StarBorder>
         </div>
       </DialogContent>
     </Dialog>

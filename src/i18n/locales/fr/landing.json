@@ -77,7 +77,12 @@
       "strength": "Exploitez la force de chaque modèle sans quitter la page.",
       "oneSub": "Un seul abonnement — aucune clé à gérer, aucun onglet à courir."
     },
-    "footnote": "… et d'autres encore, ajoutés au fil de leurs sorties."
+    "footnote": "… et d'autres encore, ajoutés au fil de leurs sorties.",
+    "stats": {
+      "models": "modèles de pointe",
+      "languages": "langues d'interface",
+      "subscription": "abonnement"
+    }
   },
   "safety": {
     "eyebrow": "Sécurité et confidentialité",

@@ -77,7 +77,12 @@
       "strength": "無需離開頁面，即可調用每個模型的所長。",
       "oneSub": "一份訂閱，無需管理金鑰，無需在分頁間奔波。"
     },
-    "footnote": "……更多模型，將在發布時陸續接入。"
+    "footnote": "……更多模型，將在發布時陸續接入。",
+    "stats": {
+      "models": "個前沿模型",
+      "languages": "種介面語言",
+      "subscription": "份訂閱"
+    }
   },
   "safety": {
     "eyebrow": "安全與隱私",

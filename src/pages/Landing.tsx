@@ -11,14 +11,30 @@ import {
   Telescope,
   Lock,
   Cloud,
-  Check,
   ArrowUp,
+  PenLine,
+  Lightbulb,
   type LucideIcon,
 } from 'lucide-react'
 import { Logo } from '@/components/brand/logo'
 import { MembershipTiers } from '@/components/landing/membership-tiers'
 import { FlowField } from '@/components/landing/flow-field'
 import { LiveDemo } from '@/components/landing/live-demo'
+import { WritingScene, ResearchScene, CodeScene } from '@/components/landing/capability-scenes'
+import { ScrollReveal } from '@/components/landing/fx/scroll-reveal'
+import { Aurora } from '@/components/landing/fx/aurora'
+import { SplitText } from '@/components/landing/fx/split-text'
+import { ShinyText } from '@/components/landing/fx/shiny-text'
+import { GradientText } from '@/components/landing/fx/gradient-text'
+import { ClickSpark } from '@/components/landing/fx/click-spark'
+import { SpotlightCard } from '@/components/landing/fx/spotlight-card'
+import { GlareHover } from '@/components/landing/fx/glare-hover'
+import { StarBorder } from '@/components/landing/fx/star-border'
+import { CountUp } from '@/components/landing/fx/count-up'
+import { Particles } from '@/components/landing/fx/particles'
+import { ScrollFloat } from '@/components/landing/fx/scroll-float'
+import { ScrollVelocity } from '@/components/landing/fx/scroll-velocity'
+import { BlurText } from '@/components/landing/fx/blur-text'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
@@ -30,12 +46,17 @@ import { cn } from '@/lib/utils'
 gsap.registerPlugin(ScrollTrigger, useGSAP)
 
 const CAPABILITY_KEYS = [
-  { icon: BookOpen, key: 'writing' },
-  { icon: Telescope, key: 'research' },
-  { icon: Code2, key: 'code' },
+  { icon: BookOpen, key: 'writing', Scene: WritingScene },
+  { icon: Telescope, key: 'research', Scene: ResearchScene },
+  { icon: Code2, key: 'code', Scene: CodeScene },
 ] as const
 
-const USE_CASE_KEYS = ['writers', 'researchers', 'engineers', 'thinkers'] as const
+const USE_CASE_KEYS = [
+  { key: 'writers', icon: PenLine },
+  { key: 'researchers', icon: Telescope },
+  { key: 'engineers', icon: Code2 },
+  { key: 'thinkers', icon: Lightbulb },
+] as const
 
 // The mainstream models Aurelia convenes (§ models showcase). Names + makers are
 // proper nouns (untranslated); logos are vendored brand marks in /public/brand,
@@ -201,7 +222,13 @@ export default function Landing() {
   )
 
   return (
-    <div ref={root} className="relative min-h-svh overflow-x-clip bg-[var(--color-bg)] text-[var(--color-fg)]">
+    // `isolate` scopes the -z-10 ornament (orbs/grain) to THIS element's
+    // stacking context so it paints above the opaque page background instead
+    // of being buried beneath it at the root context.
+    <div ref={root} className="relative isolate min-h-svh overflow-x-clip bg-[var(--color-bg)] text-[var(--color-fg)]">
+      {/* Every click anywhere on the page bursts a small ring of accent sparks —
+          one shared canvas overlay, reduced-motion silent (§ welcome fx). */}
+      <ClickSpark sparkSize={9} sparkRadius={18} sparkCount={8} duration={450}>
       {/* Background accents */}
       <BackgroundOrnament />
 
@@ -245,8 +272,11 @@ export default function Landing() {
       </header>
 
       {/* Hero — left-anchored editorial split; the second headline line carries
-          a violet ink-wash (dual-layer masked real text, scrubbed by GSAP). */}
-      <section className="relative pt-16 sm:pt-24 pb-20 sm:pb-28">
+          a violet ink-wash (dual-layer masked real text, scrubbed by GSAP).
+          `isolate`: the -z-10 backdrop (flow-field + aurora) needs a stacking
+          context HERE, or negative z drops it behind the page's opaque
+          background (it paints at the root context otherwise). */}
+      <section className="relative isolate pt-16 sm:pt-24 pb-20 sm:pb-28">
         {/* Signature generative line-field — a living backdrop behind the hero,
             edge-faded so it never competes with the headline or the demo. */}
         <div
@@ -258,18 +288,69 @@ export default function Landing() {
           }}
         >
           <FlowField />
+          {/* A clay→sage aurora curtain washes over the line-field — the same
+              warmth as the orbs, now alive. Token stops re-resolve on theme
+              flip; renders nothing under reduced-motion (§ welcome fx). */}
+          {/* Stops lean the accent toward the page background, so the curtain
+              reads pastel on light and deep-glow on dark from ONE expression.
+              A single-hue ramp (deep→pale→deep clay) — the shader lerps in
+              RGB, where two-hue ramps mud out through gray. */}
+          <Aurora
+            className="opacity-60"
+            colorStops={[
+              'color-mix(in oklch, var(--color-accent) 62%, var(--color-bg))',
+              'color-mix(in oklch, var(--color-accent) 30%, var(--color-bg))',
+              'color-mix(in oklch, var(--color-accent) 62%, var(--color-bg))',
+            ]}
+            amplitude={1.05}
+            blend={0.6}
+            speed={0.5}
+            intensity={1.25}
+          />
+          {/* Drifting motes over the aurora — they lean toward the pointer,
+              so the whole first screen answers the hand (§ welcome fx). */}
+          <Particles
+            particleCount={160}
+            particleSpread={11}
+            speed={0.08}
+            particleBaseSize={90}
+            moveParticlesOnHover
+            particleHoverFactor={1.6}
+          />
         </div>
         <div className="mx-auto grid max-w-[76rem] items-center gap-12 px-5 sm:px-8 lg:grid-cols-[1.12fr_0.88fr] lg:gap-10">
           <div className="min-w-0 max-w-[40rem]">
             <div className="hero-badge inline-block">
               <Badge variant="sage" leadingIcon={<Sparkles size={11} aria-hidden />} className="mb-7">
-                {t('landing:badgeNew')}
+                {/* A slow sheen breathes across the announcement — the page's
+                    single sage moment stays sage, just alive (§ welcome fx). */}
+                <ShinyText
+                  text={t('landing:badgeNew')}
+                  baseColor="var(--color-secondary)"
+                  shineColor="var(--color-fg)"
+                  speed={3.5}
+                />
               </Badge>
             </div>
             {/* Each line rises out of an overflow mask; line 2 holds the ink-wash. */}
             <h1 className="font-optical font-serif tracking-tight text-balance text-[clamp(2.5rem,6.4vw,5.5rem)] leading-[1.03] text-[var(--color-fg)]">
               <span className="block overflow-hidden pb-[0.08em]">
-                <span className="hero-line block">{t('landing:hero.titleLine1')}</span>
+                {/* Line 1 rises per-character out of the same overflow mask the
+                    old block-rise used — one entrance language, finer grain.
+                    Line 2 keeps its block rise + ink wash (§ welcome fx). */}
+                {/* pb/-mb: the inner mask needs the same descender room the
+                    outer span reserves, else a wrapped second line clips. */}
+                <SplitText
+                  text={t('landing:hero.titleLine1')}
+                  splitType="chars"
+                  delay={26}
+                  duration={0.85}
+                  from={{ yPercent: 115 }}
+                  to={{ yPercent: 0 }}
+                  threshold={0}
+                  rootMargin="0px"
+                  className="block pb-[0.08em] -mb-[0.08em]"
+                />
               </span>
               <span className="block overflow-hidden pb-[0.14em]">
                 <span className="hero-line block italic">
@@ -327,32 +408,41 @@ export default function Landing() {
                 backgroundSize: '16px 16px',
               }}
             />
-            <LiveDemo />
+            {/* Hovering the demo sweeps a soft light across its glass — pairs
+                with the pointer tilt above. Shadow lives on the wrapper because
+                its overflow clip would swallow the card's own (§ welcome fx). */}
+            <GlareHover
+              className="rounded-[18px] shadow-[var(--shadow-2xl)]"
+              glareOpacity={0.09}
+              glareSize={260}
+              transitionDuration={800}
+            >
+              <LiveDemo />
+            </GlareHover>
           </div>
         </div>
       </section>
 
-      {/* Model marquee — a calm, edge-faded auto-scroll of the frontier models
-          Aurelia convenes. Pauses on hover; static under reduced-motion. */}
+      {/* Model band — two counter-drifting serif rails of the frontier models
+          Aurelia convenes; their speed answers the user's scroll velocity, so
+          the page physically reacts to being read (§ welcome fx). Edge-faded,
+          static under reduced-motion. */}
       <div
-        className="marquee-group relative overflow-hidden border-y border-[var(--color-divider)] py-6"
+        className="relative overflow-hidden border-y border-[var(--color-divider)] py-8"
         aria-hidden
         style={{
-          maskImage: 'linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent)',
-          WebkitMaskImage: 'linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent)',
+          maskImage: 'linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent)',
+          WebkitMaskImage: 'linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent)',
         }}
       >
-        <ul className="marquee-track flex w-max items-center gap-14">
-          {[...MODELS, ...MODELS].map((m, i) => (
-            <li key={`${m.key}-${i}`} className="flex shrink-0 items-center gap-2.5">
-              <span
-                className="brand-mark size-5 bg-[var(--color-fg-subtle)]"
-                style={{ WebkitMaskImage: `url(/brand/${m.slug}.svg)`, maskImage: `url(/brand/${m.slug}.svg)` }}
-              />
-              <span className="font-serif text-lg tracking-tight text-[var(--color-fg-muted)]">{m.name}</span>
-            </li>
-          ))}
-        </ul>
+        <ScrollVelocity
+          texts={[
+            MODELS.map((m) => m.name).join('  ·  ') + '  ·  ',
+            MODELS.map((m) => m.maker).join('  ·  ') + '  ·  ',
+          ]}
+          velocity={70}
+          className="px-4 font-serif text-4xl sm:text-6xl tracking-tight text-[var(--color-fg)] opacity-[0.14]"
+        />
       </div>
 
       {/* Capabilities */}
@@ -362,26 +452,34 @@ export default function Landing() {
             title={t('landing:capabilities.title')}
             body={t('landing:capabilities.body')}
           />
-          {/* A ruled ledger, not a card grid: label column (icon + name) meets a
-              description column across a hairline. Hover warms the whole row. */}
-          <div className="mt-14 border-t border-[var(--color-divider)]" data-reveal-group>
+          {/* Living cards: each capability opens with a token-drawn scene that
+              plays its story on loop — prose writing itself, sources converging
+              on a claim, code being read — over the shared spotlight hover
+              (§ welcome fx). */}
+          <div className="mt-14 grid gap-5 md:grid-cols-3" data-reveal-group>
             {CAPABILITY_KEYS.map((c) => (
-              <div
+              <SpotlightCard
                 key={c.key}
-                className="group grid grid-cols-1 items-baseline gap-x-10 gap-y-3 border-b border-[var(--color-divider)] py-7 transition-colors duration-300 sm:grid-cols-[minmax(0,16rem)_1fr] sm:py-9 hover:bg-[var(--color-surface)]"
+                spotlightColor="color-mix(in oklch, var(--color-accent) 10%, transparent)"
+                className="group rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] transition-transform duration-300 hover:-translate-y-1 hover:shadow-[var(--shadow-md)]"
               >
-                <div className="flex items-center gap-3.5">
-                  <span className="inline-flex size-9 items-center justify-center rounded-[10px] bg-[var(--color-accent-soft)] text-[var(--color-accent)] transition-transform duration-300 group-hover:-translate-y-0.5">
-                    <c.icon size={16} aria-hidden />
-                  </span>
-                  <h3 className="font-serif text-xl tracking-tight text-[var(--color-fg)]">
-                    {t(`landing:capabilities.items.${c.key}.title`)}
-                  </h3>
+                <div className="h-44 overflow-hidden border-b border-[var(--color-divider)] bg-[var(--color-bg-muted)]/60">
+                  <c.Scene />
                 </div>
-                <p className="max-w-[58ch] text-[15px] text-[var(--color-fg-muted)] leading-relaxed text-pretty">
-                  {t(`landing:capabilities.items.${c.key}.body`)}
-                </p>
-              </div>
+                <div className="p-6 sm:p-7">
+                  <div className="flex items-center gap-3">
+                    <span className="inline-flex size-9 items-center justify-center rounded-[10px] bg-[var(--color-accent-soft)] text-[var(--color-accent)] transition-transform duration-300 group-hover:-translate-y-0.5">
+                      <c.icon size={16} aria-hidden />
+                    </span>
+                    <h3 className="font-serif text-xl tracking-tight text-[var(--color-fg)]">
+                      {t(`landing:capabilities.items.${c.key}.title`)}
+                    </h3>
+                  </div>
+                  <p className="mt-3.5 text-[14.5px] text-[var(--color-fg-muted)] leading-relaxed text-pretty">
+                    {t(`landing:capabilities.items.${c.key}.body`)}
+                  </p>
+                </div>
+              </SpotlightCard>
             ))}
           </div>
         </div>
@@ -392,25 +490,35 @@ export default function Landing() {
         <div className="mx-auto max-w-[76rem] px-5 sm:px-8 grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 items-start">
           <div data-reveal>
             <h2 className="font-serif tracking-tight text-3xl sm:text-4xl text-[var(--color-fg)] text-balance">
-              {t('landing:how.title')}
+              <ScrollFloat text={t('landing:how.title')} />
             </h2>
             <p className="mt-5 text-[var(--color-fg-muted)] leading-relaxed text-pretty">
               {t('landing:how.body')}
             </p>
-            <ul className="mt-10 space-y-4">
-              {PRINCIPLE_KEYS.map((p) => (
-                <li key={p} className="flex items-start gap-3">
-                  <span className="mt-1 inline-flex size-5 items-center justify-center rounded-full bg-[var(--color-success-soft)] text-[var(--color-success)] shrink-0">
-                    <Check size={11} aria-hidden />
-                  </span>
-                  <div>
-                    <div className="font-medium text-[var(--color-fg)]">
-                      {t(`landing:how.principles.${p}.title`)}
+            {/* Editorial numbering: an oversized ghost numeral anchors each
+                principle; the row lights and lifts on hover (§ welcome fx). */}
+            <ul className="mt-10 space-y-2" data-reveal-group>
+              {PRINCIPLE_KEYS.map((p, i) => (
+                <li key={p}>
+                  <SpotlightCard
+                    spotlightColor="color-mix(in oklch, var(--color-accent) 8%, transparent)"
+                    className="group flex items-start gap-4 rounded-xl px-4 py-4 transition-colors duration-300 hover:bg-[var(--color-surface)]"
+                  >
+                    <span
+                      aria-hidden
+                      className="w-10 shrink-0 select-none font-serif text-[2rem] leading-none tracking-tight text-[color-mix(in_oklch,var(--color-accent)_38%,transparent)] transition-colors duration-300 group-hover:text-[var(--color-accent)]"
+                    >
+                      {String(i + 1).padStart(2, '0')}
+                    </span>
+                    <div>
+                      <div className="font-medium text-[var(--color-fg)]">
+                        <BlurText text={t(`landing:how.principles.${p}.title`)} delay={70} />
+                      </div>
+                      <div className="mt-0.5 text-sm text-[var(--color-fg-muted)]">
+                        {t(`landing:how.principles.${p}.body`)}
+                      </div>
                     </div>
-                    <div className="text-sm text-[var(--color-fg-muted)]">
-                      {t(`landing:how.principles.${p}.body`)}
-                    </div>
-                  </div>
+                  </SpotlightCard>
                 </li>
               ))}
             </ul>
@@ -425,28 +533,39 @@ export default function Landing() {
       <section className="py-24 sm:py-32 border-t border-[var(--color-divider)]">
         <div className="mx-auto max-w-[76rem] px-5 sm:px-8">
           <SectionHeader title={t('landing:useCases.title')} />
-          {/* A reading-room index: ruled entries, term over definition, two
-              columns on desktop. No cards, no numbers — it reads like a contents
-              page. An accent tick under each term draws in on hover. */}
-          <dl
-            className="mt-12 grid grid-cols-1 border-t border-[var(--color-divider)] sm:grid-cols-2 sm:gap-x-16"
-            data-reveal-group
-          >
-            {USE_CASE_KEYS.map((key) => (
-              <div key={key} className="group border-b border-[var(--color-divider)] py-7">
-                <dt className="font-serif text-xl tracking-tight text-[var(--color-fg)]">
+          {/* Numbered gallery cards: an oversized ghost numeral fills each
+              card's corner, the icon chip lifts on hover, and every term
+              drifts into focus as it scrolls in (§ welcome fx). */}
+          <dl className="mt-12 grid grid-cols-1 gap-5 sm:grid-cols-2" data-reveal-group>
+            {USE_CASE_KEYS.map(({ key, icon: Icon }, i) => (
+              <SpotlightCard
+                key={key}
+                spotlightColor="color-mix(in oklch, var(--color-accent) 9%, transparent)"
+                className="group rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 sm:p-7 transition-transform duration-300 hover:-translate-y-1 hover:shadow-[var(--shadow-md)]"
+              >
+                <span
+                  aria-hidden
+                  className="pointer-events-none absolute -top-7 right-1 select-none font-serif text-[7rem] leading-none tracking-tight text-[color-mix(in_oklch,var(--color-fg)_6%,transparent)] transition-colors duration-500 group-hover:text-[color-mix(in_oklch,var(--color-accent)_16%,transparent)]"
+                >
+                  {String(i + 1).padStart(2, '0')}
+                </span>
+                <span className="relative inline-flex size-10 items-center justify-center rounded-[11px] bg-[var(--color-accent-soft)] text-[var(--color-accent)] transition-transform duration-300 group-hover:-translate-y-0.5">
+                  <Icon size={17} aria-hidden />
+                </span>
+                <dt className="mt-4 font-serif text-xl tracking-tight text-[var(--color-fg)]">
                   <span className="relative inline-block">
-                    {t(`landing:useCases.items.${key}.title`)}
+                    {/* Each entry's term drifts into focus as it scrolls in. */}
+                    <BlurText text={t(`landing:useCases.items.${key}.title`)} delay={80} />
                     <span
                       aria-hidden
                       className="absolute -bottom-1 left-0 h-px w-full origin-left scale-x-0 bg-[var(--color-accent)] transition-transform duration-300 group-hover:scale-x-100"
                     />
                   </span>
                 </dt>
-                <dd className="mt-2.5 max-w-[46ch] text-sm text-[var(--color-fg-muted)] leading-relaxed text-pretty">
+                <dd className="relative mt-2.5 max-w-[46ch] text-sm text-[var(--color-fg-muted)] leading-relaxed text-pretty">
                   {t(`landing:useCases.items.${key}.body`)}
                 </dd>
-              </div>
+              </SpotlightCard>
             ))}
           </dl>
         </div>
@@ -461,15 +580,37 @@ export default function Landing() {
             title={t('landing:models.title')}
             body={t('landing:models.body')}
           />
+          {/* The section's facts, counted up as they scroll into view — serif
+              numerals on a ruled band, no card chrome (§ welcome fx). */}
+          <div
+            className="mt-12 grid grid-cols-3 divide-x divide-[var(--color-divider)] border-y border-[var(--color-divider)]"
+            data-reveal
+          >
+            {([
+              ['models', MODELS.length],
+              ['languages', 5],
+              ['subscription', 1],
+            ] as const).map(([k, n]) => (
+              <div key={k} className="flex flex-col items-center gap-1.5 px-3 py-7 text-center">
+                <span className="font-serif text-4xl sm:text-5xl tracking-tight tabular-nums text-[var(--color-fg)]">
+                  <CountUp to={n} duration={1.4} />
+                </span>
+                <span className="font-mono text-[10.5px] uppercase tracking-wider text-[var(--color-fg-subtle)]">
+                  {t(`landing:models.stats.${k}`)}
+                </span>
+              </div>
+            ))}
+          </div>
           <ul
-            className="mt-12 grid grid-cols-2 sm:grid-cols-4 gap-px overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-border)]"
+            className="mt-10 grid grid-cols-2 sm:grid-cols-4 gap-px overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-border)]"
             data-reveal-group
           >
             {MODELS.map((m) => (
-              <li
-                key={m.key}
-                className="group/m relative flex flex-col items-center gap-3 bg-[var(--color-bg)] px-4 py-8 text-center transition-transform duration-300 hover:-translate-y-0.5"
-              >
+              <li key={m.key} className="group/m bg-[var(--color-bg)]">
+                <SpotlightCard
+                  spotlightColor="color-mix(in oklch, var(--color-accent) 9%, transparent)"
+                  className="flex h-full flex-col items-center gap-3 px-4 py-8 text-center transition-transform duration-300 hover:-translate-y-0.5"
+                >
                 <span
                   aria-hidden
                   className={cn(
@@ -488,6 +629,7 @@ export default function Landing() {
                   aria-hidden
                   className="absolute bottom-0 left-1/2 h-px w-10 -translate-x-1/2 origin-center scale-x-0 bg-[var(--color-accent)] transition-transform duration-300 group-hover/m:scale-x-100"
                 />
+                </SpotlightCard>
               </li>
             ))}
           </ul>
@@ -517,7 +659,7 @@ export default function Landing() {
           <div data-reveal>
             <Badge variant="neutral">{t('landing:safety.eyebrow')}</Badge>
             <h2 className="mt-5 font-serif tracking-tight text-3xl sm:text-4xl text-[var(--color-fg)] text-balance">
-              {t('landing:safety.title')}
+              <ScrollFloat text={t('landing:safety.title')} />
             </h2>
             <p className="mt-5 text-[var(--color-fg-muted)] leading-relaxed">
               {t('landing:safety.body')}
@@ -531,21 +673,49 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* CTA */}
-      <section className="py-28 sm:py-36">
+      {/* CTA — a drifting particle field behind the final ask; motes lean
+          toward the pointer (§ welcome fx). isolate scopes the -z layer. */}
+      <section className="relative isolate overflow-hidden py-28 sm:py-36">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 -z-10"
+          style={{
+            maskImage: 'radial-gradient(90% 90% at 50% 50%, #000 55%, transparent 100%)',
+            WebkitMaskImage: 'radial-gradient(90% 90% at 50% 50%, #000 55%, transparent 100%)',
+          }}
+        >
+          <Particles
+            particleCount={130}
+            particleSpread={12}
+            speed={0.07}
+            particleBaseSize={80}
+            moveParticlesOnHover
+            particleHoverFactor={1.4}
+          />
+        </div>
         <div className="mx-auto max-w-[60rem] px-5 sm:px-8 text-center" data-reveal>
           <h2 className="font-serif tracking-tight text-balance text-3xl sm:text-5xl leading-[1.05] text-[var(--color-fg)]">
-            {t('landing:cta.title')}
+            {/* A slow clay glint pans through the closing line — mostly ink,
+                one warm pass; static under reduced-motion (§ welcome fx). */}
+            <GradientText
+              colors={['var(--color-fg)', 'var(--color-accent)', 'var(--color-fg)']}
+              animationSpeed={9}
+            >
+              {t('landing:cta.title')}
+            </GradientText>
           </h2>
           <p className="mx-auto mt-6 max-w-md text-[var(--color-fg-muted)]">
             {t('landing:cta.body')}
           </p>
           <div className="mt-9 flex items-center justify-center gap-3 flex-wrap">
-            <Link to="/chat">
-              <Button size="lg" trailingIcon={<ArrowRight size={15} aria-hidden />}>
-                {t('landing:cta.primary')}
-              </Button>
-            </Link>
+            {/* The final ask earns the page's one orbiting glow (§ welcome fx). */}
+            <StarBorder as="span" className="rounded-[12px]" speed="7s" thickness={2}>
+              <Link to="/chat" className="inline-block">
+                <Button size="lg" trailingIcon={<ArrowRight size={15} aria-hidden />}>
+                  {t('landing:cta.primary')}
+                </Button>
+              </Link>
+            </StarBorder>
             <Link to="/register">
               <Button size="lg" variant="ghost">
                 {t('common:actions.signUp')}
@@ -557,11 +727,12 @@ export default function Landing() {
 
       {/* Footer */}
       <footer className="border-t border-[var(--color-divider)] py-14">
-        <div className="mx-auto max-w-[76rem] px-5 sm:px-8 grid grid-cols-2 md:grid-cols-5 gap-10">
+        <div className="mx-auto max-w-[76rem] px-5 sm:px-8 grid grid-cols-2 md:grid-cols-5 gap-10" data-reveal>
           <div className="col-span-2">
             <Logo size="md" />
-            <p className="mt-3 max-w-xs text-sm text-[var(--color-fg-muted)] leading-relaxed">
-              {t('landing:footer.tagline')}
+            <p className="mt-3 max-w-xs text-sm leading-relaxed">
+              {/* The sign-off breathes the same slow sheen as the hero badge. */}
+              <ShinyText text={t('landing:footer.tagline')} speed={6} />
             </p>
           </div>
           <FooterCol
@@ -605,6 +776,7 @@ export default function Landing() {
       >
         <ArrowUp size={16} aria-hidden />
       </button>
+      </ClickSpark>
     </div>
   )
 }
@@ -613,13 +785,15 @@ function SectionHeader({ eyebrow, title, body }: { eyebrow?: string; title: stri
   return (
     <div className="max-w-2xl" data-reveal>
       {eyebrow && <Badge variant="neutral">{eyebrow}</Badge>}
+      {/* Every section title floats in per-character, scrubbed by the scroll
+          bar — the page stays alive below the fold (§ welcome fx). */}
       <h2
         className={cn(
           'font-serif tracking-tight text-3xl sm:text-4xl text-[var(--color-fg)] text-balance',
           eyebrow && 'mt-5',
         )}
       >
-        {title}
+        <ScrollFloat text={title} />
       </h2>
       {body && <p className="mt-5 text-[var(--color-fg-muted)] leading-relaxed text-pretty">{body}</p>}
     </div>
@@ -628,14 +802,23 @@ function SectionHeader({ eyebrow, title, body }: { eyebrow?: string; title: stri
 
 function SafetyRow({ icon: Icon, title, body }: { icon: LucideIcon; title: string; body: string }) {
   return (
-    <li className="flex items-start gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
-      <span className="inline-flex size-9 items-center justify-center rounded-full bg-[var(--color-accent-soft)] text-[var(--color-accent)] shrink-0">
-        <Icon size={15} aria-hidden />
-      </span>
-      <div>
-        <div className="font-medium text-[var(--color-fg)]">{title}</div>
-        <div className="text-sm text-[var(--color-fg-muted)] leading-relaxed">{body}</div>
-      </div>
+    <li>
+      {/* Same spotlight hover as the ledger rows/tiles — the card chrome sits
+          on the wrapper so the glow clips to its radius (§ welcome fx). */}
+      <SpotlightCard
+        spotlightColor="color-mix(in oklch, var(--color-accent) 11%, transparent)"
+        className="flex items-start gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5"
+      >
+        <span className="inline-flex size-9 items-center justify-center rounded-full bg-[var(--color-accent-soft)] text-[var(--color-accent)] shrink-0">
+          <Icon size={15} aria-hidden />
+        </span>
+        <div>
+          <div className="font-medium text-[var(--color-fg)]">
+            <BlurText text={title} delay={80} />
+          </div>
+          <div className="text-sm text-[var(--color-fg-muted)] leading-relaxed">{body}</div>
+        </div>
+      </SpotlightCard>
     </li>
   )
 }
@@ -660,7 +843,13 @@ function FooterCol({ title, links }: { title: string; links: [string, string][] 
 function PullQuote() {
   const { t } = useTranslation('landing')
   return (
-    <figure className="relative overflow-hidden rounded-xl bg-[var(--color-bg-muted)] px-8 py-10 sm:px-10 sm:py-12">
+    // The quote card shares the ledger rows' spotlight hover (§ welcome fx);
+    // the card chrome moved onto the wrapper so the glow clips to its radius.
+    <SpotlightCard
+      spotlightColor="color-mix(in oklch, var(--color-accent) 10%, transparent)"
+      className="rounded-xl bg-[var(--color-bg-muted)]"
+    >
+    <figure className="relative px-8 py-10 sm:px-10 sm:py-12">
       {/* Oversized recessed quotation mark — sets the editorial register. */}
       <span
         aria-hidden
@@ -669,14 +858,17 @@ function PullQuote() {
       >
         &ldquo;
       </span>
-      <blockquote className="relative font-serif text-[1.5rem] sm:text-[1.75rem] leading-[1.34] tracking-tight text-[var(--color-fg)] text-pretty">
-        {t('how.quote')}
+      <blockquote className="relative font-serif text-[1.5rem] sm:text-[1.75rem] leading-[1.34] tracking-tight text-pretty text-[var(--color-fg)]">
+        {/* Reading-pace reveal: each word sharpens from a blur as the scroll
+            bar sweeps the quote — the page reads it with you (§ welcome fx). */}
+        <ScrollReveal text={t('how.quote')} />
       </blockquote>
       <figcaption className="relative mt-7 flex items-center gap-3 text-sm text-[var(--color-fg-muted)]">
         <span className="inline-grid size-7 place-items-center rounded-full bg-[var(--color-accent-soft)] font-mono text-[var(--color-accent)]">A</span>
         <span>{t('how.quoteSource')}</span>
       </figcaption>
     </figure>
+    </SpotlightCard>
   )
 }
 

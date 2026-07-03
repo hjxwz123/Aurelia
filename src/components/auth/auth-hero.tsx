@@ -2,6 +2,9 @@ import { useEffect, useRef } from 'react'
 import { gsap } from 'gsap'
 import { useGSAP } from '@gsap/react'
 import { useTranslation } from 'react-i18next'
+import { Aurora } from '@/components/landing/fx/aurora'
+import { ShinyText } from '@/components/landing/fx/shiny-text'
+import { SplitText } from '@/components/landing/fx/split-text'
 import { cn } from '@/lib/utils'
 
 gsap.registerPlugin(useGSAP)
@@ -40,8 +43,8 @@ export function AuthHero() {
             '-=0.65',
           )
           .from('.hero-apex', { scale: 0, autoAlpha: 0, duration: 0.5, ease: 'back.out(2)' }, '-=0.4')
-          .from('.hero-name', { yPercent: 120, duration: 0.9 }, '-=0.8')
-          .from('.hero-tagline', { y: 12, autoAlpha: 0, duration: 0.6 }, '-=0.5')
+          // The wordmark's own rise moved into <SplitText> (per-char).
+          .from('.hero-tagline', { y: 12, autoAlpha: 0, duration: 0.6 }, '-=0.3')
 
         // ── Continuous ────────────────────────────────────────────────────
         // A bright segment runs along the outline forever.
@@ -103,6 +106,30 @@ export function AuthHero() {
       ref={root}
       className="relative size-full overflow-hidden bg-[var(--color-surface-sunken)] grid place-items-center"
     >
+      {/* The same clay aurora curtain as the landing hero, faded out before it
+          reaches the mark so the brand scene stays the focal point. First in
+          DOM = painted beneath the rings/particles (§ welcome fx). */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{
+          maskImage: 'linear-gradient(to bottom, #000 0%, #000 45%, transparent 85%)',
+          WebkitMaskImage: 'linear-gradient(to bottom, #000 0%, #000 45%, transparent 85%)',
+        }}
+      >
+        <Aurora
+          className="opacity-50"
+          colorStops={[
+            'color-mix(in oklch, var(--color-accent) 58%, var(--color-bg))',
+            'color-mix(in oklch, var(--color-accent) 26%, var(--color-bg))',
+            'color-mix(in oklch, var(--color-accent) 58%, var(--color-bg))',
+          ]}
+          amplitude={1.0}
+          blend={0.6}
+          speed={0.45}
+          intensity={1.1}
+        />
+      </div>
       <ConvergingParticles />
 
       {/* Concentric rings + orbiting accent (parallax layer). */}
@@ -127,12 +154,25 @@ export function AuthHero() {
           </div>
         </div>
 
-        <span className="mt-8 block overflow-hidden pb-[0.08em]">
-          <span className="hero-name block font-serif text-[2rem] xl:text-[2.6rem] tracking-tight text-[var(--color-fg)]">
-            {t('appName')}
-          </span>
+        <span className="mt-8 block overflow-hidden pb-[0.08em] font-serif text-[2rem] xl:text-[2.6rem] tracking-tight text-[var(--color-fg)]">
+          {/* Per-character masked rise — the same headline entrance language as
+              the landing hero (§ welcome fx). */}
+          <SplitText
+            text={t('appName')}
+            splitType="chars"
+            delay={40}
+            duration={0.8}
+            from={{ yPercent: 120 }}
+            to={{ yPercent: 0 }}
+            threshold={0}
+            rootMargin="0px"
+            className="block pb-[0.08em] -mb-[0.08em]"
+          />
         </span>
-        <p className="hero-tagline mt-3 text-sm tracking-wide text-[var(--color-fg-subtle)]">{t('tagline')}</p>
+        <p className="hero-tagline mt-3 text-sm tracking-wide">
+          {/* Same slow sheen as the landing badge/footer sign-off. */}
+          <ShinyText text={t('tagline')} baseColor="var(--color-fg-subtle)" speed={5} />
+        </p>
       </div>
     </div>
   )

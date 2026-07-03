@@ -296,6 +296,32 @@
   to   { opacity: 1; transform: translateY(0); }
 }
 
+/* Landing capability scenes (§ welcome fx) — token-drawn living illustrations.
+   All zeroed by the global prefers-reduced-motion rule (static compositions). */
+@keyframes fx-write {
+  0%        { transform: scaleX(0); }
+  12%, 82%  { transform: scaleX(1); }
+  92%, 100% { transform: scaleX(0); }
+}
+@keyframes fx-caret {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0; }
+}
+@keyframes fx-bob {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-5px); }
+}
+@keyframes fx-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50%      { transform: scale(1.25); opacity: 0.75; }
+}
+@keyframes fx-scan {
+  0%, 12%   { transform: translateY(0); opacity: 0; }
+  18%       { opacity: 1; }
+  82%       { opacity: 1; }
+  88%, 100% { transform: translateY(400%); opacity: 0; }
+}
+
 /* Route/page transition (RouteFade) — a gentle fade-up on navigation. No fill
    mode so no transform lingers after it ends (avoids a stray containing block).
    The global prefers-reduced-motion rule zeroes it. */
