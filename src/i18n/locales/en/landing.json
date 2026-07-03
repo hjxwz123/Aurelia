@@ -77,7 +77,12 @@
       "strength": "Reach for each model's strength without leaving the page.",
       "oneSub": "One subscription — no keys to juggle, no tabs to chase."
     },
-    "footnote": "…and more, added as they ship."
+    "footnote": "…and more, added as they ship.",
+    "stats": {
+      "models": "frontier models",
+      "languages": "interface languages",
+      "subscription": "subscription"
+    }
   },
   "safety": {
     "eyebrow": "Safety & privacy",

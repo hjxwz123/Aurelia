@@ -6,6 +6,10 @@ import { groupsApi } from '@/api'
 import type { ApiUserGroup } from '@/api/types'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { CountUp } from '@/components/landing/fx/count-up'
+import { SpotlightCard } from '@/components/landing/fx/spotlight-card'
+import { ScrollFloat } from '@/components/landing/fx/scroll-float'
+import { StarBorder } from '@/components/landing/fx/star-border'
 import { cn } from '@/lib/utils'
 
 type T = (key: string, opts?: Record<string, unknown>) => string
@@ -67,7 +71,7 @@ export function MembershipTiers() {
             {t('landing:membership.eyebrow')}
           </div>
           <h2 className="mt-3 font-serif tracking-tight text-3xl sm:text-4xl text-[var(--color-fg)] text-balance">
-            {t('landing:membership.title')}
+            <ScrollFloat text={t('landing:membership.title')} />
           </h2>
           <p className="mt-5 text-[var(--color-fg-muted)] leading-relaxed text-pretty">
             {t('landing:membership.body')}
@@ -95,35 +99,66 @@ export function MembershipTiers() {
               const free = g.price_usd <= 0 && g.price_cny <= 0
               const price = zh ? g.price_cny : g.price_usd
               const cur = zh ? '¥' : '$'
-              return (
-                <div
-                  key={g.id}
-                  style={{ animationDelay: `${i * 70}ms` }}
-                  className={cn(
-                    'relative flex flex-col rounded-2xl border bg-[var(--color-surface)] p-6 sm:p-7',
-                    'animate-[message-in_420ms_var(--ease-out)_both]',
-                    rec
-                      ? 'border-[var(--color-accent)] shadow-[var(--shadow-md)]'
-                      : 'border-[var(--color-border)]',
-                  )}
-                >
-                  {rec ? (
-                    <Badge
-                      variant="sage"
-                      size="xs"
-                      leadingIcon={<Sparkles size={10} aria-hidden />}
-                      className="absolute -top-2.5 left-6"
-                    >
-                      {t('landing:membership.recommended')}
-                    </Badge>
-                  ) : null}
+              const featureRows = [
+                g.credit_allowance > 0 && (
+                  <FeatureRow key="credits" icon={<Sparkles size={13} aria-hidden />}>
+                    {t('landing:membership.creditsPerCycle', {
+                      credits: g.credit_allowance.toLocaleString(),
+                      period: periodLabel(t, g.credit_period_seconds),
+                    })}
+                  </FeatureRow>
+                ),
+                // Limits only when they exist — the default tier's "unlimited"
+                // placeholders read as filler, so 0 renders nothing.
+                g.max_projects > 0 && (
+                  <FeatureRow key="projects" icon={<FolderClosed size={13} aria-hidden />}>
+                    {t('landing:membership.projects', { count: g.max_projects })}
+                  </FeatureRow>
+                ),
+                g.max_kbs > 0 && (
+                  <FeatureRow key="kbs" icon={<Library size={13} aria-hidden />}>
+                    {t('landing:membership.kbs', { count: g.max_kbs })}
+                  </FeatureRow>
+                ),
+                ...g.features.map((f) => (
+                  <FeatureRow key={f} icon={<Check size={13} aria-hidden />}>
+                    {f}
+                  </FeatureRow>
+                )),
+              ].filter(Boolean)
+              const card = (
+                  <SpotlightCard
+                    spotlightColor="color-mix(in oklch, var(--color-accent) 11%, transparent)"
+                    className={cn(
+                      'flex h-full flex-1 flex-col rounded-2xl border bg-[var(--color-surface)] p-6 sm:p-7',
+                      rec
+                        ? 'border-[var(--color-accent)] shadow-[var(--shadow-md)]'
+                        : 'border-[var(--color-border)]',
+                    )}
+                  >
 
-                  <h3 className="font-serif text-2xl tracking-tight text-[var(--color-fg)]">{g.name}</h3>
-                  <p className="mt-2 min-h-[2.75rem] text-[13.5px] leading-relaxed text-[var(--color-fg-muted)] text-pretty">
+                  {/* Recommended: a warm corner light behind the price. */}
+                  {rec ? (
+                    <div
+                      aria-hidden
+                      className="pointer-events-none absolute -right-14 -top-14 size-44 rounded-full blur-3xl bg-[color-mix(in_oklch,var(--color-accent)_20%,transparent)]"
+                    />
+                  ) : null}
+                  {/* Ghost tier numeral — same editorial numbering as the
+                      use-case gallery (§ welcome fx). */}
+                  <span
+                    aria-hidden
+                    className="pointer-events-none absolute -top-5 right-3 select-none font-serif text-[5.5rem] leading-none tracking-tight text-[color-mix(in_oklch,var(--color-fg)_5%,transparent)]"
+                  >
+                    {String(i + 1).padStart(2, '0')}
+                  </span>
+
+                  <h3 className="relative font-serif text-2xl tracking-tight text-[var(--color-fg)]">{g.name}</h3>
+                  <p className="relative mt-2 min-h-[2.75rem] text-[13.5px] leading-relaxed text-[var(--color-fg-muted)] text-pretty">
                     {g.description}
                   </p>
 
-                  <div className="mt-5 flex items-baseline gap-1.5">
+                  <div className="relative mt-5 flex items-baseline gap-1.5">
                     {free ? (
                       <span className="font-serif text-[2.5rem] leading-none text-[var(--color-fg)]">
                         {t('common:common.free')}
@@ -132,7 +167,8 @@ export function MembershipTiers() {
                       <>
                         <span className="font-serif text-[2.5rem] leading-none text-[var(--color-fg)] tabular-nums">
                           {cur}
-                          {price}
+                          {/* The price counts up as the card scrolls in. */}
+                          <CountUp to={price} duration={1.2} />
                         </span>
                         <span className="text-[13px] text-[var(--color-fg-subtle)]">
                           {periodLabel(t, g.credit_period_seconds)}
@@ -150,31 +186,41 @@ export function MembershipTiers() {
                     <Link to="/register">{t('landing:membership.cta')}</Link>
                   </Button>
 
-                  <ul className="mt-6 space-y-2.5 border-t border-[var(--color-divider)] pt-6">
-                    {g.credit_allowance > 0 ? (
-                      <FeatureRow icon={<Sparkles size={13} aria-hidden />}>
-                        {t('landing:membership.creditsPerCycle', {
-                          credits: g.credit_allowance.toLocaleString(),
-                          period: periodLabel(t, g.credit_period_seconds),
-                        })}
-                      </FeatureRow>
-                    ) : null}
-                    <FeatureRow icon={<FolderClosed size={13} aria-hidden />}>
-                      {g.max_projects > 0
-                        ? t('landing:membership.projects', { count: g.max_projects })
-                        : t('landing:membership.projectsUnlimited')}
-                    </FeatureRow>
-                    <FeatureRow icon={<Library size={13} aria-hidden />}>
-                      {g.max_kbs > 0
-                        ? t('landing:membership.kbs', { count: g.max_kbs })
-                        : t('landing:membership.kbsUnlimited')}
-                    </FeatureRow>
-                    {g.features.map((f) => (
-                      <FeatureRow key={f} icon={<Check size={13} aria-hidden />}>
-                        {f}
-                      </FeatureRow>
-                    ))}
-                  </ul>
+                  {featureRows.length > 0 ? (
+                    <ul className="mt-6 space-y-2.5 border-t border-[var(--color-divider)] pt-6">
+                      {featureRows}
+                    </ul>
+                  ) : null}
+                  </SpotlightCard>
+              )
+              return (
+                // The recommended badge hangs OUTSIDE the card edge, so it lives
+                // on this outer (unclipped) layer; the spotlight card inside
+                // clips its pointer glow to the card radius. The recommended
+                // tier additionally wears an always-on orbiting glow — the
+                // pricing section's one continuous accent motion (§ welcome fx).
+                <div
+                  key={g.id}
+                  style={{ animationDelay: `${i * 70}ms` }}
+                  className="relative flex animate-[message-in_420ms_var(--ease-out)_both]"
+                >
+                  {rec ? (
+                    <Badge
+                      variant="sage"
+                      size="xs"
+                      leadingIcon={<Sparkles size={10} aria-hidden />}
+                      className="absolute -top-2.5 left-6 z-20"
+                    >
+                      {t('landing:membership.recommended')}
+                    </Badge>
+                  ) : null}
+                  {rec ? (
+                    <StarBorder as="div" className="flex flex-1 rounded-2xl" thickness={2} speed="8s">
+                      {card}
+                    </StarBorder>
+                  ) : (
+                    card
+                  )}
                 </div>
               )
             })}

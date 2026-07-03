@@ -77,7 +77,12 @@
       "strength": "无需离开页面，即可调用每个模型的所长。",
       "oneSub": "一份订阅，无需管理密钥，无需在标签页间奔波。"
     },
-    "footnote": "……更多模型，将在发布时陆续接入。"
+    "footnote": "……更多模型，将在发布时陆续接入。",
+    "stats": {
+      "models": "个前沿模型",
+      "languages": "种界面语言",
+      "subscription": "份订阅"
+    }
   },
   "safety": {
     "eyebrow": "安全与隐私",

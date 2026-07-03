@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Mail, Lock, User, ArrowRight, ShieldCheck } from 'lucide-react'
+import { BlurText } from '@/components/landing/fx/blur-text'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Field } from '@/components/ui/label'
@@ -49,7 +50,7 @@ export default function Setup() {
         <ShieldCheck size={20} aria-hidden />
       </div>
       <h1 className="font-serif tracking-tight text-3xl text-[var(--color-fg)] text-balance">
-        {t('setup.title')}
+        <BlurText text={t('setup.title')} delay={110} />
       </h1>
       <p className="mt-2.5 text-sm text-[var(--color-fg-muted)]">{t('setup.subtitle')}</p>
 

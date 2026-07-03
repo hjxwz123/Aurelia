@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Trans, useTranslation } from 'react-i18next'
 import { motion } from 'framer-motion'
 import { Mail, ArrowLeft, Check, ShieldCheck, Lock } from 'lucide-react'
+import { BlurText } from '@/components/landing/fx/blur-text'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Field } from '@/components/ui/label'
@@ -198,12 +199,11 @@ export default function ForgotPassword() {
   // Step 1: enter email
   return (
     <motion.div initial="hidden" animate="visible" variants={stagger}>
-      <motion.h1
-        variants={fadeUp}
-        className="font-serif tracking-tight text-3xl text-[var(--color-fg)] text-balance"
-      >
-        {t('forgot.title')}
-      </motion.h1>
+      {/* The title drifts into focus (BlurText) instead of riding the fadeUp
+          stagger — one entrance per element (§ welcome fx). */}
+      <h1 className="font-serif tracking-tight text-3xl text-[var(--color-fg)] text-balance">
+        <BlurText text={t('forgot.title')} delay={110} />
+      </h1>
       <motion.p variants={fadeUp} className="mt-2.5 text-sm text-[var(--color-fg-muted)]">
         {t('forgot.subtitle')}
       </motion.p>

@@ -4,6 +4,7 @@ import { gsap } from 'gsap'
 import { useGSAP } from '@gsap/react'
 import { Logo } from '@/components/brand/logo'
 import { AuthHero } from '@/components/auth/auth-hero'
+import { ClickSpark } from '@/components/landing/fx/click-spark'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
 import { LanguageToggle } from '@/components/ui/language-toggle'
 import { useTheme } from '@/store/theme'
@@ -31,14 +32,18 @@ export default function AuthLayout() {
   )
 
   return (
-    <div ref={root} className="relative min-h-svh w-full overflow-hidden bg-[var(--color-bg)] text-[var(--color-fg)] flex">
+    <div ref={root} className="relative min-h-svh w-full overflow-hidden bg-[var(--color-bg)] text-[var(--color-fg)]">
+    {/* Same accent click-burst as the landing page (§ welcome fx). */}
+    <ClickSpark sparkSize={9} sparkRadius={18} sparkCount={8} duration={450} className="flex min-h-svh w-full">
       {/* ── Left brand panel (hidden on mobile) ─────────────────────── */}
       <aside className="hidden lg:block w-[50%] min-h-svh">
         <AuthHero />
       </aside>
 
       {/* ── Right form panel ────────────────────────────────────────── */}
-      <div className="flex-1 min-w-0 flex flex-col min-h-svh relative">
+      {/* `isolate`: the -z-10 mobile glow needs a stacking context here or it
+          paints behind the page's opaque background (root-context negative z). */}
+      <div className="flex-1 min-w-0 flex flex-col min-h-svh relative isolate">
         {/* Mobile-only background glow */}
         <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 lg:hidden">
           <div
@@ -67,6 +72,7 @@ export default function AuthLayout() {
           © {new Date().getFullYear()} {t('appName')}
         </footer>
       </div>
+    </ClickSpark>
     </div>
   )
 }
