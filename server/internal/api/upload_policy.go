@@ -92,6 +92,26 @@ func applyExtAliases(exts map[string]bool) {
 	}
 }
 
+// alwaysAllowedImageExtensions is the family of common raster image formats
+// Aurelia natively displays in the composer attachments rail and feeds to
+// vision models. They are ALWAYS accepted regardless of the admin allowlist:
+// the allowlist is meant to gate document/code/data uploads, while ordinary
+// photos must just work. All are served with attachment disposition and carry
+// no script (unlike SVG), so admitting them unconditionally does not weaken the
+// executable/polyglot/XSS protection the allowlist exists for.
+var alwaysAllowedImageExtensions = []string{
+	"png", "jpg", "jpeg", "jpe", "jfif", "gif", "webp", "bmp", "tif", "tiff", "heic", "heif", "avif", "ico",
+}
+
+// applyImageFamily unconditionally admits the common image formats — images
+// bypass the admin allowlist entirely (per product decision: only non-image
+// formats are gated).
+func applyImageFamily(exts map[string]bool) {
+	for _, e := range alwaysAllowedImageExtensions {
+		exts[e] = true
+	}
+}
+
 // loadUploadPolicy reads the live admin setting. Robust to: nil DB
 // (returns the default policy so tests don't need a DB), invalid JSON
 // (falls back to default), the empty string (uses default — see policy note
@@ -113,6 +133,9 @@ func loadUploadPolicy(d Deps) uploadPolicy {
 	// listed — the validateUpload check and the frontend's `<input accept>` both
 	// read this expanded set.
 	applyExtAliases(exts)
+	// If images are allowed at all, keep the safe-image family whole (allowed
+	// png but not jpg is a typo, not a policy).
+	applyImageFamily(exts)
 	return uploadPolicy{AllowedExt: exts}
 }
 

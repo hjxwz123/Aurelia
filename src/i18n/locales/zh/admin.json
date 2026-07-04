@@ -367,7 +367,8 @@
       "task_image_prompt": "图片提示词",
       "task_research_plan": "研究规划",
       "task_research_verify": "研究核验",
-      "task_moderation": "内容审核"
+      "task_moderation": "内容审核",
+      "task_research_validate": "研究交叉验证"
     },
     "empty": "所选窗口内没有调用记录。",
     "leadRecords": "每条 API 调用一条记录。在下方筛选并清理日志。",

@@ -137,8 +137,12 @@ function TaskDot({ status }: { status: ResearchState['tasks'][number]['status'] 
 }
 
 function SourceCard({ source }: { source: ResearchSource }) {
+  const { t } = useTranslation('chat')
   const failed = source.status === 'failed'
   const kept = source.status === 'kept' || source.status === 'read'
+  // Single-letter credibility grade from the engine (A official/academic …
+  // D unattributed) — sage for the trustworthy tiers, muted for the rest.
+  const grade = source.verdict && /^[A-D]$/.test(source.verdict) ? source.verdict : ''
   return (
     <a
       href={safeHref(source.url)}
@@ -159,12 +163,25 @@ function SourceCard({ source }: { source: ResearchSource }) {
           className={cn('mt-0.5 shrink-0', kept ? 'text-[var(--color-secondary)]' : 'text-[var(--color-fg-subtle)]')}
         />
       )}
-      <span className="min-w-0">
+      <span className="min-w-0 flex-1">
         <span className="block truncate text-[12px] font-medium text-[var(--color-fg)]">
           {source.title || source.domain || source.url}
         </span>
         <span className="block truncate text-[11px] text-[var(--color-fg-subtle)]">{source.domain}</span>
       </span>
+      {grade ? (
+        <span
+          title={t('research.credibility', { grade, defaultValue: 'Source credibility {{grade}}' })}
+          className={cn(
+            'mt-0.5 inline-flex size-4 shrink-0 items-center justify-center rounded-[5px] font-mono text-[9px] font-medium',
+            grade === 'A' || grade === 'B'
+              ? 'bg-[var(--color-secondary-soft)] text-[var(--color-secondary)]'
+              : 'bg-[var(--color-bg-muted)] text-[var(--color-fg-subtle)]',
+          )}
+        >
+          {grade}
+        </span>
+      ) : null}
     </a>
   )
 }

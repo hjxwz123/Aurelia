@@ -23,6 +23,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"aurelia/server/internal/store"
 )
@@ -35,6 +36,13 @@ const (
 	defaultSummaryMaxTokens = 2048
 	defaultTokenTrigger     = 32000
 )
+
+// inflightGrace is how long an assistant row may sit in status="streaming" and
+// still be treated as genuinely in flight (protected from being summarised —
+// see the cut clamp in MaybeCompact). It sits above the API layer's 10-minute
+// generation cap (api.maxGenDuration); a streaming row older than this is a
+// crash leftover that will never receive content.
+const inflightGrace = 15 * time.Minute
 
 // msgTokenMemo caches the per-message token estimate. Keyed by id + blocks/raw
 // lengths so an edit (blocks change) or finish (raw set) yields a fresh key. The
@@ -130,18 +138,74 @@ func ApplySummaryBlocks(blocks []SummaryBlock) string {
 // filterBlocksForPath keeps only summaries anchored to a message on the current
 // active path (§4.15) — so a summary written on one branch never bleeds into a
 // sibling branch. Blocks with no anchor (legacy) are kept for safety.
+//
+// Cross-branch containment dedupe (§4.15): coverage is resolved per-path, so a
+// block created on a SIBLING branch (invisible there, its own anchors off that
+// path) can re-summarise the shared prefix and anchor on a shared message —
+// back on this path it then overlaps a block that already covers that range,
+// and the recap would narrate the same rounds twice in two wordings. Any block
+// whose [from..anchor] range is fully contained in another kept block's range
+// is dropped from the path view (the containing block already tells that part
+// of the story).
+//
+// Gap guard: DeleteRound may prune a middle summary block while later blocks
+// remain. Later disconnected blocks must not render until the missing gap has
+// been re-summarised; otherwise summarizedFrontier would skip over surviving
+// messages in the gap. The stored column is untouched — disconnected blocks can
+// become visible again once a new block bridges the gap.
 func filterBlocksForPath(blocks []SummaryBlock, history []store.Message) []SummaryBlock {
-	pathIDs := map[string]bool{}
-	for _, m := range history {
-		pathIDs[m.ID] = true
+	pos := make(map[string]int, len(history))
+	for i, m := range history {
+		pos[m.ID] = i
 	}
 	out := []SummaryBlock{}
 	for _, b := range blocks {
-		if b.AnchorMessageID == "" || pathIDs[b.AnchorMessageID] {
+		if b.AnchorMessageID == "" {
+			out = append(out, b)
+			continue
+		}
+		if _, ok := pos[b.AnchorMessageID]; ok {
 			out = append(out, b)
 		}
 	}
-	return out
+	if len(out) == 0 {
+		return out
+	}
+	// span returns the block's resolved [from..anchor] index range; ok=false for
+	// legacy blocks or a dangling from (conservatively never deduped).
+	span := func(b SummaryBlock) (int, int, bool) {
+		ai, okA := pos[b.AnchorMessageID]
+		fi, okF := pos[b.FromMessageID]
+		if !okA || !okF || fi > ai {
+			return 0, 0, false
+		}
+		return fi, ai, true
+	}
+	kept := make([]SummaryBlock, 0, len(out))
+	for i, b := range out {
+		fi, ai, ok := span(b)
+		contained := false
+		if ok {
+			for j, other := range out {
+				if j == i {
+					continue
+				}
+				fj, aj, okJ := span(other)
+				if !okJ {
+					continue
+				}
+				// Strictly-larger container wins; among identical ranges keep the first.
+				if fj <= fi && ai <= aj && (fj < fi || ai < aj || j < i) {
+					contained = true
+					break
+				}
+			}
+		}
+		if !contained {
+			kept = append(kept, b)
+		}
+	}
+	return prefixConnectedBlocks(kept, history)
 }
 
 // estimateHistoryTokens approximates the token footprint of the kept history,
@@ -164,17 +228,28 @@ func estimateHistoryTokens(msgs []store.Message) int {
 // call. cache_read_tokens MUST be included: with prompt caching most of the
 // context is billed as cached, so input_tokens alone undercounts heavily.
 //
+// The estimate side counts only what will actually be SENT: the verbatim tail
+// after the summarised frontier (`kept`), the rendered summary blocks, and this
+// turn's freshly-injected content. It must NOT count rows already rolled into
+// summaries — a previous build estimated the FULL history, so on a long
+// conversation the estimate exceeded the real count forever (summaries never
+// shrink it), was returned as exact=true, and permanently forced the
+// bigTokenOverflow INLINE path: a task-model round-trip before first token on
+// every turn, defeating the async design. Frontier-aware, the estimate drops
+// back after each compaction and the inline path self-limits as intended.
+//
 // Fallback (first turn, or a freshly-imported history with no recorded usage):
-// the CJK-aware heuristic over the kept history. Returns exact=false so callers
-// know it's only an estimate of the history portion.
-func contextTokens(history []store.Message, injectedOverhead int) (tokens int, exact bool) {
-	// est = the kept history PLUS this turn's freshly-injected, not-yet-persisted
-	// content (RAG chunks / uploaded-file text). injectedOverhead matters on the
-	// FIRST turn after an upload: no prior assistant row has recorded input_tokens
-	// yet, so the bare history estimate is blind to the file (§4.7 first-turn gap).
-	est := estimateHistoryTokens(history) + injectedOverhead
-	for i := len(history) - 1; i >= 0; i-- {
-		m := history[i]
+// the CJK-aware heuristic alone. Returns exact=false so callers know it's only
+// an estimate.
+func contextTokens(kept []store.Message, pathBlocks []SummaryBlock, injectedOverhead int) (tokens int, exact bool) {
+	// injectedOverhead matters on the FIRST turn after an upload: no prior
+	// assistant row has recorded input_tokens yet, so the bare history estimate
+	// is blind to the file (§4.7 first-turn gap).
+	est := estimateHistoryTokens(kept) + summaryTokens(pathBlocks) + injectedOverhead
+	// The newest messages are always in `kept` (it is a suffix of the path), so
+	// scanning it finds the same most-recent recorded count as the full history.
+	for i := len(kept) - 1; i >= 0; i-- {
+		m := kept[i]
 		if m.Role == "assistant" && m.InputTokens > 0 {
 			// The provider's real last-turn prompt count (system + tools + RAG +
 			// history). Take the MAX with `est` so a file injected THIS turn that the
@@ -242,7 +317,7 @@ func PlanCompaction(db *sql.DB, conv *store.Conversation, history []store.Messag
 	existing := LoadSummaryBlocks(conv.SummaryBlocks)
 	pathExisting := filterBlocksForPath(existing, history)
 	if !enabled {
-		return history, pathExisting, compactNone
+		return history, nil, compactNone
 	}
 	keepRounds, tokenTrigger, _ := compactionSettings(db)
 	frontier := summarizedFrontier(pathExisting, history)
@@ -251,7 +326,7 @@ func PlanCompaction(db *sql.DB, conv *store.Conversation, history []store.Messag
 	}
 	keep := history[frontier:]
 	tail := len(history) - frontier
-	ctxTok, exact := contextTokens(history, injectedOverhead)
+	ctxTok, exact := contextTokens(keep, pathExisting, injectedOverhead)
 	overflow := tail > keepRounds*2 || (tokenTrigger > 0 && ctxTok > tokenTrigger)
 	// A token-heavy but message-LIGHT overflow (a few huge code/plot turns) is not
 	// caught by the message-count backlog gate below, so it would always defer to
@@ -276,14 +351,86 @@ func PlanCompaction(db *sql.DB, conv *store.Conversation, history []store.Messag
 	}
 }
 
-// summarizedFrontier returns the history index immediately AFTER the last message
-// already covered by a path summary block (the verbatim-tail start), or 0 when
-// nothing on the path is summarised yet. Matches MaybeCompact's high-water mark.
+// summarizedFrontier returns the history index immediately AFTER the contiguous
+// prefix already covered by path summary blocks (the verbatim-tail start), or 0
+// when nothing on the path is summarised yet. It is order-independent, but it
+// deliberately stops at the first coverage gap: DeleteRound can remove a middle
+// block, and surviving messages in that gap must stay verbatim until a later
+// compaction bridges it.
 func summarizedFrontier(pathBlocks []SummaryBlock, history []store.Message) int {
-	if covered := maxCoveredIdx(pathBlocks, history); covered >= 0 {
-		return covered + 1
+	pos := make(map[string]int, len(history))
+	for i, m := range history {
+		pos[m.ID] = i
 	}
-	return 0
+	frontier := 0
+	for {
+		advanced := false
+		for _, b := range pathBlocks {
+			fi, okF := pos[b.FromMessageID]
+			ai, okA := pos[b.AnchorMessageID]
+			if !okF || !okA || fi > ai {
+				continue
+			}
+			if fi <= frontier && ai+1 > frontier {
+				frontier = ai + 1
+				advanced = true
+			}
+		}
+		if !advanced {
+			return frontier
+		}
+	}
+}
+
+// prefixConnectedBlocks keeps only blocks that contribute to the contiguous
+// summarised prefix. Blocks after a gap are hidden from the prompt until the gap
+// is re-summarised, preventing "summary after gap + raw gap" duplication and,
+// more importantly, preventing the frontier from jumping past the gap entirely.
+// Anchorless legacy blocks are preserved for safety, but they do not advance the
+// frontier.
+func prefixConnectedBlocks(blocks []SummaryBlock, history []store.Message) []SummaryBlock {
+	if len(blocks) == 0 {
+		return blocks
+	}
+	pos := make(map[string]int, len(history))
+	for i, m := range history {
+		pos[m.ID] = i
+	}
+	frontier := 0
+	used := make([]bool, len(blocks))
+	for i, b := range blocks {
+		if b.AnchorMessageID == "" {
+			used[i] = true
+		}
+	}
+	for {
+		advanced := false
+		for i, b := range blocks {
+			if used[i] {
+				continue
+			}
+			fi, okF := pos[b.FromMessageID]
+			ai, okA := pos[b.AnchorMessageID]
+			if !okF || !okA || fi > ai {
+				continue
+			}
+			if fi <= frontier && ai+1 > frontier {
+				frontier = ai + 1
+				used[i] = true
+				advanced = true
+			}
+		}
+		if !advanced {
+			break
+		}
+	}
+	out := make([]SummaryBlock, 0, len(blocks))
+	for i, b := range blocks {
+		if used[i] {
+			out = append(out, b)
+		}
+	}
+	return out
 }
 
 // MaybeCompact advances the conversation summary: it inspects the history depth
@@ -322,7 +469,7 @@ func MaybeCompact(
 		_ = json.Unmarshal(raw, &enabled)
 	}
 	if !enabled {
-		return history, LoadSummaryBlocks(conv.SummaryBlocks), nil
+		return history, nil, nil
 	}
 	// Round budget, total-context token budget (compact once the real prompt —
 	// system + tools + RAG + history — crosses this), and the per-path summary
@@ -332,20 +479,35 @@ func MaybeCompact(
 	keepRounds, tokenTrigger, summaryMaxTokens := compactionSettings(db)
 
 	existing := LoadSummaryBlocks(conv.SummaryBlocks)
+	pathExisting := filterBlocksForPath(existing, history)
+	frontier := summarizedFrontier(pathExisting, history)
+	if frontier < 0 || frontier > len(history) {
+		frontier = 0
+	}
 
 	// Dual trigger (§4.7): compact when EITHER the round budget OR the token
 	// budget is exceeded. Token size prefers the provider's real prompt count
-	// from the last turn (input + cached prefix), falling back to a heuristic.
+	// from the last turn (input + cached prefix), falling back to a heuristic —
+	// frontier-aware, so already-summarised rows never inflate it (see
+	// contextTokens).
 	keepMsgs := keepRounds * 2
-	ctxTok, exact := contextTokens(history, injectedOverhead)
+	ctxTok, exact := contextTokens(history[frontier:], pathExisting, injectedOverhead)
 	if len(history) <= keepMsgs && ctxTok <= tokenTrigger {
-		return history, filterBlocksForPath(existing, history), nil
+		return history, pathExisting, nil
 	}
-	// Non-history overhead (system prompt + tool defs + RAG + attachments): the
-	// difference between the provider's real last-turn count and our history
-	// estimate. The deepening loop adds it so it shrinks the tail in the SAME
-	// unit the trigger fired in (the trigger sees the real prompt; the per-message
-	// suffix sums see only history). 0 when we have no real count to anchor to.
+	// Non-history overhead (system prompt + tool defs + RAG): the difference
+	// between the real last-turn prompt and the history estimate. The deepening
+	// loop adds it so it shrinks the tail in the SAME unit the trigger fired in.
+	//
+	// Deliberately baselined on the FULL history, not the frontier tail: the
+	// recorded count can be STALE — measured on the turn BEFORE a compaction
+	// advanced the frontier, when the prompt still contained the now-summarised
+	// rows. Subtracting the full-history estimate cancels those rows'
+	// contribution; subtracting only the tail would overstate overhead by
+	// exactly that amount and make the deepening loop swallow the fresh recent
+	// rounds (violating keep_recent_rounds and hiding them behind the frontier
+	// forever). Full-baseline never overstates — at worst it clamps to 0 and the
+	// loop deepens less. 0 when we have no real count to anchor to.
 	overhead := 0
 	if exact {
 		if d := ctxTok - estimateHistoryTokens(history); d > 0 {
@@ -377,8 +539,27 @@ func MaybeCompact(
 			cut++
 		}
 	}
+	// §workspaces concurrent turns: the cut must never cross an assistant row
+	// that is still GENERATING (status="streaming" — its text reaches the DB only
+	// at FinishMessage, so right now its blocks are empty). Summarising it would
+	// roll the round up as empty and anchor the frontier PAST it; the finished
+	// answer, written later into the same row, would then be permanently invisible
+	// to every future prompt — excluded from the verbatim tail by the frontier and
+	// absent from the summary. Clamp the cut so the whole in-flight round stays
+	// verbatim; a later compaction rolls it up once its real content exists. Rows
+	// stuck in "streaming" beyond inflightGrace are crash leftovers that will
+	// never be finished — they are NOT protected, so a zombie row can't freeze
+	// compaction forever.
+	for i, m := range history[:cut] {
+		if m.Role == "assistant" && m.Status == "streaming" &&
+			time.Now().Unix()-m.CreatedAt < int64(inflightGrace/time.Second) {
+			cut = i
+			break
+		}
+	}
 	// Snap to a user-message boundary so a tool_use / tool_result pair is never
-	// split (move down to the nearest user prefix).
+	// split (move down to the nearest user prefix). This also pulls a clamped cut
+	// down past the in-flight round's own question, keeping the pair together.
 	for cut > 0 && history[cut].Role != "user" {
 		cut--
 	}
@@ -391,48 +572,37 @@ func MaybeCompact(
 		if tokenTrigger > 0 && ctxTok > tokenTrigger && task != nil && task.logger != nil {
 			task.logger.Printf("compaction: token budget exceeded (ctx≈%d > %d) but no old rounds to compact — prompt dominated by per-turn injection (RAG/uploaded file), not conversation history (conv=%s)", ctxTok, tokenTrigger, conv.ID)
 		}
-		return history, filterBlocksForPath(existing, history), nil
+		return history, pathExisting, nil
 	}
 	older := history[:cut]
 	keep := history[cut:]
 
-	// High-water mark: the index immediately AFTER the last message already
+	// High-water mark: the index immediately AFTER the contiguous prefix already
 	// summarised on this path. We only feed the model the NEW range, keeping
 	// summary blocks immutable so the cache prefix stays stable (§4.7 "每块只从
-	// 原文摘一次", §4.9 cache friendliness). The anchor is resolved against the
+	// 原文摘一次", §4.9 cache friendliness). The frontier is resolved against the
 	// FULL history, not just `older`: if `keep_recent_rounds` is raised (or a
-	// branch switch moves the path), the cut can shrink so the anchor now sits in
+	// branch switch moves the path), the cut can shrink so the frontier now sits in
 	// the kept tail — in that case the whole `older` range is already covered and
 	// re-summarising it would duplicate a block. Guard against exactly that.
-	pathExisting := filterBlocksForPath(existing, history)
+	// (pathExisting was resolved above, before the trigger check.)
 	highWater := 0
 	if len(pathExisting) > 0 {
-		idxOf := func(id string) int {
-			for i, m := range history {
-				if m.ID == id {
-					return i
+		frontier := summarizedFrontier(pathExisting, history)
+		if frontier > 0 {
+			if frontier >= cut {
+				// Everything older than the cut is already summarised — and possibly
+				// MORE: the frontier can sit inside the kept tail (keep_recent_rounds
+				// raised, branch switch). Return the tail from after the frontier, not
+				// from the cut, so rounds a rendered summary block already covers are
+				// never also sent verbatim (double context on the inline path).
+				keepFrom := frontier
+				if keepFrom > len(history) {
+					keepFrom = len(history)
 				}
+				return history[keepFrom:], pathExisting, nil
 			}
-			return -1
-		}
-		// Resolve the high-water mark from the NEWEST block whose anchor still
-		// exists in the path. If the newest block's anchor was DELETED (DeleteRound
-		// removes messages but not summary_blocks), fall back to the next-newest
-		// resolvable anchor instead of dropping to 0 — which would re-summarise the
-		// whole already-condensed range (duplicate block + cache-prefix churn).
-		anchorIdx := -1
-		for i := len(pathExisting) - 1; i >= 0; i-- {
-			if ai := idxOf(pathExisting[i].AnchorMessageID); ai >= 0 {
-				anchorIdx = ai
-				break
-			}
-		}
-		if anchorIdx >= 0 {
-			if anchorIdx+1 >= cut {
-				// Everything older than the cut is already summarised.
-				return keep, pathExisting, nil
-			}
-			highWater = anchorIdx + 1
+			highWater = frontier
 		}
 	}
 	if highWater >= len(older) {
@@ -450,12 +620,13 @@ func MaybeCompact(
 	// of a double-send / multi-tab race pays for a summary it would only discard.
 	if curRaw, qerr := readSummaryRaw(ctx, db, conv.ID); qerr == nil {
 		curBlocks := LoadSummaryBlocks(json.RawMessage(curRaw))
-		if covered := maxCoveredIdx(curBlocks, history); covered >= highWater {
-			keepFrom := covered + 1
+		curPath := filterBlocksForPath(curBlocks, history)
+		if frontier := summarizedFrontier(curPath, history); frontier > highWater {
+			keepFrom := frontier
 			if keepFrom > len(history) {
 				keepFrom = len(history)
 			}
-			return history[keepFrom:], filterBlocksForPath(curBlocks, history), nil
+			return history[keepFrom:], curPath, nil
 		}
 	}
 
@@ -530,10 +701,24 @@ func MaybeCompact(
 		// Instead adopt the current blocks and keep verbatim only what they did NOT
 		// cover — no overlap, and no context loss (the uncovered tail is summarised
 		// next turn).
-		if covered := maxCoveredIdx(cur, history); covered >= highWater {
+		curPath := filterBlocksForPath(cur, history)
+		if frontier := summarizedFrontier(curPath, history); frontier > highWater {
 			finalBlocks = cur
-			keepFrom = covered + 1
+			keepFrom = frontier
 			break
+		}
+		// §4.7 delete/edit-resurrection guard: the CAS only keeps the block LIST
+		// consistent — it says nothing about the MESSAGES we just summarised. A
+		// DeleteRound or in-place edit that committed during the task-model
+		// round-trip pruned summary blocks BEFORE ours existed, so writing now
+		// would permanently re-inject deleted or stale text into every future recap
+		// (the prune never runs again). Re-verify the summarised rows still exist
+		// and still have the same blocks/raw right before the write; if anything
+		// changed, drop the block — the next turn re-plans from fresh history. A
+		// microsecond check-to-write window remains (vs. the seconds-wide one),
+		// matching the best-effort bar of the prune itself.
+		if !messagesStillCurrent(ctx, db, conv.ID, newer) {
+			return history, filterBlocksForPath(cur, history), nil
 		}
 		next := append(append([]SummaryBlock{}, cur...), block)
 		encoded, _ := json.Marshal(next)
@@ -571,20 +756,59 @@ func readSummaryRaw(ctx context.Context, db *sql.DB, convID string) (string, err
 	return raw, err
 }
 
-// maxCoveredIdx returns the highest history index summarised by any of `blocks`
-// (the max resolved AnchorMessageID index), or -1 when none resolve to the path.
-func maxCoveredIdx(blocks []SummaryBlock, history []store.Message) int {
-	pos := make(map[string]int, len(history))
-	for i, m := range history {
-		pos[m.ID] = i
-	}
-	hi := -1
-	for _, b := range blocks {
-		if ai, ok := pos[b.AnchorMessageID]; ok && ai > hi {
-			hi = ai
+// messagesStillCurrent reports whether every message in msgs still exists in
+// the conversation AND still has the same prompt-bearing content (blocks/raw) as
+// the snapshot we summarised — the §4.7 delete/edit-resurrection guard's
+// predicate. Chunked to stay under driver placeholder limits (a cold-start inline
+// backlog can span hundreds of rows). Fails OPEN on query error: a transient DB
+// failure (or a schema-less test fixture) must not block compaction — the guard
+// is a best-effort race-narrower, not a correctness gate for the write itself.
+func messagesStillCurrent(ctx context.Context, db *sql.DB, convID string, msgs []store.Message) bool {
+	const chunkSize = 400
+	for start := 0; start < len(msgs); start += chunkSize {
+		end := start + chunkSize
+		if end > len(msgs) {
+			end = len(msgs)
+		}
+		chunk := msgs[start:end]
+		want := make(map[string]store.Message, len(chunk))
+		args := make([]any, 0, len(chunk)+1)
+		args = append(args, convID)
+		ph := make([]string, len(chunk))
+		for i, m := range chunk {
+			want[m.ID] = m
+			ph[i] = "?"
+			args = append(args, m.ID)
+		}
+		q := "SELECT id, blocks, COALESCE(raw,'') FROM messages WHERE conversation_id=? AND id IN (" + strings.Join(ph, ",") + ")"
+		rows, err := db.QueryContext(ctx, q, args...)
+		if err != nil {
+			return true
+		}
+		seen := 0
+		for rows.Next() {
+			var id, blocks, raw string
+			if err := rows.Scan(&id, &blocks, &raw); err != nil {
+				rows.Close()
+				return true
+			}
+			m, ok := want[id]
+			if !ok || blocks != string(m.Blocks) || raw != string(m.Raw) {
+				rows.Close()
+				return false
+			}
+			seen++
+		}
+		if err := rows.Err(); err != nil {
+			rows.Close()
+			return true
+		}
+		rows.Close()
+		if seen != len(chunk) {
+			return false
 		}
 	}
-	return hi
+	return true
 }
 
 // mergeAndPersist folds over-budget path summaries into a coarser block when the
@@ -657,15 +881,21 @@ func summaryTokens(blocks []SummaryBlock) int {
 }
 
 // mergeOldestBlocks folds the oldest half of the path's summary blocks into one
-// coarser (level+1) block so the total stays under budget. Never re-summarises
-// from summaries-of-summaries beyond one extra level to preserve fidelity.
+// coarser (level+1) block so the total stays under budget. Level records the
+// fold depth (provenance); it grows by one per genuine fold — bounded, because
+// every fold strictly reduces the block count (see the half floor below).
 func mergeOldestBlocks(ctx context.Context, task *TaskLLM, conv *store.Conversation, payerID string, blocks []SummaryBlock, budget int) []SummaryBlock {
 	if len(blocks) < 2 {
 		return blocks
 	}
+	// Fold at least TWO blocks: merging N blocks into one reduces the count by
+	// N-1, so a "fold" of a single block (len 2-3 → half 1) would reduce nothing —
+	// it just lossily rewrites that block via the task model, and since the total
+	// stays over budget the same block gets re-paraphrased (level bumped, cache
+	// prefix churned, one wasted call) on every subsequent appending turn.
 	half := len(blocks) / 2
-	if half < 1 {
-		half = 1
+	if half < 2 {
+		half = 2
 	}
 	oldest := blocks[:half]
 	rest := blocks[half:]
@@ -692,15 +922,17 @@ func mergeOldestBlocks(ctx context.Context, task *TaskLLM, conv *store.Conversat
 		})
 	}
 	if strings.TrimSpace(text) == "" {
-		// Deterministic fallback: concatenate + clip.
+		// Deterministic fallback: concatenate + clip BY TOKENS (same CJK-aware
+		// estimator as the budget check). A word-count clip is a no-op for
+		// Chinese/Japanese — no spaces, so ten thousand characters count as one
+		// "word" — and the coarse block would carry the full unclipped text,
+		// staying over budget forever. Budget/2 mirrors the task-model path's
+		// MaxOutputTokens.
 		parts := []string{}
 		for _, b := range oldest {
 			parts = append(parts, b.Text)
 		}
-		text = strings.Join(parts, " ")
-		if words := strings.Fields(text); len(words) > 250 {
-			text = strings.Join(words[:250], " ") + "…"
-		}
+		text = clipToTokens(strings.Join(parts, " "), budget/2)
 	}
 	coarse := SummaryBlock{
 		Level:           maxLevel + 1,
@@ -717,35 +949,47 @@ func mergeOldestBlocks(ctx context.Context, task *TaskLLM, conv *store.Conversat
 // one-line marker — the LLM-prompt path summarises tool outcomes too, so the
 // deterministic fallback must not silently drop them (a user who ran a tool 8
 // rounds back would otherwise see the model "forget" it ever ran).
-func clipOlder(msgs []store.Message, maxWords int) string {
+//
+// The clip budget is TOKENS via the same CJK-aware estimator the compaction
+// triggers use. A previous build counted strings.Fields "words", which is a
+// no-op for Chinese/Japanese (no spaces → an entire message is one "word"), so
+// with the task model down a CJK conversation's "summary" block was near-
+// verbatim old history — rendered in every subsequent prompt, immutably.
+func clipOlder(msgs []store.Message, maxTokens int) string {
 	var b strings.Builder
-	words := 0
-	emit := func(s string) bool {
-		for _, w := range strings.Fields(s) {
-			if words >= maxWords {
-				return false
-			}
-			b.WriteString(w)
-			b.WriteRune(' ')
-			words++
-		}
-		return true
-	}
 	for _, m := range msgs {
 		var blocks []UnifiedBlock
 		_ = json.Unmarshal(m.Blocks, &blocks)
 		for _, blk := range blocks {
 			switch blk.Kind {
 			case "text":
-				if !emit(blk.Text) {
-					return strings.TrimSpace(b.String()) + "…"
-				}
+				b.WriteString(blk.Text)
+				b.WriteRune(' ')
 			case "tool_call":
-				if !emit(fmt.Sprintf("(tool %s: %s)", blk.ToolName, blk.Summary)) {
-					return strings.TrimSpace(b.String()) + "…"
-				}
+				fmt.Fprintf(&b, "(tool %s: %s) ", blk.ToolName, blk.Summary)
 			}
 		}
 	}
-	return strings.TrimSpace(b.String())
+	return clipToTokens(strings.TrimSpace(b.String()), maxTokens)
+}
+
+// clipToTokens truncates s to approximately maxTokens (per estimateTokens, so
+// CJK counts per character) at a rune boundary, appending an ellipsis when
+// anything was cut. Binary-searches the largest fitting rune prefix —
+// estimateTokens is monotonic in prefix length for practical text.
+func clipToTokens(s string, maxTokens int) string {
+	if maxTokens <= 0 || estimateTokens(s) <= maxTokens {
+		return s
+	}
+	runes := []rune(s)
+	lo, hi := 0, len(runes) // invariant: prefix of lo fits, prefix of hi doesn't
+	for lo+1 < hi {
+		mid := (lo + hi) / 2
+		if estimateTokens(string(runes[:mid])) <= maxTokens {
+			lo = mid
+		} else {
+			hi = mid
+		}
+	}
+	return strings.TrimSpace(string(runes[:lo])) + "…"
 }

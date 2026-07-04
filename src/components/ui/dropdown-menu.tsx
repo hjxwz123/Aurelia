@@ -22,13 +22,18 @@ const menuClass = cn(
 export const DropdownMenuContent = forwardRef<
   ElementRef<typeof DropdownPrimitive.Content>,
   ComponentPropsWithoutRef<typeof DropdownPrimitive.Content>
->(function DropdownMenuContent({ className, sideOffset = 6, ...rest }, ref) {
+>(function DropdownMenuContent({ className, sideOffset = 6, collisionPadding = 8, ...rest }, ref) {
   return (
     <DropdownPrimitive.Portal>
       <DropdownPrimitive.Content
         ref={ref}
         sideOffset={sideOffset}
-        className={cn(menuClass, className)}
+        collisionPadding={collisionPadding}
+        // Cap to the space Radix measured and scroll the overflow — a tall menu
+        // opening upward from a bottom-anchored trigger (e.g. the sidebar avatar
+        // menu) would otherwise clip past the viewport top with no way to reach
+        // the hidden items. Submenus are portaled, so this scroll never clips them.
+        className={cn(menuClass, 'max-h-[var(--radix-dropdown-menu-content-available-height)] overflow-y-auto', className)}
         {...rest}
       />
     </DropdownPrimitive.Portal>

@@ -167,7 +167,7 @@
     },
     "userMessageMarkdown": {
       "label": "Markdown dans vos messages",
-      "body": "Affiche vos messages envoyés avec le même rendu Markdown, blocs de code, tableaux et formules que les réponses de l'assistant. Désactivé par défaut."
+      "body": "Affiche vos messages en Markdown (blocs de code, tableaux, formules)."
     },
     "fontSize": "Taille de police",
     "fontSizeBody": "Affecte le corps des messages et le texte.",

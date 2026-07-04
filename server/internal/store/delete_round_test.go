@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"path/filepath"
 	"strings"
@@ -197,6 +198,69 @@ func TestDeleteRoundWorkspaceMember(t *testing.T) {
 		t.Fatalf("non-member: want ErrNotFound, got %v", err)
 	}
 	assertParent(t, db, "U2", "") // untouched
+}
+
+// TestUpdateMessageContentPrunesCoveredSummaryBlocks locks in the compaction
+// privacy/correctness invariant for in-place edits: if a user edits an older
+// message that has already been rolled into a summary block, that stale block is
+// removed and the next compaction pass can rebuild it from the edited text.
+func TestUpdateMessageContentPrunesCoveredSummaryBlocks(t *testing.T) {
+	ctx := context.Background()
+	db, err := Open(filepath.Join(t.TempDir(), "edit-prune.db"))
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	defer db.Close()
+	if err := Migrate(db); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	exec(t, db, `INSERT INTO users(id,email,password_hash,role) VALUES('u1','a@b.c','h','user')`)
+	exec(t, db, `INSERT INTO conversations(id,user_id,title) VALUES('c1','u1','T')`)
+
+	rows := []struct{ id, parent, role string }{
+		{"U1", "", "user"}, {"A1", "U1", "assistant"},
+		{"U2", "A1", "user"}, {"A2", "U2", "assistant"},
+		{"U3", "A2", "user"}, {"A3", "U3", "assistant"},
+		{"U4", "A3", "user"}, {"A4", "U4", "assistant"},
+	}
+	for i, r := range rows {
+		insMsg(t, db, r.id, r.parent, r.role, 1000+int64(i))
+	}
+	exec(t, db, `UPDATE conversations SET summary_blocks=? WHERE id='c1'`, `[
+		{"level":1,"from_message_id":"U1","anchor_message_id":"A1","text":"prefix recap","tokens":2},
+		{"level":1,"from_message_id":"U1","anchor_message_id":"A3","text":"stale recap mentioning old U2","tokens":9},
+		{"level":1,"from_message_id":"U4","anchor_message_id":"A4","text":"later recap","tokens":2}
+	]`)
+
+	edited := json.RawMessage(`[{"kind":"text","text":"edited U2"}]`)
+	if err := UpdateMessageContent(ctx, db, "U2", edited); err != nil {
+		t.Fatalf("UpdateMessageContent: %v", err)
+	}
+
+	var gotBlocks string
+	if err := db.QueryRowContext(ctx, `SELECT blocks FROM messages WHERE id='U2'`).Scan(&gotBlocks); err != nil {
+		t.Fatalf("read edited message: %v", err)
+	}
+	if gotBlocks != string(edited) {
+		t.Fatalf("edited blocks = %s, want %s", gotBlocks, edited)
+	}
+
+	var raw string
+	if err := db.QueryRowContext(ctx, `SELECT summary_blocks FROM conversations WHERE id='c1'`).Scan(&raw); err != nil {
+		t.Fatalf("read summary_blocks: %v", err)
+	}
+	var summaries []struct {
+		Text string `json:"text"`
+	}
+	if err := json.Unmarshal([]byte(raw), &summaries); err != nil {
+		t.Fatalf("decode summary_blocks %s: %v", raw, err)
+	}
+	if len(summaries) != 2 {
+		t.Fatalf("summary_blocks after edit = %s, want prefix + later only", raw)
+	}
+	if summaries[0].Text != "prefix recap" || summaries[1].Text != "later recap" {
+		t.Fatalf("summary_blocks after edit = %+v, want stale covering block pruned", summaries)
+	}
 }
 
 // --- helpers ---------------------------------------------------------------

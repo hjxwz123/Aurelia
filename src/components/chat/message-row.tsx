@@ -348,7 +348,7 @@ function MessageRowImpl({ message, userName, onRegenerate, onEdit, onSaveEdit, o
               </div>
             ) : null}
             {userMessageMarkdown ? (
-              <Markdown content={message.content} blockKeyPrefix={`${message.id}-user`} className="prose-user" />
+              <Markdown content={message.content} blockKeyPrefix={`${message.id}-user`} className="prose-user" breaks />
             ) : (
               message.content
             )}

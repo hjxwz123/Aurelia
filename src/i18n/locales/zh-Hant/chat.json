@@ -135,7 +135,8 @@
     "title": "深度研究",
     "steps": "{{done}}/{{total}}",
     "planLabel": "研究計劃",
-    "sourcesLabel": "來源（{{count}}）"
+    "sourcesLabel": "來源（{{count}}）",
+    "credibility": "來源可信度 {{grade}}（A 官方/學術 … D 無署名）"
   },
   "share": {
     "title": "分享對話",
@@ -414,6 +415,7 @@
     "inviteMissingBody": "可能已被建立者重設。請向建立者索取新的連結。",
     "backHome": "返回對話",
     "roleOwner": "建立者",
-    "roleMember": "成員"
+    "roleMember": "成員",
+    "switchSpace": "切換空間"
   }
 }

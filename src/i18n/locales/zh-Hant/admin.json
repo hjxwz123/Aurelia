@@ -367,7 +367,8 @@
       "task_image_prompt": "圖片提示詞",
       "task_research_plan": "研究規劃",
       "task_research_verify": "研究核驗",
-      "task_moderation": "內容審核"
+      "task_moderation": "內容審核",
+      "task_research_validate": "研究交叉驗證"
     },
     "empty": "所選視窗內沒有呼叫記錄。",
     "leadRecords": "每次 API 呼叫一筆記錄。在下方篩選並清理日誌。",

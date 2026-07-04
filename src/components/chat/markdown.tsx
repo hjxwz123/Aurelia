@@ -14,6 +14,13 @@ interface MarkdownProps {
   blockKeyPrefix?: string
   /** Citations for this turn — inline `[n]` markers become source links. */
   citations?: Citation[]
+  /**
+   * Render a single newline as a hard line break (<br>). Off by default so
+   * assistant markdown follows standard rendering (soft `\n` = space). Turn ON
+   * for literal user input and thinking text, where the author's own line
+   * breaks are meaningful and must survive.
+   */
+  breaks?: boolean
 }
 
 function HeadingTag({ depth, html, className }: { depth: number; html: string; className?: string }) {
@@ -53,9 +60,9 @@ function useThrottledContent(content: string, intervalMs = 50): string {
   return snap
 }
 
-export const Markdown = memo(function Markdown({ content, className, live = false, blockKeyPrefix, citations }: MarkdownProps) {
+export const Markdown = memo(function Markdown({ content, className, live = false, blockKeyPrefix, citations, breaks = false }: MarkdownProps) {
   const throttled = useThrottledContent(content)
-  const blocks = useMemo(() => tokenizeMarkdown(throttled), [throttled])
+  const blocks = useMemo(() => tokenizeMarkdown(throttled, breaks), [throttled, breaks])
   // Map citations to the lib's CiteRef shape once; `inline`/`block` helpers thread
   // them into the HTML so `[n]` markers become source links.
   const cites = useMemo<CiteRef[]>(
@@ -85,13 +92,13 @@ export const Markdown = memo(function Markdown({ content, className, live = fals
       {blocks.map((b, i) => {
         switch (b.type) {
           case 'heading':
-            return <HeadingTag key={i} depth={b.depth ?? 2} html={inlineMarkdownToHtml(b.content)} className={blockAnim} />
+            return <HeadingTag key={i} depth={b.depth ?? 2} html={inlineMarkdownToHtml(b.content, undefined, breaks)} className={blockAnim} />
           case 'paragraph':
             return (
               <p
                 key={i}
                 className={cn('leading-relaxed text-[var(--color-fg)]', blockAnim)}
-                dangerouslySetInnerHTML={{ __html: inlineMarkdownToHtml(b.content, cites) }}
+                dangerouslySetInnerHTML={{ __html: inlineMarkdownToHtml(b.content, cites, breaks) }}
               />
             )
           case 'list':
@@ -110,7 +117,7 @@ export const Markdown = memo(function Markdown({ content, className, live = fals
                   '[&_ul_ul]:list-[circle] [&_ul_ul]:my-0.5 [&_ol_ol]:my-0.5 [&_li_p]:my-0',
                   blockAnim,
                 )}
-                dangerouslySetInnerHTML={{ __html: blockMarkdownToHtml(b.content, cites) }}
+                dangerouslySetInnerHTML={{ __html: blockMarkdownToHtml(b.content, cites, breaks) }}
               />
             )
           case 'code':
@@ -135,7 +142,7 @@ export const Markdown = memo(function Markdown({ content, className, live = fals
                   'border-l-2 border-[var(--color-border-strong)] pl-4 text-[var(--color-fg-muted)] italic',
                   blockAnim,
                 )}
-                dangerouslySetInnerHTML={{ __html: inlineMarkdownToHtml(b.content, cites) }}
+                dangerouslySetInnerHTML={{ __html: inlineMarkdownToHtml(b.content, cites, breaks) }}
               />
             )
           case 'math':
@@ -166,7 +173,7 @@ export const Markdown = memo(function Markdown({ content, className, live = fals
                   '[&_tr:last-child_td]:border-b-0',
                   blockAnim,
                 )}
-                dangerouslySetInnerHTML={{ __html: blockMarkdownToHtml(b.content, cites) }}
+                dangerouslySetInnerHTML={{ __html: blockMarkdownToHtml(b.content, cites, breaks) }}
               />
             )
           default:
