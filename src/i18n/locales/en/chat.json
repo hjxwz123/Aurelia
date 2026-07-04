@@ -135,7 +135,8 @@
     "title": "Deep research",
     "steps": "{{done}}/{{total}}",
     "planLabel": "Research plan",
-    "sourcesLabel": "Sources ({{count}})"
+    "sourcesLabel": "Sources ({{count}})",
+    "credibility": "Source credibility {{grade}} (A official/academic … D unattributed)"
   },
   "share": {
     "title": "Share conversation",
@@ -414,6 +415,7 @@
     "inviteMissingBody": "It may have been reset by the workspace owner. Ask them for a fresh link.",
     "backHome": "Back to chat",
     "roleOwner": "Owner",
-    "roleMember": "Member"
+    "roleMember": "Member",
+    "switchSpace": "Switch space"
   }
 }

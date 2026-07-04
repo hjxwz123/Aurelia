@@ -367,7 +367,8 @@
       "task_image_prompt": "Prompt d'image",
       "task_research_plan": "Plan de recherche",
       "task_research_verify": "Vérification de recherche",
-      "task_moderation": "Modération"
+      "task_moderation": "Modération",
+      "task_research_validate": "Validation croisée de recherche"
     },
     "empty": "Aucun appel dans la fenêtre sélectionnée.",
     "leadRecords": "Un appel API = une ligne. Filtrez et nettoyez le journal ci-dessous.",

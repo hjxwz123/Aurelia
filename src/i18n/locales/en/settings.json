@@ -167,7 +167,7 @@
     },
     "userMessageMarkdown": {
       "label": "Markdown in your messages",
-      "body": "Render your sent messages with the same Markdown, code block, table, and math renderer used for assistant replies. Off by default."
+      "body": "Render your sent messages with Markdown (code blocks, tables, math)."
     },
     "fontSize": "Font size",
     "fontSizeBody": "Affects message body and prose.",

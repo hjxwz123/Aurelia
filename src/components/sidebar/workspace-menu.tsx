@@ -5,7 +5,7 @@
  */
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Briefcase, Check, Copy, LogOut, Plus, Trash2, UserX, Users } from 'lucide-react'
+import { ArrowLeftRight, Briefcase, Check, Copy, Home, LogOut, Plus, Trash2, UserX, Users } from 'lucide-react'
 import { workspacesApi } from '@/api'
 import type { ApiWorkspaceMember } from '@/api/types'
 import { useAuth } from '@/store/auth'
@@ -15,6 +15,7 @@ import { useCopy } from '@/hooks/use-clipboard'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { initials } from '@/components/ui/avatar.utils'
 import { Button } from '@/components/ui/button'
+import { Tooltip } from '@/components/ui/tooltip'
 import {
   Dialog,
   DialogBody,
@@ -26,17 +27,68 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import {
+  DropdownMenu,
+  DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 
 /** Whether the current user may create workspaces (group feature / admin). */
 export function canCreateWorkspaces(): boolean {
   const u = useAuth.getState().user
   return u?.role === 'admin' || (u?.features ?? []).includes('workspaces')
+}
+
+/**
+ * SpaceSwitcherButton — a standalone icon button beside the sidebar avatar that
+ * opens a flat space picker (Personal + every workspace, active one checked).
+ * Rendered whenever the user belongs to ≥1 workspace, so it is the primary
+ * switcher in BOTH the personal space (pick a workspace to enter) and inside a
+ * workspace (jump to another space or back to personal). A plain top-level
+ * DropdownMenu — not a nested submenu — so it never clips (§workspaces).
+ */
+export function SpaceSwitcherButton() {
+  const { t } = useTranslation('chat')
+  const workspaces = useWorkspaces((s) => s.workspaces)
+  const activeId = useWorkspaces((s) => s.activeId)
+  const switchTo = useWorkspaces((s) => s.switchTo)
+
+  if (workspaces.length === 0) return null
+
+  return (
+    <DropdownMenu>
+      <Tooltip content={t('workspace.switchSpace', { defaultValue: 'Switch space' })}>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            aria-label={t('workspace.switchSpace', { defaultValue: 'Switch space' })}
+            className="inline-flex size-8 shrink-0 items-center justify-center rounded-[8px] text-[var(--color-fg-muted)] hover:bg-[var(--color-bg)] hover:text-[var(--color-fg)] interactive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)] data-[state=open]:bg-[var(--color-bg)] data-[state=open]:text-[var(--color-fg)]"
+          >
+            <ArrowLeftRight size={15} aria-hidden />
+          </button>
+        </DropdownMenuTrigger>
+      </Tooltip>
+      <DropdownMenuContent align="end" side="top" className="min-w-[220px]">
+        <DropdownMenuLabel>{t('workspace.switchSpace', { defaultValue: 'Switch space' })}</DropdownMenuLabel>
+        <DropdownMenuItem onClick={() => void switchTo(null)}>
+          {activeId === null ? <Check size={13} aria-hidden /> : <Home size={13} aria-hidden className="text-[var(--color-fg-subtle)]" />}
+          {t('workspace.personal', { defaultValue: 'Personal space' })}
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        {workspaces.map((w) => (
+          <DropdownMenuItem key={w.id} onClick={() => void switchTo(w.id)}>
+            {activeId === w.id ? <Check size={13} aria-hidden /> : <Briefcase size={13} aria-hidden className="text-[var(--color-fg-subtle)]" />}
+            <span className="truncate">{w.name}</span>
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
 }
 
 /** Dropdown-menu section rendered inside the sidebar UserMenu. */

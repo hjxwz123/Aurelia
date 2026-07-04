@@ -59,7 +59,13 @@ func (p *GoogleProvider) Stream(ctx context.Context, req UnifiedChatRequest, too
 				"parameters":  json.RawMessage(t.InputSchema),
 			})
 		}
-		toolsDecl = []map[string]any{{"function_declarations": decls}}
+		// Canonical camelCase, NOT proto snake_case: Google itself accepts both,
+		// but relay gateways (one-api/new-api 中转) re-parse the body into structs
+		// tagged camelCase-only — "function_declarations" gets dropped there and an
+		// empty tools[0] reaches Google, which 400s with "tool_type: required
+		// one_of 'tool_type' must have one initialized field". Same rule for every
+		// other key we emit (systemInstruction, inlineData, mimeType).
+		toolsDecl = []map[string]any{{"functionDeclarations": decls}}
 	}
 
 	const maxIter = 20
@@ -70,8 +76,8 @@ func (p *GoogleProvider) Stream(ctx context.Context, req UnifiedChatRequest, too
 
 	for i := 0; i < maxIter; i++ {
 		body := map[string]any{
-			"system_instruction": map[string]any{"parts": []map[string]any{{"text": req.SystemPrompt}}},
-			"contents":           contents,
+			"systemInstruction": map[string]any{"parts": []map[string]any{{"text": req.SystemPrompt}}},
+			"contents":          contents,
 		}
 		if req.MaxOutputTokens > 0 {
 			body["generationConfig"] = map[string]any{"maxOutputTokens": req.MaxOutputTokens}
@@ -225,14 +231,14 @@ func historyToGemini(h []UnifiedMessage) []map[string]any {
 		for _, b := range m.Blocks {
 			if b.Kind == "image" && b.Data != "" {
 				parts = append(parts, map[string]any{
-					"inline_data": map[string]any{"mime_type": b.MimeType, "data": b.Data},
+					"inlineData": map[string]any{"mimeType": b.MimeType, "data": b.Data},
 				})
 			}
-			// PDF document blocks: Gemini accepts them as inline_data with
-			// mime_type=application/pdf (§4.10-G doc capability).
+			// PDF document blocks: Gemini accepts them as inlineData with
+			// mimeType=application/pdf (§4.10-G doc capability).
 			if b.Kind == "document" && b.Data != "" {
 				parts = append(parts, map[string]any{
-					"inline_data": map[string]any{"mime_type": b.MimeType, "data": b.Data},
+					"inlineData": map[string]any{"mimeType": b.MimeType, "data": b.Data},
 				})
 			}
 		}
@@ -494,9 +500,9 @@ func (p *GoogleProvider) promptRunOnce(base string, req UnifiedChatRequest) Prom
 			gc["maxOutputTokens"] = req.MaxOutputTokens
 		}
 		body := map[string]any{
-			"system_instruction": map[string]any{"parts": []map[string]any{{"text": system}}},
-			"contents":           contents,
-			"generationConfig":   gc,
+			"systemInstruction": map[string]any{"parts": []map[string]any{{"text": system}}},
+			"contents":          contents,
+			"generationConfig":  gc,
 		}
 		body = MergeParamControls(body, req.ParamControls, req.ParamOverrides)
 		raw, _ := json.Marshal(body)

@@ -167,7 +167,7 @@
     },
     "userMessageMarkdown": {
       "label": "使用者訊息 Markdown",
-      "body": "將你已傳送的訊息使用與助手回覆相同的 Markdown、程式碼區塊、表格和公式渲染器展示。預設關閉。"
+      "body": "用 Markdown 渲染你傳送的訊息（含程式碼區塊、表格、公式）。"
     },
     "fontSize": "字號",
     "fontSizeBody": "影響訊息正文與長文。",

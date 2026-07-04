@@ -135,7 +135,8 @@
     "title": "ディープリサーチ",
     "steps": "{{done}}/{{total}}",
     "planLabel": "リサーチプラン",
-    "sourcesLabel": "ソース（{{count}}）"
+    "sourcesLabel": "ソース（{{count}}）",
+    "credibility": "情報源の信頼度 {{grade}}（A 公式/学術 … D 出所不明）"
   },
   "share": {
     "title": "会話を共有",
@@ -414,6 +415,7 @@
     "inviteMissingBody": "オーナーがリンクを再発行した可能性があります。新しいリンクを依頼してください。",
     "backHome": "チャットへ戻る",
     "roleOwner": "オーナー",
-    "roleMember": "メンバー"
+    "roleMember": "メンバー",
+    "switchSpace": "スペースを切り替え"
   }
 }

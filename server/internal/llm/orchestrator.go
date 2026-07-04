@@ -735,13 +735,23 @@ func (o *Orchestrator) Run(ctx context.Context, req RunRequest, onEvent func(Sse
 		}
 	case compactAsync:
 		if o.queue != nil && o.task != nil {
-			convID, userID, hist, overhead := conv.ID, req.UserID, history, injectedOverhead
+			convID, userID, leafID, overhead := conv.ID, req.UserID, userMsg.ID, injectedOverhead
 			o.queue.Enqueue("compaction.advance", func(ctx context.Context) error {
 				fresh, gerr := store.GetConversation(ctx, o.db, convID, userID)
 				if gerr != nil {
 					return gerr
 				}
-				_, _, cerr := MaybeCompact(ctx, o.db, o.task, fresh, hist, overhead, userID)
+				// Re-read the path at execution time instead of summarising the
+				// turn's snapshot: a concurrent turn's in-flight answer may have
+				// FINISHED by now (its blocks were empty in the snapshot — rolling
+				// that up would record an empty summary and hide the real answer
+				// behind the frontier forever), and rounds may have been deleted.
+				// Same leaf as the snapshot, so it is the same path, fresh state.
+				histNow, herr := store.ListMessages(ctx, o.db, convID, leafID)
+				if herr != nil {
+					return herr
+				}
+				_, _, cerr := MaybeCompact(ctx, o.db, o.task, fresh, histNow, overhead, userID)
 				return cerr
 			})
 		}
@@ -1406,8 +1416,30 @@ func (o *Orchestrator) optimizeImagePrompt(ctx context.Context, userID, convID, 
 // downgraded — block renderers compress each tool round into a one-line
 // summary and thinking blocks are dropped (handled by renderBlocksAsText).
 func storeToUnified(msgs []store.Message, currentProvider string) []UnifiedMessage {
+	// §workspaces concurrent turns: a shared conversation is one linear thread, so
+	// when B asks while A's answer is still generating, B's question chains directly
+	// under A's assistant PLACEHOLDER (status="streaming", empty blocks — streamed
+	// text isn't persisted until FinishMessage). Left in the history that placeholder
+	// becomes an empty assistant turn, which providers reject (Anthropic disallows
+	// empty text content blocks), failing B's whole turn. Drop any in-flight / empty
+	// assistant turn TOGETHER with its now-orphaned question — dropping only the
+	// answer would leave two consecutive user turns, which providers also reject.
+	// Purely a per-call transient: the stored messages are untouched, so once A
+	// finishes its real answer is used normally on the next turn.
+	drop := make([]bool, len(msgs))
+	for i, m := range msgs {
+		if m.Role == "assistant" && (m.Status == "streaming" || assistantRendersEmpty(m)) {
+			drop[i] = true
+			if i > 0 && msgs[i-1].Role == "user" {
+				drop[i-1] = true
+			}
+		}
+	}
 	out := []UnifiedMessage{}
-	for _, m := range msgs {
+	for i, m := range msgs {
+		if drop[i] {
+			continue
+		}
 		var blocks []UnifiedBlock
 		_ = json.Unmarshal(m.Blocks, &blocks)
 		um := UnifiedMessage{Role: m.Role, Blocks: blocks}
@@ -1422,6 +1454,29 @@ func storeToUnified(msgs []store.Message, currentProvider string) []UnifiedMessa
 		out = append(out, um)
 	}
 	return out
+}
+
+// assistantRendersEmpty reports whether a stored assistant turn would collapse to
+// empty provider content (no text, no tool trace, no media, no same-vendor raw
+// replay). The provider APIs reject empty content, so such a turn must be dropped
+// from the prompt rather than sent. This is exactly the state of a still-streaming
+// placeholder (its text isn't persisted until FinishMessage, so mid-generation its
+// blocks are []) and of a stopped-before-any-output turn.
+func assistantRendersEmpty(m store.Message) bool {
+	if len(m.Raw) > 2 {
+		return false // raw carries the full native exchange verbatim
+	}
+	var blocks []UnifiedBlock
+	if json.Unmarshal(m.Blocks, &blocks) != nil {
+		return false // unparseable — keep it rather than risk dropping real content
+	}
+	for _, b := range blocks {
+		switch b.Kind {
+		case "image", "document", "artifact":
+			return false // becomes a non-empty media block downstream
+		}
+	}
+	return strings.TrimSpace(renderBlocksAsText(blocks)) == ""
 }
 
 // maxInlineAttachment caps how large a file we inline as base64 (≈10 MB raw →

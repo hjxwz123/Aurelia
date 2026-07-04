@@ -51,6 +51,10 @@ const (
 	// TaskResearchVerify assesses research coverage and proposes follow-up
 	// queries for the next round.
 	TaskResearchVerify TaskKind = "task.research_verify"
+	// TaskResearchValidate cross-validates gathered evidence into confirmed /
+	// disputed / unverified findings before the report is written (§ deep-research
+	// Phase 4: 交叉验证与整合).
+	TaskResearchValidate TaskKind = "task.research_validate"
 	// TaskModeration screens a single user prompt for policy violations using a
 	// dedicated moderation model (§ moderation).
 	TaskModeration TaskKind = "task.moderation"
@@ -182,7 +186,7 @@ func (t *TaskLLM) Run(ctx context.Context, kind TaskKind, prompt string, opts Ru
 		cost := computeCost(*model, result.Usage)
 		_ = store.LogUsage(ctx, t.db, store.UsageLog{
 			WorkspaceID:      opts.WorkspaceID,
-		UserID:           opts.UserID,
+			UserID:           opts.UserID,
 			ConversationID:   opts.ConversationID,
 			MessageID:        opts.MessageID,
 			ModelID:          model.ID,
@@ -267,17 +271,47 @@ func defaultSystem(kind TaskKind, jsonOutput bool) string {
 		return base + " Compress a multi-turn assistant response into a single short " +
 			"paragraph that preserves key facts, tool outputs, and decisions. No tool block syntax."
 	case TaskResearchPlan:
-		return base + " You are planning a thorough research investigation. Break the user's" +
-			" topic into 3-6 focused, non-overlapping sub-questions that together fully cover it," +
-			" and for each give 1-3 specific web search queries. Write the title and questions in" +
-			" the user's language. Reply with strict JSON only: " +
-			`{"title":"...","sub_questions":[{"id":"q1","question":"...","search_queries":["...","..."]}]}.`
+		return base + " You are a rigorous research analyst planning an investigation (Phase 1:" +
+			" understanding + query planning). First classify the research goal as one of:" +
+			" concept (what something is), comparison (weighing options), trend (where something" +
+			" is heading), technical (evaluating a technology), market (landscape/size), or" +
+			" decision (choosing between courses of action). Note the scope in one short line" +
+			" (time range, region, depth). Then break the topic into 2-4 complementary," +
+			" non-overlapping sub-questions that cover DIFFERENT dimensions (e.g. fundamentals," +
+			" latest developments, comparison/criticism, real-world practice) — never four" +
+			" restatements of one angle. For each sub-question give 1-3 concrete web search" +
+			" queries following these rules: specific beats broad; add the current year to" +
+			" freshness-sensitive queries; use 'A vs B' phrasing for comparisons; for technical" +
+			" topics include at least one English query even if the user writes another language;" +
+			" and include at least one query across the plan that hunts for downsides, criticism" +
+			" or counter-evidence, so the research is not an echo chamber. Write the title and" +
+			" questions in the user's language. Reply with strict JSON only: " +
+			`{"title":"...","research_type":"concept|comparison|trend|technical|market|decision",` +
+			`"scope":"...","sub_questions":[{"id":"q1","dimension":"...","question":"...",` +
+			`"search_queries":["...","..."]}]}.`
 	case TaskResearchVerify:
-		return base + " You are auditing research coverage. A sub-question is covered only when at" +
-			" least two independent sources agree. Given the question and gathered findings, decide" +
-			" whether coverage is sufficient; if not, list uncovered sub-question ids, weak/unverified" +
-			" claims, and up to 4 new search queries to close the gaps. Reply with strict JSON only: " +
+		return base + " You are auditing research coverage (Phase 2 exit check). Coverage is" +
+			" sufficient only when: every sub-question has evidence from at least two independent" +
+			" sources; the sources are not all of one kind (e.g. all blogs or all news); and no" +
+			" important dimension or newly-surfaced key concept is left unexplored. Given the" +
+			" question and gathered findings, decide whether coverage is sufficient; if not, list" +
+			" uncovered sub-question ids, weak/single-source claims, and up to 4 new search" +
+			" queries to close the gaps (favor counter-evidence queries and English-language" +
+			" variants when a dimension keeps coming up empty). Reply with strict JSON only: " +
 			`{"sufficient":false,"uncovered":["q2"],"weak_claims":["..."],"new_queries":["..."]}.`
+	case TaskResearchValidate:
+		return base + " You are cross-validating research evidence (Phase 4: 交叉验证)." +
+			" Sources are numbered [1..n]. Extract the key factual claims that matter for" +
+			" answering the research question and classify each: confirmed = essentially the" +
+			" same fact is supported by 2+ DIFFERENT sources (list all supporting source" +
+			" numbers); disputed = sources genuinely conflict (record each position with its" +
+			" sources — do NOT merge them); unverified = an important claim that appears in" +
+			" only one source. Prefer precision over volume: at most 8 confirmed, 4 disputed" +
+			" topics, 6 unverified. Write claims in the user's language, tersely. Reply with" +
+			" strict JSON only: " +
+			`{"confirmed":[{"claim":"...","sources":[1,3]}],` +
+			`"disputed":[{"topic":"...","positions":[{"claim":"...","sources":[2]},{"claim":"...","sources":[4]}]}],` +
+			`"unverified":[{"claim":"...","source":5}]}.`
 	}
 	if jsonOutput {
 		return base + " Reply with strict JSON only."

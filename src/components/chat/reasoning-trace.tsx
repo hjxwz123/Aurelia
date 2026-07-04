@@ -122,6 +122,7 @@ export function ReasoningTrace({ reasoning, streaming = false, settled = false }
                     key={it.id}
                     content={it.text}
                     live={streaming}
+                    breaks
                     className={cn(
                       '!max-w-none text-[12.5px] !leading-relaxed text-[var(--color-fg-muted)]',
                       '[&_p]:!mt-1.5 [&_>*+*]:!mt-1.5 [&_p]:text-[var(--color-fg-muted)]',

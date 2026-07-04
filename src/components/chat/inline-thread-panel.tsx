@@ -144,7 +144,7 @@ function ThreadBody({ quote, childId, onClose }: { quote: string; childId: strin
                 )}
               >
                 {userMessageMarkdown ? (
-                  <Markdown content={m.content} blockKeyPrefix={`${m.id}-user-inline`} className="prose-user" />
+                  <Markdown content={m.content} blockKeyPrefix={`${m.id}-user-inline`} className="prose-user" breaks />
                 ) : (
                   m.content
                 )}
