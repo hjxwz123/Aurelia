@@ -1149,10 +1149,13 @@ func geminiGenerateImages(ctx context.Context, baseURL, apiKey, requestID string
 	}
 	parts := []map[string]any{}
 	for _, img := range inputImgs {
+		// camelCase, not proto snake_case — relay gateways parse into
+		// camelCase-only structs and silently drop snake_case keys (see
+		// google_provider.go toolsDecl).
 		parts = append(parts, map[string]any{
-			"inline_data": map[string]any{
-				"mime_type": img.mime,
-				"data":      base64.StdEncoding.EncodeToString(img.data),
+			"inlineData": map[string]any{
+				"mimeType": img.mime,
+				"data":     base64.StdEncoding.EncodeToString(img.data),
 			},
 		})
 	}

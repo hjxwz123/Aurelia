@@ -367,7 +367,8 @@
       "task_image_prompt": "画像プロンプト",
       "task_research_plan": "リサーチ計画",
       "task_research_verify": "リサーチ検証",
-      "task_moderation": "モデレーション"
+      "task_moderation": "モデレーション",
+      "task_research_validate": "研究クロス検証"
     },
     "empty": "選択した期間内に呼び出しはありません。",
     "leadRecords": "API 呼び出しごとに 1 行。下で絞り込み・整理できます。",

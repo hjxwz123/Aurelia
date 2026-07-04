@@ -167,7 +167,7 @@
     },
     "userMessageMarkdown": {
       "label": "自分のメッセージの Markdown",
-      "body": "送信済みメッセージを、アシスタント返信と同じ Markdown、コードブロック、表、数式レンダラーで表示します。デフォルトはオフです。"
+      "body": "送信したメッセージを Markdown（コードブロック・表・数式）で表示します。"
     },
     "fontSize": "フォントサイズ",
     "fontSizeBody": "メッセージ本文と文章に影響します。",

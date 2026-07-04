@@ -367,7 +367,8 @@
       "task_image_prompt": "Image prompt",
       "task_research_plan": "Research plan",
       "task_research_verify": "Research verify",
-      "task_moderation": "Moderation"
+      "task_moderation": "Moderation",
+      "task_research_validate": "Research cross-validation"
     },
     "empty": "No calls in the selected window.",
     "leadRecords": "Every API call, one row. Filter and prune the log below.",

@@ -164,10 +164,15 @@ func ListInlineThreads(ctx context.Context, db *sql.DB, sourceConvID, userID str
 // workspace-aware at once. Deletion stays creator-only via DeleteConversation's
 // own user_id scope.
 func GetConversation(ctx context.Context, db *sql.DB, id, userID string) (*Conversation, error) {
+	// LEFT JOIN users to carry creator_name/avatar, matching the list endpoint —
+	// otherwise a single-conversation fetch (loadOne on the client) returns a row
+	// with an empty creator and, when it replaces the list entry, blanks the
+	// sidebar's creator badge until a full reload (§workspaces).
 	row := db.QueryRowContext(ctx,
-		`SELECT id, user_id, COALESCE(project_id, ''), title, provider, model_id, kb_ids, rag_mode, summary_blocks, COALESCE(active_leaf_id, ''), provider_state, pinned, archived, starred, created_at, updated_at, COALESCE(inline_source_conv, ''), COALESCE(inline_parent_id, ''), COALESCE(inline_quote, ''), COALESCE(workspace_id, '')
-		 FROM conversations WHERE id=? AND (user_id=? OR (COALESCE(workspace_id,'')<>'' AND workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id=?)))`, id, userID, userID)
-	c, err := scanConversation(row)
+		`SELECT c.id, c.user_id, COALESCE(c.project_id, ''), c.title, c.provider, c.model_id, c.kb_ids, c.rag_mode, c.summary_blocks, COALESCE(c.active_leaf_id, ''), c.provider_state, c.pinned, c.archived, c.starred, c.created_at, c.updated_at, COALESCE(c.inline_source_conv, ''), COALESCE(c.inline_parent_id, ''), COALESCE(c.inline_quote, ''), COALESCE(c.workspace_id, ''), COALESCE(u.name,''), COALESCE(u.settings,'')
+		 FROM conversations c LEFT JOIN users u ON u.id = c.user_id
+		 WHERE c.id=? AND (c.user_id=? OR (COALESCE(c.workspace_id,'')<>'' AND c.workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id=?)))`, id, userID, userID)
+	c, err := scanConversationWithCreator(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -175,6 +180,25 @@ func GetConversation(ctx context.Context, db *sql.DB, id, userID string) (*Conve
 		return nil, err
 	}
 	return &c, nil
+}
+
+// scanConversationWithCreator scans the base columns PLUS the joined creator
+// name + avatar (from users.name / users.settings). Mirrors the list-query scan.
+func scanConversationWithCreator(s scanner) (Conversation, error) {
+	var c Conversation
+	var pinned, archived, starred int
+	var kbIDs, sumBlocks, provState, settings string
+	if err := s.Scan(&c.ID, &c.UserID, &c.ProjectID, &c.Title, &c.Provider, &c.ModelID, &kbIDs, &c.RAGMode, &sumBlocks, &c.ActiveLeafID, &provState, &pinned, &archived, &starred, &c.CreatedAt, &c.UpdatedAt, &c.InlineSourceConv, &c.InlineParentID, &c.InlineQuote, &c.WorkspaceID, &c.CreatorName, &settings); err != nil {
+		return c, err
+	}
+	c.Pinned = pinned == 1
+	c.Archived = archived == 1
+	c.Starred = starred == 1
+	c.KBIDs = json.RawMessage(orDefault(kbIDs, "[]"))
+	c.SummaryBlocks = json.RawMessage(orDefault(sumBlocks, "[]"))
+	c.ProviderState = json.RawMessage(orDefault(provState, "{}"))
+	c.CreatorAvatar = avatarFromSettings(settings)
+	return c, nil
 }
 
 // GetConversationByID looks up a conversation WITHOUT an ownership check —
@@ -687,8 +711,30 @@ func FinishMessage(ctx context.Context, db *sql.DB, id string, p MessageFinishPa
 // user "save edit" action that edits a question WITHOUT branching. The caller
 // must verify ownership (conversation belongs to the user) first.
 func UpdateMessageContent(ctx context.Context, db *sql.DB, id string, blocks json.RawMessage) error {
-	_, err := db.ExecContext(ctx, `UPDATE messages SET blocks=?, search_text=? WHERE id=?`, string(blocks), searchTextFromBlocks(blocks), id)
-	return err
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var convID string
+	var createdAt int64
+	if err := tx.QueryRowContext(ctx, `SELECT conversation_id, created_at FROM messages WHERE id=?`, id).Scan(&convID, &createdAt); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrNotFound
+		}
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE messages SET blocks=?, search_text=? WHERE id=?`, string(blocks), searchTextFromBlocks(blocks), id); err != nil {
+		return err
+	}
+	// A saved edit changes the historical truth for this message. Any summary
+	// block that already rolled it up now contains stale text, so prune it and let
+	// the normal compaction path rebuild that range from the edited message.
+	if err := pruneSummaryBlocksForDeleteTx(ctx, tx, convID, map[string]bool{id: true}, createdAt); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // SetMessageFeedback stores a like/dislike on an assistant message.
@@ -700,7 +746,7 @@ func SetMessageFeedback(ctx context.Context, db *sql.DB, id, feedback string) er
 
 // SetMessageVerify stores the secondary-auditor result (Verify mode, §verify) on
 // an assistant message AFTER the turn has finalized. The value is the verify
-// report JSON; '' clears it.
+// report JSON; ” clears it.
 func SetMessageVerify(ctx context.Context, db *sql.DB, id string, verify json.RawMessage) error {
 	_, err := db.ExecContext(ctx, `UPDATE messages SET verify=? WHERE id=?`, string(verify), id)
 	return err

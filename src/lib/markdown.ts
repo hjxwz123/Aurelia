@@ -3,7 +3,10 @@ import katex from 'katex'
 
 /**
  * Lightweight markdown configuration.
- * - GFM tables, breaks
+ * - GFM tables. Soft-break-to-<br> is OFF by default here (standard rendering,
+ *   used for assistant output) and opt-in per call via the `breaks` argument
+ *   on the render helpers below — turned on for literal user input / thinking
+ *   text where the author's own line breaks are meaningful.
  * - We keep raw HTML escaped (no dangerouslySetInnerHTML escape hatch)
  * - Custom renderer keeps code blocks as fenced blocks so our React
  *   <CodeBlock> component can detect them.
@@ -253,11 +256,14 @@ function protectMath(md: string): { text: string; map: string[] } {
   return { text, map }
 }
 
-export function inlineMarkdownToHtml(md: string, cites?: CiteRef[]): string {
+export function inlineMarkdownToHtml(md: string, cites?: CiteRef[], breaks = false): string {
   // Layer 1: strip raw HTML tags from markdown source before marked sees it.
   const cleaned = stripRawHtml(md)
   const { text, map } = protectMath(cleaned)
-  let out = marked.parseInline(text, { async: false })
+  // `breaks` turns a single "\n" into <br> (soft break). Off for assistant
+  // markdown (standard rendering); on for literal user input / thinking where
+  // the author's line breaks are meaningful.
+  let out = marked.parseInline(text, { async: false, breaks })
   if (typeof out !== 'string') {
     // Should never happen with async:false; fall back to safe escape.
     return escapeHtml(md)
@@ -279,10 +285,10 @@ export function inlineMarkdownToHtml(md: string, cites?: CiteRef[]): string {
  * `table` block — paragraphs/headings stay on the inline path. Same two-layer
  * defence (strip raw HTML → sanitize) and math protection.
  */
-export function blockMarkdownToHtml(md: string, cites?: CiteRef[]): string {
+export function blockMarkdownToHtml(md: string, cites?: CiteRef[], breaks = false): string {
   const cleaned = stripRawHtml(md)
   const { text, map } = protectMath(cleaned)
-  let out = marked.parse(text, { async: false })
+  let out = marked.parse(text, { async: false, breaks })
   if (typeof out !== 'string') {
     return escapeHtml(md)
   }
@@ -304,26 +310,26 @@ export function blockMarkdownToHtml(md: string, cites?: CiteRef[]): string {
  * `\[` → `[`), which left raw LaTeX like `[ \frac{…} ]` on screen. Inline math
  * (`$…$` / `\(…\)`) stays on the per-block path in inlineMarkdownToHtml.
  */
-export function tokenizeMarkdown(md: string): MarkdownBlock[] {
+export function tokenizeMarkdown(md: string, breaks = false): MarkdownBlock[] {
   const blocks: MarkdownBlock[] = []
   const displayMath = /\$\$([\s\S]+?)\$\$|\\\[([\s\S]+?)\\\]/g
   let lastIndex = 0
   let m: RegExpExecArray | null
   while ((m = displayMath.exec(md)) !== null) {
-    lexInto(blocks, md.slice(lastIndex, m.index))
+    lexInto(blocks, md.slice(lastIndex, m.index), breaks)
     const tex = (m[1] ?? m[2] ?? '').trim()
     if (tex) blocks.push({ type: 'math', content: renderTex(tex, true) })
     lastIndex = m.index + m[0].length
   }
-  lexInto(blocks, md.slice(lastIndex))
+  lexInto(blocks, md.slice(lastIndex), breaks)
   return blocks
 }
 
 // lexInto runs marked's block lexer over a text segment and appends the mapped
 // blocks. Split out so tokenizeMarkdown can interleave extracted math blocks.
-function lexInto(blocks: MarkdownBlock[], md: string): void {
+function lexInto(blocks: MarkdownBlock[], md: string, breaks = false): void {
   if (!md.trim()) return
-  const tokens = marked.lexer(md, { gfm: true })
+  const tokens = marked.lexer(md, { gfm: true, breaks })
 
   for (const t of tokens) {
     switch (t.type) {

@@ -28,6 +28,7 @@ import { Logo, LogoMark } from '@/components/brand/logo'
 import { useWorkspaces } from '@/store/workspaces'
 import {
   CreateWorkspaceDialog,
+  SpaceSwitcherButton,
   WorkspaceMembersDialog,
   WorkspaceMenuItems,
 } from '@/components/sidebar/workspace-menu'
@@ -204,16 +205,30 @@ export function Sidebar({ variant = 'desktop', onClose }: SidebarProps) {
       <div className="flex items-center justify-between px-3 h-[56px] shrink-0">
         {!collapsed ? (
           activeWorkspace ? (
-            <Link
-              key={activeWorkspace.id}
-              to="/"
-              className="page-enter inline-flex min-w-0 items-center gap-2"
-              aria-label={activeWorkspace.name}
-              title={activeWorkspace.name}
-            >
-              <Briefcase size={16} aria-hidden className="shrink-0 text-[var(--color-fg-muted)]" />
-              <span className="truncate font-serif text-[15px] text-[var(--color-fg)]">{activeWorkspace.name}</span>
-            </Link>
+            <div key={activeWorkspace.id} className="page-enter flex min-w-0 items-center gap-1.5">
+              <Link
+                to="/"
+                className="inline-flex min-w-0 items-center gap-2"
+                aria-label={activeWorkspace.name}
+                title={activeWorkspace.name}
+              >
+                <Briefcase size={16} aria-hidden className="shrink-0 text-[var(--color-secondary)]" />
+                <span className="truncate font-serif text-[15px] text-[var(--color-fg)]">{activeWorkspace.name}</span>
+              </Link>
+              {/* Prominent escape hatch back to the personal space, right next to
+                  the workspace name (§workspaces: 标题旁显著切换按钮). Sage =
+                  the AI/workspace status accent; always visible, not hover-only. */}
+              <Tooltip content={t('workspace.backToPersonal', { defaultValue: 'Switch to personal space' })}>
+                <button
+                  type="button"
+                  onClick={() => void useWorkspaces.getState().switchTo(null)}
+                  aria-label={t('workspace.backToPersonal', { defaultValue: 'Switch to personal space' })}
+                  className="inline-flex size-6 shrink-0 items-center justify-center rounded-[7px] bg-[var(--color-secondary-soft)] text-[var(--color-secondary)] hover:bg-[var(--color-secondary)] hover:text-[var(--color-fg-inverted)] interactive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
+                >
+                  <ArrowLeftRight size={13} aria-hidden />
+                </button>
+              </Tooltip>
+            </div>
           ) : (
           <Link key="personal" to="/" className="page-enter inline-flex items-center" aria-label={tCommon('aria.homeLink')}>
             <Logo size="sm" />
@@ -432,24 +447,16 @@ export function Sidebar({ variant = 'desktop', onClose }: SidebarProps) {
         </div>
       )}
 
-      {/* Footer */}
+      {/* Footer — the avatar plus a space switcher beside it. The switcher is a
+          flat picker (personal + every workspace) shown whenever the user has
+          any workspace, so it works both in the personal space (pick one to
+          enter) and inside a workspace (§workspaces 头像旁切换按钮). */}
       <div className={cn('mt-auto border-t border-[var(--color-divider)] p-2', collapsed && 'flex items-center justify-center')}>
         <div className={cn('flex items-center gap-1', collapsed && 'flex-col')}>
           <div className="min-w-0 flex-1">
             <UserMenu collapsed={collapsed} />
           </div>
-          {activeWorkspace || activeWsId ? (
-            <Tooltip content={t('workspace.backToPersonal', { defaultValue: 'Switch to personal space' })}>
-              <button
-                type="button"
-                onClick={() => void useWorkspaces.getState().switchTo(null)}
-                aria-label={t('workspace.backToPersonal', { defaultValue: 'Switch to personal space' })}
-                className="inline-flex size-8 shrink-0 items-center justify-center rounded-[8px] text-[var(--color-fg-muted)] hover:bg-[var(--color-bg)] hover:text-[var(--color-fg)] interactive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
-              >
-                <ArrowLeftRight size={14} aria-hidden />
-              </button>
-            </Tooltip>
-          ) : null}
+          <SpaceSwitcherButton />
         </div>
       </div>
 

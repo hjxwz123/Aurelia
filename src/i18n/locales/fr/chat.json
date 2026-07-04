@@ -135,7 +135,8 @@
     "title": "Recherche approfondie",
     "steps": "{{done}}/{{total}}",
     "planLabel": "Plan de recherche",
-    "sourcesLabel": "Sources ({{count}})"
+    "sourcesLabel": "Sources ({{count}})",
+    "credibility": "Fiabilité de la source {{grade}} (A officiel/académique … D non attribué)"
   },
   "share": {
     "title": "Partager la conversation",
@@ -414,6 +415,7 @@
     "inviteMissingBody": "Il a peut-être été réinitialisé par le propriétaire. Demandez-lui un nouveau lien.",
     "backHome": "Retour au chat",
     "roleOwner": "Propriétaire",
-    "roleMember": "Membre"
+    "roleMember": "Membre",
+    "switchSpace": "Changer d'espace"
   }
 }

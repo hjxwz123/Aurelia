@@ -79,7 +79,17 @@ func CreateWorkspace(ctx context.Context, db *sql.DB, ownerID, name string) (*Wo
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
-	return GetWorkspace(ctx, db, id)
+	w, err := GetWorkspace(ctx, db, id)
+	if err != nil {
+		return nil, err
+	}
+	// The creator is, by definition, the owner and sole member. Set the enriched
+	// fields GetWorkspace can't (it reads columns only) so the create response is
+	// complete — the client's Members dialog gates the invite link on role=owner,
+	// and without this it stays hidden until a page reload re-fetches the list.
+	w.Role = "owner"
+	w.MemberCount = 1
+	return w, nil
 }
 
 // GetWorkspace returns a workspace by id (no membership check — callers gate).
@@ -170,7 +180,7 @@ func CountOwnedWorkspaces(ctx context.Context, db *sql.DB, userID string) (int, 
 	return n, err
 }
 
-// IsWorkspaceMember reports membership + role ('' when not a member).
+// IsWorkspaceMember reports membership + role (” when not a member).
 func IsWorkspaceMember(ctx context.Context, db *sql.DB, workspaceID, userID string) (string, error) {
 	var role string
 	err := db.QueryRowContext(ctx,
@@ -314,6 +324,7 @@ func ListAllWorkspaces(ctx context.Context, db *sql.DB, limit, offset int) ([]Wo
 	}
 	return out, rows.Err()
 }
+
 // UserIdentity is a display-only projection of a user (name + avatar) used to
 // label message authors and sidebar rows (§workspaces).
 type UserIdentity struct {
