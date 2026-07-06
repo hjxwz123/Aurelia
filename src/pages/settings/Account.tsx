@@ -12,6 +12,7 @@ import { initials } from '@/components/ui/avatar.utils'
 import { useAuth } from '@/store/auth'
 import { authApi, ApiError } from '@/api'
 import { resizeImageForUpload } from '@/lib/resize-image'
+import { formatAbsoluteDate } from '@/lib/utils'
 import { toast } from '@/hooks/use-toast'
 import { useCopy } from '@/hooks/use-clipboard'
 import {
@@ -254,7 +255,16 @@ export default function Account() {
       </SettingsSection>
 
       <SettingsSection title={t('settings:account.security')}>
-        <SettingsRow label={t('settings:account.securityRows.password')} description={t('settings:account.securityRows.passwordBody')}>
+        <SettingsRow
+          label={t('settings:account.securityRows.password')}
+          description={
+            user?.password_changed_at
+              ? t('settings:account.securityRows.passwordChangedOn', {
+                  date: formatAbsoluteDate(user.password_changed_at * 1000),
+                })
+              : t('settings:account.securityRows.passwordNeverChanged')
+          }
+        >
           <Button variant="secondary" onClick={() => setPwOpen(true)}>
             <Lock size={13} aria-hidden /> {t('common:actions.changePassword')}
           </Button>
