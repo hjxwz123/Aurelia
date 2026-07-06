@@ -1,7 +1,7 @@
 /**
  * KnowledgeBasesList — gallery of the user's knowledge bases.
  */
-import { activeWorkspaceId } from '@/store/workspaces'
+import { activeWorkspaceId, useWorkspaces } from '@/store/workspaces'
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
@@ -29,6 +29,10 @@ import { formatRelativeDate } from '@/lib/utils'
 
 export default function KnowledgeBasesList() {
   const { t } = useTranslation(['kb', 'common'])
+  // §workspaces: KBs aren't part of reloadSpaceData(), so this page re-fetches
+  // itself when the active space changes (after the switch settles).
+  const activeWsId = useWorkspaces((s) => s.activeId)
+  const wsSwitching = useWorkspaces((s) => s.switching)
   const [rows, setRows] = useState<ApiKnowledgeBase[]>([])
   const [models, setModels] = useState<ApiModel[]>([])
   const [loading, setLoading] = useState(true)
@@ -36,27 +40,35 @@ export default function KnowledgeBasesList() {
   const [draft, setDraft] = useState({ name: '', description: '', embedding_model_id: '' })
   const [creating, setCreating] = useState(false)
   const creatingRef = useRef(false)
+  // Stale-response guard for the space-switch reloads: a slow earlier space's
+  // response must never overwrite the current space's rows (same epoch pattern
+  // as the conversations/projects stores).
+  const loadEpochRef = useRef(0)
 
   async function load() {
+    const epoch = ++loadEpochRef.current
     setLoading(true)
     try {
       const [kb, em] = await Promise.all([kbsApi.list(activeWorkspaceId()), modelsApi.listEmbedding()])
+      if (epoch !== loadEpochRef.current) return // superseded by a space switch
       setRows(kb)
       setModels(em.models)
       if (em.models.length > 0 && !draft.embedding_model_id) {
         setDraft((d) => ({ ...d, embedding_model_id: em.default_id || em.models[0].id }))
       }
     } catch (e) {
+      if (epoch !== loadEpochRef.current) return
       toast.error(e instanceof ApiError ? e.message : t('common:common.error'))
     } finally {
-      setLoading(false)
+      if (epoch === loadEpochRef.current) setLoading(false)
     }
   }
 
   useEffect(() => {
+    if (wsSwitching) return
     void load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [activeWsId, wsSwitching])
 
   async function create() {
     if (creatingRef.current) return

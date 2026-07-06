@@ -14,6 +14,12 @@ import type { ApiWorkspace } from '@/api/types'
 
 const ACTIVE_KEY = 'aurelia.workspace'
 
+// Monotonic switch sequence: overlapping switchTo() calls must not let an
+// EARLIER switch's finally clear `switching` while a newer switch's loads are
+// still in flight — consumers (ChatThread's re-hydrate) rely on "switching
+// flips false only after the newest space's list landed".
+let switchSeq = 0
+
 function readStoredActive(): string | null {
   try {
     return localStorage.getItem(ACTIVE_KEY) || null
@@ -78,6 +84,7 @@ export const useWorkspaces = create<WorkspacesState>((set, get) => ({
     if (id === get().activeId) return
     // activeId flips synchronously (instant switch, no delay) — `switching`
     // drives the loading transition while the space-scoped data catches up.
+    const token = ++switchSeq
     set({ activeId: id, switching: true })
     try {
       if (id) localStorage.setItem(ACTIVE_KEY, id)
@@ -88,7 +95,9 @@ export const useWorkspaces = create<WorkspacesState>((set, get) => ({
     try {
       await reloadSpaceData()
     } finally {
-      set({ switching: false })
+      // Only the NEWEST switch settles the flag — a superseded switch's loads
+      // resolving early must not signal "data landed" for the newer space.
+      if (token === switchSeq) set({ switching: false })
     }
   },
 

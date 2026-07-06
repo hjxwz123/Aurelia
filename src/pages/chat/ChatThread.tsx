@@ -31,6 +31,7 @@ import { useConversations } from '@/store/conversations'
 import { useModels } from '@/store/models'
 import { useProjects } from '@/store/projects'
 import { useUI } from '@/store/ui'
+import { useWorkspaces } from '@/store/workspaces'
 import { useConversationFiles } from '@/store/conversation-files'
 import { useMediaQuery } from '@/hooks/use-media-query'
 import { conversationsApi, ApiError } from '@/api'
@@ -72,6 +73,11 @@ export default function ChatThread() {
 
   const isDesktop = useMediaQuery('(min-width: 1024px)')
   const openNav = useUI((s) => s.setNavOpen)
+  // §workspaces: a space switch replaces the conversations cache with summary
+  // rows (no messages) without changing the route id — re-hydrate when the
+  // switch settles. switchTo() flips `switching` false only AFTER the new
+  // space's list landed, so this loadOne can't be clobbered by that fetch.
+  const wsSwitching = useWorkspaces((s) => s.switching)
   const openFilesDrawer = useConversationFiles((s) => s.openDrawer)
   const closeFilesDrawer = useConversationFiles((s) => s.close)
   const filesDrawerOpen = useConversationFiles((s) => s.open)
@@ -153,16 +159,17 @@ export default function ChatThread() {
   )
 
   // Hydrate the active conversation + its messages from the backend whenever
-  // the id changes.
+  // the id changes — and again after a workspace switch settles (the switch
+  // replaced this conversation's cache entry with a message-less summary row).
   useEffect(() => {
-    if (!id) return
+    if (!id || wsSwitching) return
     setLoadStatus('loading')
     // Jumping to a specific message needs the whole path loaded so the target is
     // present; a normal open paginates (latest page, older on scroll-up).
     Promise.all([loadOne(id, { full: Boolean(jumpTo) }), loadInlineThreads(id)]).finally(() => {
       setLoadStatus('done')
     })
-  }, [id, jumpTo, loadOne, loadInlineThreads])
+  }, [id, jumpTo, wsSwitching, loadOne, loadInlineThreads])
 
   useEffect(() => {
     // When jumping to a specific message, don't auto-follow/pin to the bottom —
@@ -223,7 +230,10 @@ export default function ChatThread() {
   }
 
   if (!conversation) {
-    if (loadStatus !== 'done') {
+    // A workspace switch transiently drops the open conversation from the
+    // cache before the settle-refire re-hydrates it — show the spinner, not a
+    // premature "conversation not found".
+    if (loadStatus !== 'done' || wsSwitching) {
       return (
         <div className="flex-1 grid place-items-center">
           <div className="flex flex-col items-center gap-4 text-[var(--color-fg-muted)]">

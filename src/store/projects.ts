@@ -39,6 +39,12 @@ interface ProjectStore {
 
 const ACCENT_FALLBACK: ProjectAccent = 'violet'
 
+// §workspaces: every load belongs to the space it was ISSUED for (same epoch
+// pattern as the conversations store) — a switch mid-flight bumps the epoch so
+// a stale response can't overwrite the new space's list, and a fresh load is
+// never silently skipped because an older one is still in flight.
+let projLoadEpoch = 0
+
 export const useProjects = create<ProjectStore>((set, get) => ({
   projects: [],
   loaded: false,
@@ -46,13 +52,15 @@ export const useProjects = create<ProjectStore>((set, get) => ({
   error: null,
 
   async load() {
-    if (get().loading) return
+    const epoch = ++projLoadEpoch
     set({ loading: true, error: null })
     try {
       const rows = await projectsApi.list(activeWorkspaceId())
       const projects = await Promise.all(rows.map(async (p) => toLocalProject(p, [])))
+      if (epoch !== projLoadEpoch) return // superseded by a workspace switch
       set({ projects, loaded: true, loading: false })
     } catch (e) {
+      if (epoch !== projLoadEpoch) return
       set({ error: errorMessage(e, 'Failed to load projects'), loading: false })
     }
   },
