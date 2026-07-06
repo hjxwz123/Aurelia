@@ -179,8 +179,10 @@
     "comfortable": "Confortable",
     "chatWidth": {
       "label": "Largeur du chat",
-      "body": "Pleine largeur utilise tout le volet ; centré garde une colonne éditoriale.",
+      "body": "Faites glisser entre une colonne étroite et tout le volet de discussion.",
+      "narrow": "Étroit",
       "comfortable": "Centré",
+      "wide": "Large",
       "full": "Pleine largeur"
     },
     "userMessageMarkdown": {

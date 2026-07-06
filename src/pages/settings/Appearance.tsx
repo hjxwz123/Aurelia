@@ -7,7 +7,7 @@ import { useAccent } from '@/store/accent'
 import { useLanguage } from '@/store/language'
 import { useAuth } from '@/store/auth'
 import { SUPPORTED_LANGUAGES } from '@/i18n'
-import { type AccentPref, ACCENT_PRESETS, type FontPref, FONT_PRESETS } from '@/types/settings'
+import { type AccentPref, ACCENT_PRESETS, type ChatWidthPref, type FontPref, FONT_PRESETS } from '@/types/settings'
 import {
   Select,
   SelectContent,
@@ -21,6 +21,10 @@ import { cn } from '@/lib/utils'
 import { authApi } from '@/api'
 import { toast } from '@/hooks/use-toast'
 import { persistUserSettings } from '@/lib/user-settings'
+
+// Slider stops, narrow → full. Order defines the slider's left-to-right axis;
+// widths live in tokens.css ([data-chat-width=…] → --layout-message-max-w).
+const CHAT_WIDTH_STOPS: readonly ChatWidthPref[] = ['narrow', 'comfortable', 'wide', 'full']
 
 /**
  * Static preview color per accent preset. Chosen at L≈58 / C≈0.18 so the
@@ -179,21 +183,38 @@ export default function Appearance() {
           </div>
         </SettingsRow>
         <SettingsRow label={t('appearance.chatWidth.label')} description={t('appearance.chatWidth.body')}>
-          <div className="inline-flex items-center gap-1 p-0.5 rounded-[10px] bg-[var(--color-bg-muted)] border border-[var(--color-border-subtle)]">
-            <Segment
-              current={appearance.chatWidth}
-              value="comfortable"
-              onClick={() => onChangeChatWidth('comfortable')}
-            >
-              {t('appearance.chatWidth.comfortable')}
-            </Segment>
-            <Segment
-              current={appearance.chatWidth}
-              value="full"
-              onClick={() => onChangeChatWidth('full')}
-            >
-              {t('appearance.chatWidth.full')}
-            </Segment>
+          {/* w-56 (not 64): the row's control slot can't shrink, and at the sm
+              breakpoint's narrowest dialog a 256px control overflows the card. */}
+          <div className="w-56">
+            <input
+              type="range"
+              min={0}
+              max={CHAT_WIDTH_STOPS.length - 1}
+              step={1}
+              value={Math.max(0, CHAT_WIDTH_STOPS.indexOf(appearance.chatWidth))}
+              onChange={(e) => onChangeChatWidth(CHAT_WIDTH_STOPS[Number(e.target.value)])}
+              aria-label={t('appearance.chatWidth.label')}
+              aria-valuetext={t(`appearance.chatWidth.${appearance.chatWidth}`)}
+              className="w-full accent-[var(--color-accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)] rounded-full"
+            />
+            <div className="mt-1 flex justify-between">
+              {CHAT_WIDTH_STOPS.map((stop) => (
+                <button
+                  key={stop}
+                  type="button"
+                  onClick={() => onChangeChatWidth(stop)}
+                  className={cn(
+                    'text-[11px] interactive rounded-[4px] px-0.5',
+                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]',
+                    appearance.chatWidth === stop
+                      ? 'text-[var(--color-fg)] font-medium'
+                      : 'text-[var(--color-fg-subtle)] hover:text-[var(--color-fg-muted)]',
+                  )}
+                >
+                  {t(`appearance.chatWidth.${stop}`)}
+                </button>
+              ))}
+            </div>
           </div>
         </SettingsRow>
         <SettingsRow label={t('appearance.userMessageMarkdown.label')} description={t('appearance.userMessageMarkdown.body')}>
