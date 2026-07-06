@@ -85,6 +85,9 @@ interface ConversationStore {
   loadOlderMessages: (id: string) => Promise<void>
 
   createConversation: (modelId?: string, projectId?: string) => Promise<Conversation>
+  /** Insert a conversation created OUTSIDE the store (the home page's
+   *  attachment-scoped draft, kept off the sidebar until first send). */
+  adoptConversation: (row: ApiConversation) => Conversation
   deleteConversation: (id: string) => Promise<void>
   renameConversation: (id: string, title: string) => Promise<void>
   togglePin: (id: string) => Promise<void>
@@ -312,6 +315,12 @@ export const useConversations = createWithEqualityFn<ConversationStore>((set, ge
       set((s) => ({ conversations: [conv, ...s.conversations], error: errorMessage(e) }))
       return conv
     }
+  },
+
+  adoptConversation(row) {
+    const conv = toLocalConversation(row)
+    set((s) => ({ conversations: replaceOrPrepend(s.conversations, conv) }))
+    return conv
   },
 
   async deleteConversation(id) {
@@ -1662,15 +1671,20 @@ function mergeStreamingSummaries(existing: Conversation[], incoming: Conversatio
   const byID = new Map(existing.map((c) => [c.id, c]))
   return incoming.map((next) => {
     const cur = byID.get(next.id)
-    if (!cur?.messages.some((m) => m.streaming)) return next
+    if (!cur || cur.messages.length === 0) return next
+    const streaming = cur.messages.some((m) => m.streaming)
     return {
       ...next,
-      updatedAt: Math.max(cur.updatedAt, next.updatedAt),
-      title: next.title || cur.title,
+      // The list endpoint carries no messages — never clobber a transcript a
+      // concurrent loadOne already hydrated (boot/deep-link race, workspace
+      // switch while the thread is open, Privacy-page / unarchive reloads).
       messages: cur.messages,
       lastParams: cur.lastParams,
       hasOlder: cur.hasOlder,
       olderCursor: cur.olderCursor,
+      // A live stream additionally keeps its optimistic sort bump + title.
+      updatedAt: streaming ? Math.max(cur.updatedAt, next.updatedAt) : next.updatedAt,
+      title: streaming ? next.title || cur.title : next.title,
     }
   })
 }

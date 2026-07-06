@@ -268,10 +268,17 @@
   }
 }
 
-/* Chat width preference (§ appearance → layout). "full" widens the editorial
- * column toward the whole chat pane, but still capped so very wide screens keep
- * a comfortable measure (edge-to-edge text is hard to read). Message containers
- * keep their horizontal padding as the safe gutter. */
+/* Chat width preference (§ appearance → layout) — four slider presets around
+ * the 48rem default. "full" widens the editorial column toward the whole chat
+ * pane, but still capped so very wide screens keep a comfortable measure
+ * (edge-to-edge text is hard to read). Message containers keep their
+ * horizontal padding as the safe gutter. */
+[data-chat-width='narrow'] {
+  --layout-message-max-w: 44rem;
+}
+[data-chat-width='wide'] {
+  --layout-message-max-w: min(56rem, 100%);
+}
 [data-chat-width='full'] {
   --layout-message-max-w: min(62rem, 100%);
 }

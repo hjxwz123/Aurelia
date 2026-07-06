@@ -179,8 +179,10 @@
     "comfortable": "ゆったり",
     "chatWidth": {
       "label": "チャット幅",
-      "body": "全幅はチャット領域全体を使用し、中央寄せは読みやすい列幅を保ちます。",
+      "body": "狭い列幅からチャット領域全体まで、スライダーで選べます。",
+      "narrow": "狭い",
       "comfortable": "中央寄せ",
+      "wide": "広い",
       "full": "全幅"
     },
     "userMessageMarkdown": {

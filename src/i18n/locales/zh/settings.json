@@ -179,8 +179,10 @@
     "comfortable": "宽松",
     "chatWidth": {
       "label": "聊天宽度",
-      "body": "全宽占据整个聊天区域；居中则保留版心栏。",
+      "body": "在窄版心与全宽聊天区域之间滑动选择。",
+      "narrow": "窄",
       "comfortable": "居中",
+      "wide": "宽",
       "full": "全宽"
     },
     "userMessageMarkdown": {

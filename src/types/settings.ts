@@ -4,9 +4,10 @@ export type FontSizePref = 'sm' | 'md' | 'lg'
 export type AccentPref = 'violet' | 'lagoon' | 'ember' | 'moss' | 'indigo' | 'rose' | 'mono'
 /** Body typeface preset. 'default' = Geist (brand); the rest override --font-sans. */
 export type FontPref = 'default' | 'inter' | 'system' | 'serif'
-/** Chat content width. 'comfortable' = centered editorial column (default);
- *  'full' = use the whole chat pane, keeping only a safe gutter. */
-export type ChatWidthPref = 'comfortable' | 'full'
+/** Chat content width preset, picked on a snapping slider. 'comfortable' =
+ *  centered editorial column (default); 'full' = the whole chat pane, keeping
+ *  only a safe gutter; 'narrow'/'wide' sit either side of the default. */
+export type ChatWidthPref = 'narrow' | 'comfortable' | 'wide' | 'full'
 
 export const ACCENT_PRESETS: readonly AccentPref[] = ['violet', 'lagoon', 'ember', 'moss', 'indigo', 'rose', 'mono']
 export const FONT_PRESETS: readonly FontPref[] = ['default', 'inter', 'system', 'serif']

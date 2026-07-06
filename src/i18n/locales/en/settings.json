@@ -179,8 +179,10 @@
     "comfortable": "Comfortable",
     "chatWidth": {
       "label": "Chat width",
-      "body": "Full width uses the whole chat pane; centered keeps an editorial column.",
+      "body": "Slide between a narrow editorial column and the full chat pane.",
+      "narrow": "Narrow",
       "comfortable": "Centered",
+      "wide": "Wide",
       "full": "Full width"
     },
     "userMessageMarkdown": {
