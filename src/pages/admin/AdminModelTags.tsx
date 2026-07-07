@@ -4,8 +4,9 @@
  * page and drive the picker's filter chips.
  */
 import { useEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { Plus, Trash2, Tag } from 'lucide-react'
+import { Plus, Trash2, Tag, ArrowLeft } from 'lucide-react'
 import { adminApi, ApiError } from '@/api'
 import type { ApiModelTag } from '@/api/types'
 import { Button } from '@/components/ui/button'
@@ -14,6 +15,7 @@ import { toast } from '@/hooks/use-toast'
 
 export default function AdminModelTags() {
   const { t } = useTranslation(['admin', 'common'])
+  const navigate = useNavigate()
   const [tags, setTags] = useState<ApiModelTag[]>([])
   const [loading, setLoading] = useState(true)
   const [newName, setNewName] = useState('')
@@ -83,6 +85,18 @@ export default function AdminModelTags() {
 
   return (
     <div className="mx-auto max-w-[76rem]">
+      {/* This page has no top-nav entry of its own (it's reached via "Manage
+          tags" on the model editor), so the nav still reads "Models". Mirror the
+          model-editor's back link so admins can return to the list. */}
+      <button
+        type="button"
+        onClick={() => navigate('/admin/models')}
+        className="inline-flex items-center gap-1.5 text-[12.5px] text-[var(--color-fg-subtle)] hover:text-[var(--color-fg)] interactive rounded-[6px] -ml-2 px-2 py-1.5 mb-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
+      >
+        <ArrowLeft size={12} aria-hidden />
+        {t('admin:models.backToList')}
+      </button>
+
       <header>
         <h1 className="font-serif text-3xl tracking-tight text-[var(--color-fg)]">{t('admin:modelTags.title')}</h1>
         <p className="mt-2 max-w-2xl text-sm text-[var(--color-fg-muted)]">{t('admin:modelTags.lead')}</p>
