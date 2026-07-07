@@ -79,6 +79,7 @@ export default function ChatHome() {
   // only enters the cache on send (adoptConversation). If the draft is
   // abandoned instead, the cleanup below deletes it server-side.
   const pendingConvRef = useRef<ApiConversation | null>(null)
+  const pendingCreateRef = useRef<Promise<string | undefined> | null>(null)
   const pendingConsumedRef = useRef(false)
   // True once this mount's cleanup ran — a create that resolves AFTER the user
   // left the page must delete itself instead of stashing into a dead ref.
@@ -86,31 +87,38 @@ export default function ChatHome() {
   const adoptConversation = useConversations((s) => s.adoptConversation)
 
   // Lazily create (once) the conversation the first attachment will be scoped
-  // to. Idempotent: repeat attaches in the same draft reuse the same id. Does
+  // to. Idempotent: repeat attaches in the same draft reuse the same id — the
+  // in-flight promise is memoized so two quick attaches share ONE create. Does
   // NOT navigate — that happens on send, so attaching a file doesn't yank the
   // user off the home screen mid-compose. Returning undefined on failure lets
   // the composer fall back to a scope-less (non-RAG) upload instead of
   // uploading against a fabricated id the server would reject.
-  async function ensureConversation(): Promise<string | undefined> {
-    if (pendingConvRef.current) return pendingConvRef.current.id
-    try {
-      const created = await conversationsApi.create({
-        model_id: modelId || undefined,
-        workspace_id: activeWorkspaceId(),
-      })
-      // The user may have navigated away (or sent via a suggestion card, which
-      // bypasses the composer) while the create was in flight — the cleanup
-      // already ran against an empty ref, so this draft must delete itself.
-      if (disposedRef.current) {
-        void conversationsApi.remove(created.id).catch(() => {})
-        return undefined
-      }
-      pendingConvRef.current = created
-      pendingConsumedRef.current = false
-      return created.id
-    } catch {
-      return undefined
+  function ensureConversation(): Promise<string | undefined> {
+    if (pendingConvRef.current) return Promise.resolve(pendingConvRef.current.id)
+    if (!pendingCreateRef.current) {
+      pendingCreateRef.current = (async () => {
+        try {
+          const created = await conversationsApi.create({
+            model_id: modelId || undefined,
+            workspace_id: activeWorkspaceId(),
+          })
+          // The user may have navigated away, or sent meanwhile (a suggestion
+          // card bypasses the composer's upload gate), while the create was in
+          // flight — this draft must delete itself instead of leaking.
+          if (disposedRef.current || pendingConsumedRef.current) {
+            void conversationsApi.remove(created.id).catch(() => {})
+            return undefined
+          }
+          pendingConvRef.current = created
+          return created.id
+        } catch {
+          return undefined
+        } finally {
+          pendingCreateRef.current = null
+        }
+      })()
     }
+    return pendingCreateRef.current
   }
 
   // Abandoned draft cleanup — navigating away from home (unmount) or closing
@@ -212,8 +220,10 @@ export default function ChatHome() {
     // Reuse the conversation created up front for an attachment (so its uploads
     // stay scoped/ingested) — adopting it into the store now (it was kept off
     // the sidebar while drafting); otherwise create a fresh one via the store.
+    // consumed is set unconditionally: an ensureConversation still in flight
+    // (send raced the attach) must delete its row on resolve, not stash it.
     const pending = pendingConvRef.current
-    if (pending) pendingConsumedRef.current = true
+    pendingConsumedRef.current = true
     pendingConvRef.current = null
     const conv = pending ? adoptConversation(pending) : await createConversation(modelId)
     if (!conv) return
