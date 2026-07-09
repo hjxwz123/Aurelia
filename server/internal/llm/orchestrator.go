@@ -1032,14 +1032,16 @@ func (o *Orchestrator) Run(ctx context.Context, req RunRequest, onEvent func(Sse
 		}
 	}
 
+	reqRecorder := newProviderRequestRecorder()
+	providerCtx := contextWithProviderRequestRecorder(ctx, reqRecorder)
 	var result *UnifiedResult
 	if req.Mode == ModeDeepResearch {
 		// Deep Research: plan → multi-round web search + source reading → verify
 		// → comprehensive cited report. Returns the same UnifiedResult shape, so
 		// all finalize/persist/usage/done logic below is path-agnostic.
-		result, err = o.runDeepResearch(ctx, provReq, runner, provider, streamToUser, conv, assistantMsg)
+		result, err = o.runDeepResearch(providerCtx, provReq, runner, provider, streamToUser, conv, assistantMsg)
 	} else {
-		result, err = o.streamWithFallback(ctx, provReq, runner, provider, model.ID, streamToUser)
+		result, err = o.streamWithFallback(providerCtx, provReq, runner, provider, model.ID, streamToUser)
 	}
 	// §fallback channel: which channel actually served this turn, for the usage
 	// row. If any request was retried on the fallback, the whole turn is marked
@@ -1169,6 +1171,7 @@ func (o *Orchestrator) Run(ctx context.Context, req RunRequest, onEvent func(Sse
 		// shows which channel served it (and whether the fallback was used). No
 		// output was produced, so it carries zero tokens/cost/credits and is
 		// excluded from quota reseeds (store.UsageInWindow skips status='error').
+		reqSnapshot := reqRecorder.snapshot()
 		o.logUsage(ctx, store.UsageLog{
 			UserID:         req.UserID,
 			WorkspaceID:    conv.WorkspaceID,
@@ -1183,7 +1186,11 @@ func (o *Orchestrator) Run(ctx context.Context, req RunRequest, onEvent func(Sse
 			// Store the raw upstream failure (status + response body) so an admin can
 			// diagnose it on /admin/usage. It's the same detail we log server-side and
 			// deliberately withhold from the user (§B5); it's admin-only on the wire.
-			Error: truncErr(err.Error()),
+			Error:          truncErr(err.Error()),
+			RequestMethod:  reqSnapshot.Method,
+			RequestURL:     reqSnapshot.URL,
+			RequestHeaders: reqSnapshot.Header,
+			RequestBody:    reqSnapshot.Body,
 		})
 		onEvent(SseEvent{Type: "error", Message: safeErr})
 		return nil, err
