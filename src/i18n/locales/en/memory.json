@@ -1,11 +1,11 @@
 {
   "title": "Memory",
-  "lead": "Aurelia learns lasting facts about you across conversations. Anything here is fair game for future replies.",
+  "lead": "Auven learns lasting facts about you across conversations. Anything here is fair game for future replies.",
   "empty": "No memories yet.",
-  "emptyBody": "After a few conversations Aurelia will surface things worth remembering. You can also save them by hand.",
+  "emptyBody": "After a few conversations Auven will surface things worth remembering. You can also save them by hand.",
   "new": "Add memory",
   "addDialogTitle": "New memory",
-  "addDialogBody": "A short, durable fact about you. Aurelia will treat it as ground truth.",
+  "addDialogBody": "A short, durable fact about you. Auven will treat it as ground truth.",
   "fields": {
     "text": "Memory",
     "slot": "Slot (optional)",

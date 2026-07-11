@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"aurelia/server/internal/store"
+	"auven/server/internal/store"
 )
 
 func TestCloneSharedConversationCopiesSnapshotForCurrentUser(t *testing.T) {

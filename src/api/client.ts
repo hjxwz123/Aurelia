@@ -1,6 +1,6 @@
 /**
- * Aurelia API client — typed wrapper around fetch() that talks to the Go
- * backend at AURELIA_API_BASE (defaults to "/api" so the dev proxy in
+ * Auven API client — typed wrapper around fetch() that talks to the Go
+ * backend at AUVEN_API_BASE (defaults to "/api" so the dev proxy in
  * vite.config.ts forwards calls during local development).
  *
  * Three concerns live here:

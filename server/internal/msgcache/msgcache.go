@@ -6,9 +6,9 @@ import (
 	"encoding/json"
 	"time"
 
-	"aurelia/server/internal/cache"
+	"auven/server/internal/cache"
 
-	"aurelia/server/internal/store"
+	"auven/server/internal/store"
 )
 
 var (

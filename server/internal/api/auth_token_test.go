@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	authsvc "aurelia/server/internal/auth"
-	"aurelia/server/internal/cache"
-	"aurelia/server/internal/config"
-	"aurelia/server/internal/store"
+	authsvc "auven/server/internal/auth"
+	"auven/server/internal/cache"
+	"auven/server/internal/config"
+	"auven/server/internal/store"
 )
 
 func TestReadAccessTokenPrefersBearerOverCookie(t *testing.T) {

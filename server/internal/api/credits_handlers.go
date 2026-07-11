@@ -1,7 +1,7 @@
 package api
 
 import (
-	"aurelia/server/internal/store"
+	"auven/server/internal/store"
 	"context"
 	"encoding/json"
 	"math"

@@ -1,4 +1,4 @@
-module aurelia/server
+module auven/server
 
 go 1.24.1
 

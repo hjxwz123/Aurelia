@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"strings"
 
-	"aurelia/server/internal/store"
+	"auven/server/internal/store"
 )
 
 // redeemCodeHandler validates and applies a code on behalf of the

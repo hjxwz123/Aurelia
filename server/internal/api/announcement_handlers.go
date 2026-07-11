@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"aurelia/server/internal/store"
+	"auven/server/internal/store"
 )
 
 // announcement is the wire shape of the global notice (§ announcement). image_url

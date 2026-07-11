@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"time"
 
-	"aurelia/server/internal/cache"
+	"auven/server/internal/cache"
 
-	"aurelia/server/internal/llm"
+	"auven/server/internal/llm"
 )
 
 // TTL is how long a per-message SSE event stream (gen:<id>) is retained (2h).

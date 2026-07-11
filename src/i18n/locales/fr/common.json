@@ -1,5 +1,5 @@
 {
-  "appName": "Aurelia",
+  "appName": "Auven",
   "tagline": "Un compagnon IA réfléchi",
   "actions": {
     "send": "Envoyer",
@@ -21,7 +21,7 @@
     "back": "Retour",
     "continue": "Continuer",
     "tryAgain": "Réessayer",
-    "openAurelia": "Ouvrir Aurelia",
+    "openAuven": "Ouvrir Auven",
     "signIn": "Se connecter",
     "signOut": "Se déconnecter",
     "signUp": "Créer un compte",
@@ -76,7 +76,7 @@
     "themeValue": "Thème : {{label}}",
     "languageValue": "Langue : {{label}}",
     "selected": "Sélectionné",
-    "homeLink": "Accueil Aurelia",
+    "homeLink": "Accueil Auven",
     "backToTop": "Retour en haut",
     "boundary": "Quelque chose a déraillé."
   },

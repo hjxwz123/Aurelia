@@ -3,7 +3,7 @@ package api
 import (
 	"testing"
 
-	"aurelia/server/internal/store"
+	"auven/server/internal/store"
 )
 
 // TestPaginatePath covers the reverse-pagination windowing used by the

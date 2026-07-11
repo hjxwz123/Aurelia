@@ -1,8 +1,8 @@
 import { createCssVariablesTheme } from 'shiki/core'
 
-export const SHIKI_THEME = 'aurelia-css-vars'
+export const SHIKI_THEME = 'auven-css-vars'
 
-export const aureliaShikiTheme = createCssVariablesTheme({
+export const auvenShikiTheme = createCssVariablesTheme({
   name: SHIKI_THEME,
   variablePrefix: '--shiki-',
   fontStyle: true,

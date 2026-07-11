@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"aurelia/server/internal/store"
+	"auven/server/internal/store"
 )
 
 // buildHistory makes n alternating user/assistant messages with small text

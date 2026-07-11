@@ -27,14 +27,14 @@ import (
 	"fmt"
 	"strings"
 
-	"aurelia/server/internal/envcfg"
+	"auven/server/internal/envcfg"
 )
 
 const promptStopToken = "</tool_call>"
 
 var (
-	promptMaxIter                     = envcfg.Int("AURELIA_LLM_PROMPT_MAX_ITER", 10)
-	promptMaxRetry                    = envcfg.Int("AURELIA_LLM_PROMPT_MAX_RETRY", 2)
+	promptMaxIter                     = envcfg.Int("AUVEN_LLM_PROMPT_MAX_ITER", 10)
+	promptMaxRetry                    = envcfg.Int("AUVEN_LLM_PROMPT_MAX_RETRY", 2)
 	promptModeToolResultSummaryLength = 240
 )
 

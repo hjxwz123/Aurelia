@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"aurelia/server/internal/store"
+	"auven/server/internal/store"
 )
 
 var (

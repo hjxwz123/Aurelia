@@ -1,5 +1,5 @@
 {
-  "appName": "Aurelia",
+  "appName": "Auven",
   "tagline": "一位克制而细腻的 AI 伙伴",
   "actions": {
     "send": "发送",
@@ -21,7 +21,7 @@
     "back": "返回",
     "continue": "继续",
     "tryAgain": "再试一次",
-    "openAurelia": "进入 Aurelia",
+    "openAuven": "进入 Auven",
     "signIn": "登录",
     "signOut": "退出登录",
     "signUp": "创建账号",
@@ -76,7 +76,7 @@
     "themeValue": "主题：{{label}}",
     "languageValue": "语言：{{label}}",
     "selected": "已选中",
-    "homeLink": "Aurelia 首页",
+    "homeLink": "Auven 首页",
     "backToTop": "返回顶部",
     "boundary": "好像有点不对劲。"
   },

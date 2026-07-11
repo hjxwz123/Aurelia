@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"aurelia/server/internal/store"
+	"auven/server/internal/store"
 )
 
 // §4.20 Image Generation Studio — style endpoints. Image GENERATION itself

@@ -4,7 +4,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"aurelia/server/internal/config"
+	"auven/server/internal/config"
 )
 
 // TestAllowedReturnOrigin is the open-redirect guard for the cross-domain OAuth

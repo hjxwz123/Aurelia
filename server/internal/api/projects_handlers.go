@@ -6,14 +6,14 @@ import (
 	"strings"
 	"time"
 
-	"aurelia/server/internal/envcfg"
-	"aurelia/server/internal/store"
+	"auven/server/internal/envcfg"
+	"auven/server/internal/store"
 )
 
 // Project handler tunables (env-overridable; defaults preserve prior behavior).
 var (
-	projectDetailConversationsPageSize = envcfg.Int("AURELIA_API_PROJECT_DETAIL_CONVERSATIONS_PAGE_SIZE", 200)
-	projectDocUploadRateLimit          = envcfg.Int("AURELIA_API_RATE_LIMIT_USER_2", 20)
+	projectDetailConversationsPageSize = envcfg.Int("AUVEN_API_PROJECT_DETAIL_CONVERSATIONS_PAGE_SIZE", 200)
+	projectDocUploadRateLimit          = envcfg.Int("AUVEN_API_RATE_LIMIT_USER_2", 20)
 )
 
 // listProjectsHandler returns the user's projects.

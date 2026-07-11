@@ -9,9 +9,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"aurelia/server/internal/queue"
-	"aurelia/server/internal/rag"
-	"aurelia/server/internal/store"
+	"auven/server/internal/queue"
+	"auven/server/internal/rag"
+	"auven/server/internal/store"
 )
 
 type recordingQueue struct {

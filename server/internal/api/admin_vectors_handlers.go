@@ -7,16 +7,16 @@ import (
 	"sync"
 	"time"
 
-	"aurelia/server/internal/envcfg"
-	"aurelia/server/internal/rag"
+	"auven/server/internal/envcfg"
+	"auven/server/internal/rag"
 
 	"github.com/google/uuid"
 )
 
 // Tunable knobs — envcfg overrides; defaults preserve original behaviour.
 var (
-	vectorMaintenanceJobHistoryRetention = envcfg.Int("AURELIA_API_VECTOR_MAINTENANCE_JOB_HISTORY_RETENTION", 20)
-	vectorMaintenanceJobRuntime          = envcfg.Dur("AURELIA_API_VECTOR_MAINTENANCE_JOB_RUNTIME", 12*time.Hour)
+	vectorMaintenanceJobHistoryRetention = envcfg.Int("AUVEN_API_VECTOR_MAINTENANCE_JOB_HISTORY_RETENTION", 20)
+	vectorMaintenanceJobRuntime          = envcfg.Dur("AUVEN_API_VECTOR_MAINTENANCE_JOB_RUNTIME", 12*time.Hour)
 )
 
 type vectorMaintenanceJob struct {

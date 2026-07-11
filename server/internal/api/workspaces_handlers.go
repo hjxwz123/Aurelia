@@ -5,15 +5,15 @@ import (
 	"strconv"
 	"strings"
 
-	"aurelia/server/internal/envcfg"
-	"aurelia/server/internal/store"
+	"auven/server/internal/envcfg"
+	"auven/server/internal/store"
 )
 
 // Admin workspace listing page-size knobs — overridable via env (see
 // docs/config-reference.md); defaults preserve the previous hardcoded values.
 var (
-	adminWorkspaceListLimit                   = envcfg.Int("AURELIA_API_LIMIT", 200)
-	adminWorkspaceDetailConversationsPageSize = envcfg.Int("AURELIA_API_ADMIN_WORKSPACE_DETAIL_CONVERSATIONS_PAGE_SIZE", 500)
+	adminWorkspaceListLimit                   = envcfg.Int("AUVEN_API_LIMIT", 200)
+	adminWorkspaceDetailConversationsPageSize = envcfg.Int("AUVEN_API_ADMIN_WORKSPACE_DETAIL_CONVERSATIONS_PAGE_SIZE", 500)
 )
 
 // Workspaces (§workspaces) — fully-isolated collaborative spaces. Creation is

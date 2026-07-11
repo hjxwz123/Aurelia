@@ -1,4 +1,4 @@
-// Aurelia API server — entrypoint.
+// Auven API server — entrypoint.
 //
 // Runs the HTTP API described in design.md §6. Wires the SQLite-backed store,
 // Provider registry, tools registry, async queue, and the SSE-aware chat
@@ -22,30 +22,30 @@ import (
 	"syscall"
 	"time"
 
-	"aurelia/server/internal/api"
-	"aurelia/server/internal/auth"
-	"aurelia/server/internal/cache"
-	"aurelia/server/internal/config"
-	"aurelia/server/internal/envcfg"
-	"aurelia/server/internal/llm"
-	"aurelia/server/internal/mail"
-	"aurelia/server/internal/queue"
-	"aurelia/server/internal/rag"
-	"aurelia/server/internal/store"
-	"aurelia/server/internal/tools"
-	"aurelia/server/internal/vector"
+	"auven/server/internal/api"
+	"auven/server/internal/auth"
+	"auven/server/internal/cache"
+	"auven/server/internal/config"
+	"auven/server/internal/envcfg"
+	"auven/server/internal/llm"
+	"auven/server/internal/mail"
+	"auven/server/internal/queue"
+	"auven/server/internal/rag"
+	"auven/server/internal/store"
+	"auven/server/internal/tools"
+	"auven/server/internal/vector"
 )
 
 var (
-	archiveGcBootSettleDelay  = envcfg.Dur("AURELIA_CMD_ARCHIVE_GC_BOOT_SETTLE_DELAY", 2*time.Minute)
-	runPruneCtxTimeout        = envcfg.Dur("AURELIA_CMD_RUN_PRUNE", 5*time.Minute)
-	archiveGcSweepInterval    = envcfg.Dur("AURELIA_CMD_ARCHIVE_GC_SWEEP_INTERVAL", 6*time.Hour)
+	archiveGcBootSettleDelay  = envcfg.Dur("AUVEN_CMD_ARCHIVE_GC_BOOT_SETTLE_DELAY", 2*time.Minute)
+	runPruneCtxTimeout        = envcfg.Dur("AUVEN_CMD_RUN_PRUNE", 5*time.Minute)
+	archiveGcSweepInterval    = envcfg.Dur("AUVEN_CMD_ARCHIVE_GC_SWEEP_INTERVAL", 6*time.Hour)
 	taskRouterMaxOutputTokens = 256
 )
 
 func main() {
 	cfg := config.Load()
-	logger := log.New(os.Stdout, "aurelia ", log.LstdFlags|log.Lmicroseconds)
+	logger := log.New(os.Stdout, "auven ", log.LstdFlags|log.Lmicroseconds)
 
 	// §8.1 production guard — refuse to boot with the dev JWT_SECRET in prod.
 	if err := config.Validate(cfg); err != nil {

@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"aurelia/server/internal/msgcache"
-	"aurelia/server/internal/store"
+	"auven/server/internal/msgcache"
+	"auven/server/internal/store"
 )
 
 // Public read-only conversation sharing (§ sharing). The owner creates a share

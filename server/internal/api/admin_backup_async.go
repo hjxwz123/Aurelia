@@ -13,18 +13,18 @@ import (
 	"sync"
 	"time"
 
-	"aurelia/server/internal/envcfg"
+	"auven/server/internal/envcfg"
 
 	"github.com/google/uuid"
 )
 
-const backupArchivePrefix = "aurelia-docker-backup-"
+const backupArchivePrefix = "auven-docker-backup-"
 
 // Env-overridable backup-export knobs. Defaults match the historical hardcoded
 // values (see docs/config-reference.md).
 var (
-	backupExportJobHistoryRetention = envcfg.Int("AURELIA_API_BACKUP_EXPORT_JOB_HISTORY_RETENTION", 20)
-	backupExportJobRuntime          = envcfg.Dur("AURELIA_API_BACKUP_EXPORT_JOB_RUNTIME", 12*time.Hour)
+	backupExportJobHistoryRetention = envcfg.Int("AUVEN_API_BACKUP_EXPORT_JOB_HISTORY_RETENTION", 20)
+	backupExportJobRuntime          = envcfg.Dur("AUVEN_API_BACKUP_EXPORT_JOB_RUNTIME", 12*time.Hour)
 )
 
 type backupExportJob struct {

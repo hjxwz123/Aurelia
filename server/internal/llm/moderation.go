@@ -1,7 +1,7 @@
 package llm
 
 import (
-	"aurelia/server/internal/store"
+	"auven/server/internal/store"
 	"context"
 	"encoding/json"
 	"strings"

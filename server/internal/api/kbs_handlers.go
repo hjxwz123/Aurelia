@@ -6,11 +6,11 @@ import (
 	"strings"
 	"time"
 
-	"aurelia/server/internal/envcfg"
-	"aurelia/server/internal/store"
+	"auven/server/internal/envcfg"
+	"auven/server/internal/store"
 )
 
-var kbDocUploadRateLimit = envcfg.Int("AURELIA_API_RATE_LIMIT_USER", 20)
+var kbDocUploadRateLimit = envcfg.Int("AUVEN_API_RATE_LIMIT_USER", 20)
 
 // listKBsHandler returns the user's knowledge bases.
 func listKBsHandler(d Deps, w http.ResponseWriter, r *http.Request) {

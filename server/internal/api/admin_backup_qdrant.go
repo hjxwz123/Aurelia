@@ -12,21 +12,21 @@ import (
 	"strings"
 	"time"
 
-	"aurelia/server/internal/envcfg"
+	"auven/server/internal/envcfg"
 )
 
 const (
 	qdrantArchiveVersion   = 1
-	qdrantCollectionPrefix = "aurelia_c"
+	qdrantCollectionPrefix = "auven_c"
 	qdrantZipManifest      = "qdrant/manifest.json"
 	qdrantZipCollectionDir = "qdrant/collections/"
 )
 
 var (
-	qdrantArchiveRequestTimeout      = envcfg.Dur("AURELIA_API_QDRANT_ARCHIVE_REQUEST_TIMEOUT", 5*time.Minute)
+	qdrantArchiveRequestTimeout      = envcfg.Dur("AUVEN_API_QDRANT_ARCHIVE_REQUEST_TIMEOUT", 5*time.Minute)
 	qdrantErrorBodyReadCap           = int64(1 << 20)
-	qdrantExportScrollPageSize       = envcfg.Int("AURELIA_API_QDRANT_EXPORT_SCROLL_PAGE_SIZE", 256)
-	qdrantImportUpsertFlushBatchSize = envcfg.Int("AURELIA_API_QDRANT_IMPORT_UPSERT_FLUSH_BATCH_SIZE", 128)
+	qdrantExportScrollPageSize       = envcfg.Int("AUVEN_API_QDRANT_EXPORT_SCROLL_PAGE_SIZE", 256)
+	qdrantImportUpsertFlushBatchSize = envcfg.Int("AUVEN_API_QDRANT_IMPORT_UPSERT_FLUSH_BATCH_SIZE", 128)
 )
 
 type qdrantArchiveManifest struct {
@@ -107,7 +107,7 @@ func (c *qdrantArchiveClient) do(ctx context.Context, method, path string, body,
 	return nil
 }
 
-func (c *qdrantArchiveClient) listAureliaCollections(ctx context.Context) ([]string, error) {
+func (c *qdrantArchiveClient) listAuvenCollections(ctx context.Context) ([]string, error) {
 	var out struct {
 		Result struct {
 			Collections []struct {
@@ -132,12 +132,12 @@ func exportQdrantToZip(ctx context.Context, d Deps, zw *zip.Writer) (int64, erro
 	if client == nil {
 		return 0, nil
 	}
-	names, err := client.listAureliaCollections(ctx)
+	names, err := client.listAuvenCollections(ctx)
 	if err != nil {
 		return 0, err
 	}
 	manifest := qdrantArchiveManifest{
-		Format:    "aurelia-qdrant",
+		Format:    "auven-qdrant",
 		Version:   qdrantArchiveVersion,
 		CreatedAt: time.Now().Unix(),
 	}
@@ -228,7 +228,7 @@ func restoreQdrantFromZip(ctx context.Context, d Deps, zr *zip.Reader) (int64, s
 	}
 	entry := findZipFile(zr, qdrantZipManifest)
 	if entry == nil {
-		if err := client.deleteAureliaCollections(ctx); err != nil {
+		if err := client.deleteAuvenCollections(ctx); err != nil {
 			return 0, err.Error()
 		}
 		return 0, ""
@@ -243,13 +243,13 @@ func restoreQdrantFromZip(ctx context.Context, d Deps, zr *zip.Reader) (int64, s
 	if err != nil {
 		return 0, fmt.Sprintf("invalid qdrant manifest: %v", err)
 	}
-	if man.Format != "aurelia-qdrant" {
+	if man.Format != "auven-qdrant" {
 		return 0, "invalid qdrant manifest format"
 	}
 	if man.Version > qdrantArchiveVersion {
 		return 0, fmt.Sprintf("qdrant archive v%d is newer than this server supports (v%d)", man.Version, qdrantArchiveVersion)
 	}
-	if err := client.deleteAureliaCollections(ctx); err != nil {
+	if err := client.deleteAuvenCollections(ctx); err != nil {
 		return 0, err.Error()
 	}
 	var total int64
@@ -276,8 +276,8 @@ func restoreQdrantFromZip(ctx context.Context, d Deps, zr *zip.Reader) (int64, s
 	return total, ""
 }
 
-func (c *qdrantArchiveClient) deleteAureliaCollections(ctx context.Context) error {
-	names, err := c.listAureliaCollections(ctx)
+func (c *qdrantArchiveClient) deleteAuvenCollections(ctx context.Context) error {
+	names, err := c.listAuvenCollections(ctx)
 	if err != nil {
 		return err
 	}

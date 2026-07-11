@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"aurelia/server/internal/store"
+	"auven/server/internal/store"
 )
 
 // Model tags (§ model tags) — admin-managed labels assigned to models. Any

@@ -8,13 +8,13 @@ import (
 	"strings"
 	"time"
 
-	"aurelia/server/internal/envcfg"
-	"aurelia/server/internal/sandbox"
-	"aurelia/server/internal/storage"
-	"aurelia/server/internal/store"
+	"auven/server/internal/envcfg"
+	"auven/server/internal/sandbox"
+	"auven/server/internal/storage"
+	"auven/server/internal/store"
 )
 
-var objectStorageDeleteTimeout = envcfg.Dur("AURELIA_API_OBJECT_STORAGE_DELETE_TIMEOUT_CLEANUP", 30*time.Second)
+var objectStorageDeleteTimeout = envcfg.Dur("AUVEN_API_OBJECT_STORAGE_DELETE_TIMEOUT_CLEANUP", 30*time.Second)
 
 func cleanupStoragePaths(ctx context.Context, d Deps, paths []string, label string) {
 	if len(paths) == 0 {
